@@ -1,9 +1,42 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 
 public static class LocalhostControlHost
 {
+    private static void CopyStream(Stream source, Stream destination, bool closeDestination)
+    {
+        var buffer = new byte[81920];
+
+        try
+        {
+            int bytesRead;
+            while ((bytesRead = source.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                destination.Write(buffer, 0, bytesRead);
+                destination.Flush();
+            }
+        }
+        catch
+        {
+            // The browser can close native messaging pipes at any time.
+        }
+        finally
+        {
+            if (closeDestination)
+            {
+                try
+                {
+                    destination.Close();
+                }
+                catch
+                {
+                }
+            }
+        }
+    }
+
     public static int Main()
     {
         try
@@ -26,9 +59,9 @@ public static class LocalhostControlHost
                 FileName = "node",
                 Arguments = "\"" + hostPath.Replace("\"", "\\\"") + "\"",
                 UseShellExecute = false,
-                RedirectStandardInput = false,
-                RedirectStandardOutput = false,
-                RedirectStandardError = false,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
                 CreateNoWindow = true
             };
 
@@ -39,7 +72,34 @@ public static class LocalhostControlHost
                     throw new InvalidOperationException("Unable to start node process for native host.");
                 }
 
+                var inputThread = new Thread(() =>
+                    CopyStream(Console.OpenStandardInput(), process.StandardInput.BaseStream, true));
+                var outputThread = new Thread(() =>
+                    CopyStream(process.StandardOutput.BaseStream, Console.OpenStandardOutput(), false));
+                var errorThread = new Thread(() =>
+                {
+                    try
+                    {
+                        var error = process.StandardError.ReadToEnd();
+                        if (!string.IsNullOrWhiteSpace(error))
+                        {
+                            File.AppendAllText(Path.Combine(Path.GetTempPath(), "localhost-control-host.log"), error);
+                        }
+                    }
+                    catch
+                    {
+                    }
+                });
+
+                inputThread.IsBackground = true;
+                outputThread.IsBackground = true;
+                errorThread.IsBackground = true;
+                inputThread.Start();
+                outputThread.Start();
+                errorThread.Start();
+
                 process.WaitForExit();
+                outputThread.Join(1000);
                 return process.ExitCode;
             }
         }
