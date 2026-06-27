@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Localhost Control",
+  "version": "0.1.0",
+  "description": "Find and kill stale localhost development servers from a clean Chromium side panel.",
+  "action": {
+    "default_title": "Localhost Control"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "permissions": ["nativeMessaging", "sidePanel", "storage", "tabs"]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "localhost-control",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Brave/Chromium side panel for finding and killing stale localhost dev servers.",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r --sort build",
+    "test": "pnpm -r --sort test",
+    "test:run": "pnpm -r --sort test:run",
+    "typecheck": "pnpm -r --sort typecheck",
+    "host:install": "powershell -ExecutionPolicy Bypass -File installer/windows/install.ps1",
+    "host:uninstall": "powershell -ExecutionPolicy Bypass -File installer/windows/uninstall.ps1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "packageManager": "pnpm@11.7.0"
+}
