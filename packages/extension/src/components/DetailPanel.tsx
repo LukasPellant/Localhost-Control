@@ -35,7 +35,7 @@ export const DetailPanel = ({ entry, onKill, onOpen, onCopy, onTerminal, onTrust
           <span className="detail-kind">{kindLabel(entry.detectedKind)}</span>
         </div>
         <div className="detail-actions">
-          <IconButton label={`Open port ${entry.port}`} onClick={() => onOpen(entry)} disabled={!entry.url}>
+          <IconButton label={`Open port ${entry.port}`} onClick={() => onOpen(entry)}>
             <ExternalLink size={15} />
           </IconButton>
           <IconButton label={`Copy URL for port ${entry.port}`} onClick={() => onCopy(entry)}>

@@ -203,6 +203,30 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: /select port 5173/i })).not.toBeInTheDocument();
   });
 
+  it("opens a localhost fallback URL when the host has not probed a URL", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const { url: _url, title: _title, statusCode: _statusCode, ...baseEntry } = entries[0] as PortEntry;
+    const unprobedEntry: PortEntry = {
+      ...baseEntry,
+      port: 4321
+    };
+    const unprobedClient: HostClient = {
+      ...client,
+      scan: vi.fn(async () => ({
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 12,
+        entries: [unprobedEntry]
+      }))
+    };
+
+    render(<App client={unprobedClient} />);
+
+    expect(await screen.findByRole("button", { name: /select port 4321/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /open port 4321/i }));
+
+    expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:4321", "_blank", "noopener,noreferrer");
+  });
+
   it("shows install help when native host is unavailable", async () => {
     render(<App client={{ ...client, scan: vi.fn(async () => Promise.reject(new Error("Specified native messaging host not found."))) }} />);
 

@@ -1,7 +1,25 @@
 const HEADER_BYTES = 4;
+const MAX_CHROME_RESPONSE_BYTES = 1024 * 1024;
+
+const responseId = (message: unknown): string | undefined =>
+  typeof message === "object" && message !== null && "id" in message && typeof message.id === "string" ? message.id : undefined;
+
+const encodeBody = (message: unknown): Buffer => Buffer.from(JSON.stringify(message), "utf8");
+
+const oversizedResponse = (id: string | undefined): unknown => ({
+  ...(id ? { id } : {}),
+  result: {
+    error: "response_too_large",
+    message: "Native host response exceeded Chrome's 1 MB message limit."
+  }
+});
 
 export const encodeNativeMessage = (message: unknown): Buffer => {
-  const body = Buffer.from(JSON.stringify(message), "utf8");
+  let body = encodeBody(message);
+  if (body.byteLength > MAX_CHROME_RESPONSE_BYTES) {
+    body = encodeBody(oversizedResponse(responseId(message)));
+  }
+
   const header = Buffer.alloc(HEADER_BYTES);
   header.writeUInt32LE(body.byteLength, 0);
   return Buffer.concat([header, body]);
@@ -25,8 +43,16 @@ export const createMessageParser = (): MessageParser => {
         if (buffer.byteLength < frameLength) break;
 
         const payload = buffer.subarray(HEADER_BYTES, frameLength).toString("utf8");
-        messages.push(JSON.parse(payload));
         buffer = buffer.subarray(frameLength);
+
+        try {
+          messages.push(JSON.parse(payload));
+        } catch {
+          messages.push({
+            error: "invalid_json",
+            message: "Native messaging payload was not valid JSON."
+          });
+        }
       }
 
       return messages;
