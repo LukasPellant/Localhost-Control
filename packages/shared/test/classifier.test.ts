@@ -100,4 +100,24 @@ describe("port classifier", () => {
       )
     ).toBe("protected");
   });
+
+  it("scopes high-confidence dev servers as dev apps before a root is trusted", () => {
+    expect(
+      scopePortEntry(
+        protectPortEntry({
+          port: 5173,
+          address: "127.0.0.1",
+          pid: 1234,
+          processName: "node",
+          detectedKind: "vite",
+          confidence: "high"
+        }),
+        {
+          trustedProjectRoots: [],
+          trustedProjectPaths: [],
+          blockedProcessNames: []
+        }
+      )
+    ).toBe("dev-app");
+  });
 });

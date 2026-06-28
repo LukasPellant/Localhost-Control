@@ -16,9 +16,9 @@ const SYSTEM_PROCESS_NAMES = new Set([
   "wudfhost.exe"
 ]);
 
-const BROWSER_PROCESS_NAMES = new Set(["chrome.exe", "brave.exe", "msedge.exe", "firefox.exe"]);
+const BROWSER_PROCESS_NAMES = new Set(["chrome.exe", "brave.exe", "msedge.exe", "firefox.exe", "chrome", "brave", "firefox"]);
 const DEV_APP_KINDS = new Set<DetectedKind>(["vite", "next", "convex", "python", "node", "static"]);
-const DEV_SERVER_PROCESS_NAMES = new Set(["node.exe", "python.exe", "python3.exe", "bun.exe", "deno.exe"]);
+const DEV_SERVER_PROCESS_NAMES = new Set(["node.exe", "node", "python.exe", "python", "python3.exe", "python3", "bun.exe", "bun", "deno.exe", "deno"]);
 
 const kindFromText = (text: string, port: number): Classification => {
   if (/\bvite\b|vite\/|@vitejs/i.test(text) || port === 5173 || port === 5174) return { detectedKind: "vite", confidence: "high" };
@@ -93,7 +93,8 @@ export const scopePortEntry = (entry: PortEntry, policy: ScopePolicy): AppScope 
   const staticDevServer =
     entry.detectedKind !== "static" || trustedProcess || Boolean(entry.commandLine?.toLowerCase().includes("http.server"));
 
-  return trustedPath && devKind && staticDevServer ? "dev-app" : "local-service";
+  const highConfidenceDevServer = entry.confidence === "high" && devKind && staticDevServer;
+  return (trustedPath || highConfidenceDevServer) && devKind && staticDevServer ? "dev-app" : "local-service";
 };
 
 export const withAppScope = <T extends PortEntry>(entry: T, policy: ScopePolicy): T & { appScope: AppScope } => ({

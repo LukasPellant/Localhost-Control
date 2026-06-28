@@ -47,8 +47,8 @@ describe("filterEntries", () => {
     expect(filterEntries(entries, { query: "", filter: "protected", scopePolicy }).map((entry) => entry.port)).toEqual([135]);
   });
 
-  it("keeps trusted project dev servers in Dev apps while excluding app-owned node listeners", () => {
-    expect(filterEntries(entries, { query: "", filter: "web", scopePolicy }).map((entry) => entry.port)).toEqual([5173]);
+  it("keeps trusted and high-confidence dev servers in Dev apps while excluding app-owned node listeners", () => {
+    expect(filterEntries(entries, { query: "", filter: "web", scopePolicy }).map((entry) => entry.port)).toEqual([5173, 8000]);
   });
 
   it("keeps custom ranges diagnostic even when ports are local services", () => {
@@ -64,6 +64,6 @@ describe("filterEntries", () => {
         filter: "web",
         scopePolicy: { ...scopePolicy, trustedProjectPaths: ["C:\\Workspaces\\LocalApi"] }
       }).map((entry) => entry.port)
-    ).toEqual([5173, 17321]);
+    ).toEqual([5173, 17321, 8000]);
   });
 });

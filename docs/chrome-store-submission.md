@@ -12,13 +12,13 @@ Find and stop stale localhost development servers from a clean Chrome side panel
 
 ## Suggested Description
 
-Localhost Control is a Windows-first developer utility for local web development. It scans localhost TCP listeners, shows useful process metadata such as PID, command, CPU, memory, threads, handles, and uptime, and lets you open, copy, or stop known local development servers.
+Localhost Control is a developer utility for local web development on Windows, macOS, and Linux. It scans localhost TCP listeners, shows useful process metadata such as PID, command, CPU, memory, threads, handles where available, and uptime, and lets you open, copy, or stop known local development servers.
 
 The extension communicates only with its native messaging host installed on the same computer. It does not run a local HTTP server, does not collect telemetry, and does not send browsing data or process data to any external service.
 
 ## Permission Justification
 
-- `nativeMessaging`: required to ask the locally installed native host for Windows process and port metadata, and to stop selected local processes.
+- `nativeMessaging`: required to ask the locally installed native host for process and port metadata, and to stop selected local processes.
 - `sidePanel`: required because the product UI is a persistent Chrome side panel.
 - `storage`: required to save local user preferences such as filters, trusted project paths, hidden ports, and refresh interval.
 
@@ -39,6 +39,13 @@ The extension communicates only with its native messaging host installed on the 
 
 ```powershell
 pnpm host:install -- --browser chrome --extension-id <extension-id>
+```
+
+On macOS or Linux, use:
+
+```bash
+EXTENSION_ID=<extension-id> pnpm host:install:mac
+EXTENSION_ID=<extension-id> pnpm host:install:linux
 ```
 
 4. Start a disposable local server:
