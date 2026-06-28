@@ -6,6 +6,8 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const isString = (value: unknown): value is string => typeof value === "string";
 const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
+const isPositiveInteger = (value: unknown): value is number => isNumber(value) && Number.isInteger(value) && value > 0;
+const isTcpPort = (value: unknown): value is number => isPositiveInteger(value) && value <= 65535;
 
 const hasScanParams = (value: unknown): boolean => {
   if (!isObject(value)) return false;
@@ -20,7 +22,7 @@ const hasScanParams = (value: unknown): boolean => {
 
 const hasKillParams = (value: unknown): boolean => {
   if (!isObject(value)) return false;
-  return isNumber(value.pid) && isNumber(value.port) && value.mode === "force-tree";
+  return isPositiveInteger(value.pid) && isTcpPort(value.port) && value.mode === "force-tree";
 };
 
 const hasTerminalParams = (value: unknown): boolean => {

@@ -59,7 +59,7 @@ export const isLocalishListener = (listener: Listener): boolean => {
   if (listener.address === "0.0.0.0" || listener.address === "::") return true;
   if (listener.address === "::1") return true;
   if (listener.address.startsWith("127.")) return true;
-  return /^[0-9a-f:]+%?\d*$/i.test(listener.address) === false ? true : listener.address.includes(".");
+  return false;
 };
 
 export const isPortListening = async (port: number): Promise<boolean> => {

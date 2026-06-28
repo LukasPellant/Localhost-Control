@@ -38,11 +38,22 @@ Then click the Localhost Control toolbar icon. Brave opens the persistent side p
 pnpm test:run
 pnpm typecheck
 pnpm build
+pnpm extension:package
 pnpm host:install -- --browser brave --extension-id <extension-id>
 pnpm host:uninstall -- --browser brave
 ```
 
 Use `--browser all` to register the native host for Brave, Chrome, Chromium, and Edge under HKCU.
+
+## Chrome Web Store package
+
+Build the upload ZIP with:
+
+```powershell
+pnpm extension:package
+```
+
+The script rebuilds the extension and writes `dist\chrome-store\localhost-control-<version>-chrome-store.zip`. Upload that ZIP in the Chrome Web Store Developer Dashboard. The native host is installed separately through `pnpm host:install`; mention that in the Store test instructions.
 
 ## Safety Model
 

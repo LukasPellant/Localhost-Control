@@ -24,6 +24,10 @@ describe("native messaging protocol", () => {
   });
 
   it("validates kill results and scan results", () => {
+    expect(isHostRequest({ id: "kill-1", method: "kill", params: { pid: 1234, port: 5173, mode: "force-tree" } })).toBe(true);
+    expect(isHostRequest({ id: "kill-1", method: "kill", params: { pid: 1234.5, port: 5173, mode: "force-tree" } })).toBe(false);
+    expect(isHostRequest({ id: "kill-1", method: "kill", params: { pid: 1234, port: 70000, mode: "force-tree" } })).toBe(false);
+
     expect(
       isKillResult({ killed: true, pid: 1234, port: 5173, portClosed: true, message: "Killed" })
     ).toBe(true);
