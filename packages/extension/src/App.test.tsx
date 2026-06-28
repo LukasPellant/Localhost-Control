@@ -103,7 +103,7 @@ const client: HostClient = {
   })),
   kill: vi.fn(async () => ({ killed: true, pid: 100, port: 5173, portClosed: true, message: "Killed 100" })),
   openTerminal: vi.fn(async () => ({ opened: true, message: "Opened" })),
-  version: vi.fn(async () => ({ version: "0.1.0", platform: "win32" }))
+  version: vi.fn(async () => ({ version: "0.1.2", platform: "win32" }))
 };
 
 describe("App", () => {

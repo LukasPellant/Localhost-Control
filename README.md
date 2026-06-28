@@ -55,6 +55,8 @@ pnpm extension:package
 
 The script rebuilds the extension and writes `dist\chrome-store\localhost-control-<version>-chrome-store.zip`. Upload that ZIP in the Chrome Web Store Developer Dashboard. The native host is installed separately through `pnpm host:install`; mention that in the Store test instructions.
 
+Store listing notes, permission justifications, privacy answers, and reviewer instructions live in `docs\chrome-store-submission.md`.
+
 ## Safety Model
 
 The native host marks Windows system processes, low ports, browser processes, PID 4, and executables under `C:\Windows` as protected. Protected rows stay visible but their kill controls are disabled.

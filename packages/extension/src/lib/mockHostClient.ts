@@ -124,7 +124,7 @@ export const createMockHostClient = (): HostClient => {
       return { opened: true, message: `Opened terminal in ${params.projectHint ?? "home"}` };
     },
     async version() {
-      return { version: "0.1.0", platform: "win32" };
+      return { version: "0.1.2", platform: "win32" };
     }
   };
 };

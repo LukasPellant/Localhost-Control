@@ -15,7 +15,7 @@ export const handleRequest = async (request: unknown): Promise<unknown | HostErr
     case "openTerminal":
       return openTerminal(request.params);
     case "version":
-      return { version: "0.1.0", platform: process.platform };
+      return { version: "0.1.2", platform: process.platform };
   }
 };
 
