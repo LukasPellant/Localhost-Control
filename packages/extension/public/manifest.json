@@ -1,22 +1,22 @@
 {
   "manifest_version": 3,
   "name": "Localhost Control",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Find and kill stale localhost development servers from a clean Chromium side panel.",
   "action": {
     "default_title": "Localhost Control",
     "default_icon": {
-      "16": "icons/icon-16.png",
-      "32": "icons/icon-32.png",
-      "48": "icons/icon-48.png",
-      "128": "icons/icon-128.png"
+      "16": "icons/localhost-control-16.png",
+      "32": "icons/localhost-control-32.png",
+      "48": "icons/localhost-control-48.png",
+      "128": "icons/localhost-control-128.png"
     }
   },
   "icons": {
-    "16": "icons/icon-16.png",
-    "32": "icons/icon-32.png",
-    "48": "icons/icon-48.png",
-    "128": "icons/icon-128.png"
+    "16": "icons/localhost-control-16.png",
+    "32": "icons/localhost-control-32.png",
+    "48": "icons/localhost-control-48.png",
+    "128": "icons/localhost-control-128.png"
   },
   "background": {
     "service_worker": "background.js",
