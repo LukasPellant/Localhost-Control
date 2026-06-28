@@ -143,6 +143,17 @@ describe("App", () => {
     expect(await screen.findByText(/Killed 100/i)).toBeInTheDocument();
   });
 
+  it("opens a detected localhost app directly from the port list row", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByLabelText("Detected localhost ports")).getByRole("button", { name: /open port 5173/i }));
+
+    expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:5173", "_blank", "noopener,noreferrer");
+  });
+
   it("removes a killed row immediately while the host is still stopping the process", async () => {
     let finishKill!: () => void;
     const slowClient: HostClient = {
@@ -222,7 +233,7 @@ describe("App", () => {
     render(<App client={unprobedClient} />);
 
     expect(await screen.findByRole("button", { name: /select port 4321/i })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /open port 4321/i }));
+    fireEvent.click(within(screen.getByLabelText("Port 4321 details")).getByRole("button", { name: /open port 4321/i }));
 
     expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:4321", "_blank", "noopener,noreferrer");
   });

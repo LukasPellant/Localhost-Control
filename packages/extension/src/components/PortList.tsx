@@ -1,4 +1,4 @@
-import { AlertTriangle, LockKeyhole, Square, Terminal, X } from "lucide-react";
+import { AlertTriangle, ExternalLink, LockKeyhole, Square, Terminal, X } from "lucide-react";
 import { kindLabel, type PortEntry } from "@localhost-control/shared";
 import { IconButton } from "./IconButton";
 import { compactResourceLabels } from "../lib/resources";
@@ -7,6 +7,7 @@ type PortListProps = {
   entries: PortEntry[];
   selectedPort: number | undefined;
   onSelect(entry: PortEntry): void;
+  onOpen(entry: PortEntry): void;
   onKill(entry: PortEntry): void;
 };
 
@@ -30,7 +31,7 @@ const ResourceStrip = ({ entry }: { entry: PortEntry }) => {
   );
 };
 
-export const PortList = ({ entries, selectedPort, onSelect, onKill }: PortListProps) => (
+export const PortList = ({ entries, selectedPort, onSelect, onOpen, onKill }: PortListProps) => (
   <div className="port-list" aria-label="Detected localhost ports">
     {entries.map((entry) => (
       <div className={`port-row ${selectedPort === entry.port ? "selected" : ""}`} key={`${entry.pid}-${entry.port}`}>
@@ -58,6 +59,9 @@ export const PortList = ({ entries, selectedPort, onSelect, onKill }: PortListPr
           ) : (
             <Square size={14} aria-label="Dev process" />
           )}
+          <IconButton label={`Open port ${entry.port}`} onClick={() => onOpen(entry)}>
+            <ExternalLink size={15} />
+          </IconButton>
           <IconButton label={`Kill port ${entry.port}`} tone="danger" onClick={() => onKill(entry)} disabled={!entry.killable}>
             <X size={16} />
           </IconButton>
