@@ -3,6 +3,7 @@ export type Settings = {
   httpProbe: boolean;
   refreshIntervalSec: number;
   hiddenPorts: number[];
+  customPortRange: string;
   trustedProcessNames: string[];
 };
 
@@ -13,6 +14,7 @@ export const defaultSettings: Settings = {
   httpProbe: true,
   refreshIntervalSec: 0,
   hiddenPorts: [],
+  customPortRange: "3000-9999",
   trustedProcessNames: ["node.exe", "python.exe", "bun.exe", "deno.exe"]
 };
 

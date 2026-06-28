@@ -160,21 +160,23 @@ button:disabled {
 }
 
 .filters {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
   gap: 5px;
-  overflow-x: auto;
-  padding-bottom: 1px;
 }
 
 .filters button {
-  flex: 0 0 auto;
+  min-width: 0;
   height: 28px;
-  padding: 0 9px;
+  padding: 0 7px;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: #ffffff;
   color: var(--muted);
   font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .filters button.active {
@@ -182,6 +184,36 @@ button:disabled {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 650;
+}
+
+.custom-range {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.custom-range span {
+  color: var(--faint);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.custom-range input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
 }
 
 .port-list {

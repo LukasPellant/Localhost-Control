@@ -9,7 +9,7 @@ import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
 import { defaultSettings, loadSettings, saveSettings, type Settings } from "./lib/settings";
 import "./styles.css";
 
-const filters: FilterId[] = ["all", "web", "node", "python", "unknown", "protected"];
+const filters: FilterId[] = ["web", "custom", "all", "node", "python", "unknown", "protected"];
 
 type AppProps = {
   client: HostClient;
@@ -22,7 +22,7 @@ export const App = ({ client }: AppProps) => {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<FilterId>("all");
+  const [filter, setFilter] = useState<FilterId>("web");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [hostError, setHostError] = useState<string | null>(null);
@@ -66,7 +66,10 @@ export const App = ({ client }: AppProps) => {
     () => (scanResult?.entries ?? []).filter((entry) => !settings.hiddenPorts.includes(entry.port)),
     [scanResult?.entries, settings.hiddenPorts]
   );
-  const visibleEntries = useMemo(() => filterEntries(entries, { query, filter }), [entries, query, filter]);
+  const visibleEntries = useMemo(
+    () => filterEntries(entries, { query, filter, customPortRange: settings.customPortRange }),
+    [entries, query, filter, settings.customPortRange]
+  );
   const selectedEntry = useMemo(
     () => visibleEntries.find((entry) => `${entry.pid}:${entry.port}` === selectedKey) ?? visibleEntries[0],
     [selectedKey, visibleEntries]
@@ -88,11 +91,24 @@ export const App = ({ client }: AppProps) => {
 
     setBusy(true);
     const params: KillParams = { pid: entry.pid, port: entry.port, mode: "force-tree" };
+    const previousResult = scanResult;
+    setScanResult((current) =>
+      current
+        ? {
+            ...current,
+            entries: current.entries.filter((item) => !(item.pid === entry.pid && item.port === entry.port))
+          }
+        : current
+    );
+    setSelectedKey((current) => (current === `${entry.pid}:${entry.port}` ? null : current));
+    setMessage(`Stopping PID ${entry.pid} on port ${entry.port}...`);
+
     try {
       const result = await client.kill(params);
       await scan();
       setMessage(result.message);
     } catch (error) {
+      setScanResult(previousResult);
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
@@ -169,6 +185,17 @@ export const App = ({ client }: AppProps) => {
           </button>
         ))}
       </nav>
+      {filter === "custom" ? (
+        <label className="custom-range">
+          <span>Range</span>
+          <input
+            aria-label="Custom port range"
+            value={settings.customPortRange}
+            onChange={(event) => void patchSettings({ customPortRange: event.target.value })}
+            placeholder="3000-9999, 17321"
+          />
+        </label>
+      ) : null}
 
       <PortList
         entries={visibleEntries}

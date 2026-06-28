@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import type { HostClient } from "./lib/hostClient";
-import type { PortEntry } from "@localhost-control/shared";
+import type { KillResult, PortEntry } from "@localhost-control/shared";
 
 const entries: PortEntry[] = [
   {
@@ -18,6 +18,34 @@ const entries: PortEntry[] = [
     url: "http://127.0.0.1:5173",
     statusCode: 200,
     title: "DrawCreator"
+  },
+  {
+    port: 3515,
+    address: "127.0.0.1",
+    pid: 200,
+    processName: "steam.exe",
+    commandLine: "steam service",
+    projectHint: "C:\\Program Files (x86)\\Steam",
+    detectedKind: "static",
+    confidence: "medium",
+    killable: true,
+    url: "http://127.0.0.1:3515",
+    statusCode: 404,
+    title: "404 Not Found"
+  },
+  {
+    port: 5181,
+    address: "127.0.0.1",
+    pid: 300,
+    processName: "python.exe",
+    commandLine: "python -m http.server 5181 --bind 127.0.0.1",
+    projectHint: "D:\\DevelopmentD\\AeroNavML",
+    detectedKind: "static",
+    confidence: "medium",
+    killable: true,
+    url: "http://127.0.0.1:5181",
+    statusCode: 200,
+    title: "AeroNavML Explainer"
   },
   {
     port: 135,
@@ -43,6 +71,21 @@ const client: HostClient = {
 };
 
 describe("App", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  it("defaults to dev web apps and excludes non-dev static services", async () => {
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /select port 5181/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /select port 3515/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /select port 135/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Web apps" })).toHaveClass("active");
+  });
+
   it("renders scan results, selects a row, and calls kill for a killable dev server", async () => {
     render(<App client={client} />);
 
@@ -56,6 +99,42 @@ describe("App", () => {
     fireEvent.click(within(screen.getByLabelText("Detected localhost ports")).getByRole("button", { name: /kill port 5173/i }));
     await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));
     expect(await screen.findByText(/Killed 100/i)).toBeInTheDocument();
+  });
+
+  it("removes a killed row immediately while the host is still stopping the process", async () => {
+    let finishKill!: () => void;
+    const slowClient: HostClient = {
+      ...client,
+      kill: vi.fn(
+        () =>
+          new Promise<KillResult>((resolve) => {
+            finishKill = () => resolve({ killed: true, pid: 100, port: 5173, portClosed: true, message: "Killed 100" });
+          })
+      )
+    };
+
+    render(<App client={slowClient} />);
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByLabelText("Detected localhost ports")).getByRole("button", { name: /kill port 5173/i }));
+
+    expect(screen.queryByRole("button", { name: /select port 5173/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Stopping PID 100/i)).toBeInTheDocument();
+
+    finishKill();
+    await waitFor(() => expect(slowClient.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));
+  });
+
+  it("filters to a custom port range", async () => {
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Custom" }));
+    fireEvent.change(screen.getByLabelText("Custom port range"), { target: { value: "3500-3600" } });
+
+    expect(screen.getByRole("button", { name: /select port 3515/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /select port 5173/i })).not.toBeInTheDocument();
   });
 
   it("shows install help when native host is unavailable", async () => {
