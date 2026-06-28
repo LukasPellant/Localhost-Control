@@ -7,10 +7,10 @@ describe("sidepanel HTML", () => {
     const html = readFileSync(resolve(__dirname, "../sidepanel.html"), "utf8");
 
     expect(html).toContain(
-      '<link rel="icon" type="image/png" sizes="32x32" href="/icons/localhost-control-32.png" />',
+      '<link rel="icon" type="image/png" sizes="32x32" href="/icons/localhost-control-ghost-32.png" />',
     );
     expect(html).toContain(
-      '<link rel="icon" type="image/png" sizes="128x128" href="/icons/localhost-control-128.png" />',
+      '<link rel="icon" type="image/png" sizes="128x128" href="/icons/localhost-control-ghost-128.png" />',
     );
   });
 });
