@@ -110,6 +110,8 @@ describe("App", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+    document.documentElement.removeAttribute("data-theme");
+    document.documentElement.removeAttribute("data-theme-mode");
   });
 
   it("defaults to dev web apps and excludes non-dev static services", async () => {
@@ -152,6 +154,26 @@ describe("App", () => {
     fireEvent.click(within(screen.getByLabelText("Detected localhost ports")).getByRole("button", { name: /open port 5173/i }));
 
     expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:5173", "_blank", "noopener,noreferrer");
+  });
+
+  it("loads a saved dark theme and exposes the theme picker", async () => {
+    window.localStorage.setItem("localhost-control-settings", JSON.stringify({ themeMode: "dark" }));
+
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "dark"));
+    expect(screen.getByLabelText("Theme")).toHaveValue("dark");
+  });
+
+  it("switches the theme from the settings bar", async () => {
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
+
+    await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "dark"));
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toMatchObject({ themeMode: "dark" });
   });
 
   it("removes a killed row immediately while the host is still stopping the process", async () => {

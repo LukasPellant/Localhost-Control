@@ -18,7 +18,44 @@
   --amber: #b77a13;
   --danger: #c33b32;
   --danger-soft: #fff0ee;
+  --control: #ffffff;
+  --control-hover: #f8fafc;
+  --control-border-hover: #c4d0da;
+  --selected-ring: rgba(8, 127, 140, 0.08);
+  --accent-border: #b8dfe4;
+  --selected-border: #a8d8de;
+  --danger-border: #f2cbc7;
+  --danger-border-hover: #e8aaa3;
+  --primary-button-text: #ffffff;
   --radius: 8px;
+}
+
+:root[data-theme="dark"] {
+  color: #e7edf5;
+  background: #0e141b;
+  color-scheme: dark;
+  --bg: #0e141b;
+  --surface: #151d26;
+  --surface-strong: #1d2834;
+  --text: #e7edf5;
+  --muted: #a8b6c7;
+  --faint: #7f8fa3;
+  --border: #2a3948;
+  --accent: #42d3df;
+  --accent-soft: #12343a;
+  --green: #33d18a;
+  --amber: #f2b84b;
+  --danger: #ff756c;
+  --danger-soft: #351b1d;
+  --control: #111923;
+  --control-hover: #1a2530;
+  --control-border-hover: #405468;
+  --selected-ring: rgba(66, 211, 223, 0.14);
+  --accent-border: #2c7079;
+  --selected-border: #3c8991;
+  --danger-border: #70403f;
+  --danger-border-hover: #92504e;
+  --primary-button-text: #071013;
 }
 
 * {
@@ -84,31 +121,31 @@ button:disabled {
   place-items: center;
   border: 1px solid var(--border);
   border-radius: 7px;
-  background: #ffffff;
+  background: var(--control);
   color: var(--muted);
 }
 
 .icon-button:hover:not(:disabled) {
-  border-color: #c4d0da;
-  background: var(--surface);
+  border-color: var(--control-border-hover);
+  background: var(--control-hover);
   color: var(--text);
 }
 
 .icon-button.primary {
-  border-color: #b8dfe4;
+  border-color: var(--accent-border);
   background: var(--accent-soft);
   color: var(--accent);
 }
 
 .icon-button.danger {
-  border-color: #f2cbc7;
-  background: #ffffff;
+  border-color: var(--danger-border);
+  background: var(--control);
   color: var(--danger);
 }
 
 .icon-button.danger:hover:not(:disabled) {
   background: var(--danger-soft);
-  border-color: #e8aaa3;
+  border-color: var(--danger-border-hover);
 }
 
 .summary-strip {
@@ -147,7 +184,7 @@ button:disabled {
   padding: 0 9px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #ffffff;
+  background: var(--control);
   color: var(--faint);
 }
 
@@ -156,6 +193,7 @@ button:disabled {
   min-width: 0;
   border: 0;
   outline: 0;
+  background: transparent;
   color: var(--text);
 }
 
@@ -171,7 +209,7 @@ button:disabled {
   padding: 0 7px;
   border: 1px solid var(--border);
   border-radius: 7px;
-  background: #ffffff;
+  background: var(--control);
   color: var(--muted);
   font-size: 12px;
   overflow: hidden;
@@ -180,7 +218,7 @@ button:disabled {
 }
 
 .filters button.active {
-  border-color: #b8dfe4;
+  border-color: var(--accent-border);
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 650;
@@ -233,12 +271,12 @@ button:disabled {
   align-items: stretch;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #ffffff;
+  background: var(--control);
 }
 
 .port-row.selected {
-  border-color: #a8d8de;
-  box-shadow: 0 0 0 2px rgba(8, 127, 140, 0.08);
+  border-color: var(--selected-border);
+  box-shadow: 0 0 0 2px var(--selected-ring);
 }
 
 .port-main {
@@ -423,7 +461,7 @@ button:disabled {
   padding: 0 8px;
   border: 1px solid var(--border);
   border-radius: 7px;
-  background: #ffffff;
+  background: var(--control);
   color: var(--muted);
   font-size: 11px;
   font-weight: 650;
@@ -433,8 +471,8 @@ button:disabled {
 }
 
 .detail-rule-actions button:hover:not(:disabled) {
-  border-color: #c4d0da;
-  background: var(--surface);
+  border-color: var(--control-border-hover);
+  background: var(--control-hover);
   color: var(--text);
 }
 
@@ -445,7 +483,7 @@ button:disabled {
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--control);
   color: var(--danger);
   font-size: 11px;
   text-overflow: ellipsis;
@@ -477,12 +515,19 @@ button:disabled {
 .settings-bar select {
   min-width: 72px;
   height: 24px;
-  margin-left: auto;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--control);
   color: var(--muted);
   font-size: 11px;
+}
+
+.theme-select {
+  min-width: 78px;
+}
+
+.refresh-select {
+  margin-left: auto;
 }
 
 .offline {
@@ -514,17 +559,17 @@ button:disabled {
   overflow-wrap: anywhere;
   padding: 8px;
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--control);
   color: var(--accent);
   font-size: 11px;
 }
 
 .primary-button {
   height: 34px;
-  border: 1px solid #b8dfe4;
+  border: 1px solid var(--accent-border);
   border-radius: 7px;
   background: var(--accent);
-  color: #ffffff;
+  color: var(--primary-button-text);
   font-weight: 680;
 }
 

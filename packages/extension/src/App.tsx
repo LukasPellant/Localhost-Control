@@ -10,12 +10,18 @@ import { defaultSettings, loadSettings, saveSettings, type Settings } from "./li
 import "./styles.css";
 
 const filters: FilterId[] = ["web", "custom", "all", "node", "python", "unknown", "protected"];
+const themeQuery = "(prefers-color-scheme: dark)";
 
 type AppProps = {
   client: HostClient;
 };
 
 const isLowConfidenceUnknown = (entry: PortEntry): boolean => entry.detectedKind === "unknown" && entry.confidence === "low";
+const resolveTheme = (themeMode: Settings["themeMode"]): "light" | "dark" => {
+  if (themeMode === "dark") return "dark";
+  if (themeMode === "light") return "light";
+  return typeof window !== "undefined" && window.matchMedia?.(themeQuery).matches ? "dark" : "light";
+};
 
 export const App = ({ client }: AppProps) => {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
@@ -30,6 +36,22 @@ export const App = ({ client }: AppProps) => {
   useEffect(() => {
     void loadSettings().then(setSettings);
   }, []);
+
+  useEffect(() => {
+    const applyTheme = () => {
+      const theme = resolveTheme(settings.themeMode);
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.dataset.themeMode = settings.themeMode;
+      document.documentElement.style.colorScheme = theme;
+    };
+
+    applyTheme();
+
+    if (settings.themeMode !== "system" || typeof window === "undefined" || !window.matchMedia) return;
+    const media = window.matchMedia(themeQuery);
+    media.addEventListener?.("change", applyTheme);
+    return () => media.removeEventListener?.("change", applyTheme);
+  }, [settings.themeMode]);
 
   const scan = useCallback(async () => {
     setBusy(true);
@@ -235,6 +257,16 @@ export const App = ({ client }: AppProps) => {
 
       <footer className="settings-bar">
         <Settings2 size={15} />
+        <select
+          className="theme-select"
+          aria-label="Theme"
+          value={settings.themeMode}
+          onChange={(event) => void patchSettings({ themeMode: event.target.value as Settings["themeMode"] })}
+        >
+          <option value="system">system</option>
+          <option value="light">light</option>
+          <option value="dark">dark</option>
+        </select>
         <label>
           <input
             type="checkbox"
@@ -248,6 +280,7 @@ export const App = ({ client }: AppProps) => {
           probe HTTP
         </label>
         <select
+          className="refresh-select"
           aria-label="Auto refresh interval"
           value={settings.refreshIntervalSec}
           onChange={(event) => void patchSettings({ refreshIntervalSec: Number(event.target.value) })}

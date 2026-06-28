@@ -1,7 +1,10 @@
+export type ThemeMode = "system" | "light" | "dark";
+
 export type Settings = {
   includeSystemPorts: boolean;
   httpProbe: boolean;
   refreshIntervalSec: number;
+  themeMode: ThemeMode;
   hiddenPorts: number[];
   customPortRange: string;
   trustedProcessNames: string[];
@@ -16,6 +19,7 @@ export const defaultSettings: Settings = {
   includeSystemPorts: false,
   httpProbe: true,
   refreshIntervalSec: 0,
+  themeMode: "system",
   hiddenPorts: [],
   customPortRange: "3000-9999",
   trustedProcessNames: ["node.exe", "python.exe", "bun.exe", "deno.exe"],
