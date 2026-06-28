@@ -74,8 +74,10 @@ function decodeRgbaPng(path: string): { data: Buffer; width: number; height: num
 }
 
 describe("extension icon assets", () => {
-  it("keeps the ghost large enough in the toolbar icon", () => {
+  it("keeps the full ghost logo visible in the toolbar icon", () => {
     const icon = decodeRgbaPng(resolve(__dirname, "../public/icons/localhost-control-ghost-16.png"));
+    const opaqueXs: number[] = [];
+    const opaqueYs: number[] = [];
     const xs: number[] = [];
     const ys: number[] = [];
 
@@ -87,6 +89,11 @@ describe("extension icon assets", () => {
         const blue = readByte(icon.data, offset + 2);
         const alpha = readByte(icon.data, offset + 3);
 
+        if (alpha > 20) {
+          opaqueXs.push(x);
+          opaqueYs.push(y);
+        }
+
         if (alpha > 80 && red < 120 && green > 80 && blue > 120) {
           xs.push(x);
           ys.push(y);
@@ -94,10 +101,18 @@ describe("extension icon assets", () => {
       }
     }
 
+    const minOpaqueX = Math.min(...opaqueXs);
+    const maxOpaqueX = Math.max(...opaqueXs);
+    const minOpaqueY = Math.min(...opaqueYs);
+    const maxOpaqueY = Math.max(...opaqueYs);
     const blueWidth = Math.max(...xs) - Math.min(...xs) + 1;
     const blueHeight = Math.max(...ys) - Math.min(...ys) + 1;
 
-    expect(blueWidth).toBeGreaterThanOrEqual(12);
-    expect(blueHeight).toBeGreaterThanOrEqual(12);
+    expect(minOpaqueX).toBeGreaterThanOrEqual(1);
+    expect(maxOpaqueX).toBeLessThanOrEqual(14);
+    expect(minOpaqueY).toBeGreaterThanOrEqual(1);
+    expect(maxOpaqueY).toBeLessThanOrEqual(14);
+    expect(blueWidth).toBeGreaterThanOrEqual(10);
+    expect(blueHeight).toBeGreaterThanOrEqual(10);
   });
 });
