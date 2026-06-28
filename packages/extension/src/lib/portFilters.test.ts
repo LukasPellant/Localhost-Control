@@ -12,7 +12,7 @@ const entries: PortEntry[] = [
     detectedKind: "vite",
     confidence: "high",
     killable: true,
-    projectHint: "D:\\DevelopmentD\\DrawCreator"
+    projectHint: "D:\\Projects\\ExampleShop"
   },
   {
     port: 17321,
@@ -22,7 +22,7 @@ const entries: PortEntry[] = [
     detectedKind: "node",
     confidence: "medium",
     killable: true,
-    projectHint: "C:\\Users\\pella\\Documents\\ChatGPT-codex-bridge"
+    projectHint: "C:\\Workspaces\\LocalApi"
   },
   {
     port: 6463,
@@ -32,7 +32,7 @@ const entries: PortEntry[] = [
     detectedKind: "node",
     confidence: "medium",
     killable: true,
-    projectHint: "C:\\Users\\pella\\AppData\\Local\\Discord"
+    projectHint: "C:\\Program Files\\ChatClient"
   },
   { port: 8000, address: "127.0.0.1", pid: 11, processName: "python.exe", detectedKind: "python", confidence: "high", killable: true },
   { port: 135, address: "0.0.0.0", pid: 4, processName: "System", detectedKind: "unknown", confidence: "low", killable: false, protectionReason: "Protected system process" }
@@ -62,7 +62,7 @@ describe("filterEntries", () => {
       filterEntries(entries, {
         query: "",
         filter: "web",
-        scopePolicy: { ...scopePolicy, trustedProjectPaths: ["C:\\Users\\pella\\Documents\\ChatGPT-codex-bridge"] }
+        scopePolicy: { ...scopePolicy, trustedProjectPaths: ["C:\\Workspaces\\LocalApi"] }
       }).map((entry) => entry.port)
     ).toEqual([5173, 17321]);
   });

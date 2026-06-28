@@ -23,7 +23,7 @@ export const defaultSettings: Settings = {
   hiddenPorts: [],
   customPortRange: "3000-9999",
   trustedProcessNames: ["node.exe", "python.exe", "bun.exe", "deno.exe"],
-  trustedProjectRoots: ["D:\\DevelopmentD"],
+  trustedProjectRoots: ["D:\\Projects", "C:\\Projects"],
   trustedProjectPaths: [],
   blockedProcessNames: ["steam.exe", "discord.exe", "battle.net.exe", "agent.exe", "nordvpn-service.exe", "ntkdaemon.exe", "qbittorrent.exe"]
 };

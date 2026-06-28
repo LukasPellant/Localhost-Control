@@ -11,13 +11,13 @@ const entries: PortEntry[] = [
     pid: 100,
     processName: "node.exe",
     commandLine: "node vite",
-    projectHint: "D:\\DevelopmentD\\DrawCreator",
+    projectHint: "D:\\Projects\\ExampleShop",
     detectedKind: "vite",
     confidence: "high",
     killable: true,
     url: "http://127.0.0.1:5173",
     statusCode: 200,
-    title: "DrawCreator",
+    title: "Example Shop",
     resources: {
       cpuPercent: 12.4,
       memoryBytes: 312_000_000,
@@ -32,28 +32,28 @@ const entries: PortEntry[] = [
     address: "127.0.0.1",
     pid: 150,
     processName: "node.exe",
-    commandLine: "node bridge",
-    projectHint: "C:\\Users\\pella\\Documents\\ChatGPT-codex-bridge",
+    commandLine: "node api-server.js --watch",
+    projectHint: "C:\\Workspaces\\LocalApi",
     detectedKind: "node",
     confidence: "medium",
     killable: true,
     url: "http://127.0.0.1:17321",
     statusCode: 200,
-    title: "ChatGPT Codex Bridge"
+    title: "Local API"
   },
   {
     port: 6463,
     address: "127.0.0.1",
     pid: 250,
-    processName: "Discord.exe",
-    commandLine: "discord local listener",
-    projectHint: "C:\\Users\\pella\\AppData\\Local\\Discord",
+    processName: "ChatClient.exe",
+    commandLine: "chat client local listener",
+    projectHint: "C:\\Program Files\\ChatClient",
     detectedKind: "node",
     confidence: "medium",
     killable: true,
     url: "http://127.0.0.1:6463",
     statusCode: 200,
-    title: "Discord"
+    title: "Chat Client"
   },
   {
     port: 3515,
@@ -75,13 +75,13 @@ const entries: PortEntry[] = [
     pid: 300,
     processName: "python.exe",
     commandLine: "python -m http.server 5181 --bind 127.0.0.1",
-    projectHint: "D:\\DevelopmentD\\AeroNavML",
+    projectHint: "D:\\Projects\\DocsPreview",
     detectedKind: "static",
     confidence: "medium",
     killable: true,
     url: "http://127.0.0.1:5181",
     statusCode: 200,
-    title: "AeroNavML Explainer"
+    title: "Docs Preview"
   },
   {
     port: 135,
@@ -131,7 +131,7 @@ describe("App", () => {
 
     expect(await screen.findByText("Localhost Control")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
-    expect(screen.getByText("DrawCreator")).toBeInTheDocument();
+    expect(screen.getByText("Example Shop")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /select port 5173/i }));
     expect(screen.getByText("node vite")).toBeInTheDocument();
