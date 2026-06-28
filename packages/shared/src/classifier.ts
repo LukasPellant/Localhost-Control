@@ -1,4 +1,4 @@
-import type { Classification, ClassifyInput, Confidence, DetectedKind, PortEntry } from "./types.js";
+import type { AppScope, Classification, ClassifyInput, Confidence, DetectedKind, PortEntry, ScopePolicy } from "./types.js";
 
 const SYSTEM_PROCESS_NAMES = new Set([
   "system",
@@ -17,6 +17,8 @@ const SYSTEM_PROCESS_NAMES = new Set([
 ]);
 
 const BROWSER_PROCESS_NAMES = new Set(["chrome.exe", "brave.exe", "msedge.exe", "firefox.exe"]);
+const DEV_APP_KINDS = new Set<DetectedKind>(["vite", "next", "convex", "python", "node", "static"]);
+const DEV_SERVER_PROCESS_NAMES = new Set(["node.exe", "python.exe", "python3.exe", "bun.exe", "deno.exe"]);
 
 const kindFromText = (text: string, port: number): Classification => {
   if (/\bvite\b|vite\/|@vitejs/i.test(text) || port === 5173 || port === 5174) return { detectedKind: "vite", confidence: "high" };
@@ -56,6 +58,48 @@ export const protectPortEntry = <T extends ProtectionInput>(entry: T): T & { kil
     ? { ...entry, killable: false, protectionReason }
     : { ...entry, killable: true };
 };
+
+const normalizePath = (value: string): string =>
+  value
+    .trim()
+    .replace(/\//g, "\\")
+    .replace(/\\+$/, "")
+    .toLowerCase();
+
+const isPathInside = (candidate: string, root: string): boolean => {
+  const normalizedCandidate = normalizePath(candidate);
+  const normalizedRoot = normalizePath(root);
+  return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}\\`);
+};
+
+const hasTrustedPath = (entry: PortEntry, policy: ScopePolicy): boolean => {
+  const candidate = entry.projectHint ?? entry.executablePath ?? entry.commandLine ?? "";
+  if (!candidate.trim()) return false;
+  const paths = [...policy.trustedProjectRoots, ...policy.trustedProjectPaths].filter(Boolean);
+  return paths.some((path) => isPathInside(candidate, path));
+};
+
+export const scopePortEntry = (entry: PortEntry, policy: ScopePolicy): AppScope => {
+  if (!entry.killable || entry.protectionReason) return "protected";
+
+  const processName = entry.processName.toLowerCase();
+  if (policy.blockedProcessNames.map((name) => name.toLowerCase()).includes(processName)) {
+    return "local-service";
+  }
+
+  const trustedPath = hasTrustedPath(entry, policy);
+  const trustedProcess = DEV_SERVER_PROCESS_NAMES.has(processName);
+  const devKind = DEV_APP_KINDS.has(entry.detectedKind);
+  const staticDevServer =
+    entry.detectedKind !== "static" || trustedProcess || Boolean(entry.commandLine?.toLowerCase().includes("http.server"));
+
+  return trustedPath && devKind && staticDevServer ? "dev-app" : "local-service";
+};
+
+export const withAppScope = <T extends PortEntry>(entry: T, policy: ScopePolicy): T & { appScope: AppScope } => ({
+  ...entry,
+  appScope: scopePortEntry(entry, policy)
+});
 
 export const kindLabel = (kind: DetectedKind): string => {
   const labels: Record<DetectedKind, string> = {

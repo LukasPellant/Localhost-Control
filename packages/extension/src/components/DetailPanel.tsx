@@ -1,4 +1,4 @@
-import { Copy, ExternalLink, Power, Terminal } from "lucide-react";
+import { Copy, EyeOff, ExternalLink, FolderPlus, Power, Terminal } from "lucide-react";
 import { kindLabel, type PortEntry } from "@localhost-control/shared";
 import { IconButton } from "./IconButton";
 
@@ -8,9 +8,11 @@ type DetailPanelProps = {
   onOpen(entry: PortEntry): void;
   onCopy(entry: PortEntry): void;
   onTerminal(entry: PortEntry): void;
+  onTrustProject(entry: PortEntry): void;
+  onHideProcess(entry: PortEntry): void;
 };
 
-export const DetailPanel = ({ entry, onKill, onOpen, onCopy, onTerminal }: DetailPanelProps) => {
+export const DetailPanel = ({ entry, onKill, onOpen, onCopy, onTerminal, onTrustProject, onHideProcess }: DetailPanelProps) => {
   if (!entry) {
     return (
       <section className="detail-panel empty-detail">
@@ -67,6 +69,16 @@ export const DetailPanel = ({ entry, onKill, onOpen, onCopy, onTerminal }: Detai
           <dd>{entry.commandLine ?? entry.protectionReason ?? "No command line available"}</dd>
         </div>
       </dl>
+      <div className="detail-rule-actions">
+        <button type="button" onClick={() => onTrustProject(entry)} disabled={!entry.projectHint}>
+          <FolderPlus size={14} />
+          Trust project
+        </button>
+        <button type="button" onClick={() => onHideProcess(entry)}>
+          <EyeOff size={14} />
+          Hide process
+        </button>
+      </div>
       <code className="kill-command">taskkill /PID {entry.pid} /T /F</code>
     </section>
   );

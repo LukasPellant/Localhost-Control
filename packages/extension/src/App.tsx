@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw, Search, Settings2, ShieldAlert } from "lucide-react";
-import type { KillParams, PortEntry, ScanResult } from "@localhost-control/shared";
+import { withAppScope, type KillParams, type PortEntry, type ScanResult } from "@localhost-control/shared";
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
 import { PortList } from "./components/PortList";
@@ -63,12 +63,15 @@ export const App = ({ client }: AppProps) => {
   }, [scan, settings.refreshIntervalSec]);
 
   const entries = useMemo(
-    () => (scanResult?.entries ?? []).filter((entry) => !settings.hiddenPorts.includes(entry.port)),
-    [scanResult?.entries, settings.hiddenPorts]
+    () =>
+      (scanResult?.entries ?? [])
+        .filter((entry) => !settings.hiddenPorts.includes(entry.port))
+        .map((entry) => withAppScope(entry, settings)),
+    [scanResult?.entries, settings]
   );
   const visibleEntries = useMemo(
-    () => filterEntries(entries, { query, filter, customPortRange: settings.customPortRange }),
-    [entries, query, filter, settings.customPortRange]
+    () => filterEntries(entries, { query, filter, customPortRange: settings.customPortRange, scopePolicy: settings }),
+    [entries, query, filter, settings]
   );
   const selectedEntry = useMemo(
     () => visibleEntries.find((entry) => `${entry.pid}:${entry.port}` === selectedKey) ?? visibleEntries[0],
@@ -136,6 +139,21 @@ export const App = ({ client }: AppProps) => {
       ...(entry.commandLine ? { commandLine: entry.commandLine } : {})
     });
     setMessage(result.message);
+  };
+
+  const trustProject = async (entry: PortEntry) => {
+    if (!entry.projectHint || settings.trustedProjectPaths.includes(entry.projectHint)) return;
+    await patchSettings({ trustedProjectPaths: [...settings.trustedProjectPaths, entry.projectHint] });
+    setFilter("web");
+    setMessage(`Trusted ${entry.projectHint}`);
+  };
+
+  const hideProcess = async (entry: PortEntry) => {
+    const processName = entry.processName.toLowerCase();
+    if (settings.blockedProcessNames.map((name) => name.toLowerCase()).includes(processName)) return;
+    await patchSettings({ blockedProcessNames: [...settings.blockedProcessNames, processName] });
+    setSelectedKey(null);
+    setMessage(`Hidden ${entry.processName} from Dev apps`);
   };
 
   if (hostError) {
@@ -210,6 +228,8 @@ export const App = ({ client }: AppProps) => {
         onOpen={openEntry}
         onCopy={(entry) => void copyEntry(entry)}
         onTerminal={(entry) => void openTerminalForEntry(entry)}
+        onTrustProject={(entry) => void trustProject(entry)}
+        onHideProcess={(entry) => void hideProcess(entry)}
       />
 
       <footer className="settings-bar">

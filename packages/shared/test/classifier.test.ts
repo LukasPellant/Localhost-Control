@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyPort, protectPortEntry } from "../src/index";
+import { classifyPort, protectPortEntry, scopePortEntry } from "../src/index";
 
 describe("port classifier", () => {
   it("classifies common dev server command lines", () => {
@@ -43,5 +43,61 @@ describe("port classifier", () => {
         confidence: "high"
       })
     ).toMatchObject({ killable: true });
+  });
+
+  it("scopes trusted project listeners separately from local app services", () => {
+    const policy = {
+      trustedProjectRoots: ["D:\\DevelopmentD"],
+      trustedProjectPaths: [],
+      blockedProcessNames: ["steam.exe", "discord.exe"]
+    };
+
+    expect(
+      scopePortEntry(
+        {
+          port: 5173,
+          address: "127.0.0.1",
+          pid: 100,
+          processName: "node.exe",
+          projectHint: "D:\\DevelopmentD\\DrawCreator",
+          detectedKind: "vite",
+          confidence: "high",
+          killable: true
+        },
+        policy
+      )
+    ).toBe("dev-app");
+
+    expect(
+      scopePortEntry(
+        {
+          port: 3515,
+          address: "127.0.0.1",
+          pid: 200,
+          processName: "steam.exe",
+          projectHint: "C:\\Program Files (x86)\\Steam",
+          detectedKind: "static",
+          confidence: "medium",
+          killable: true
+        },
+        policy
+      )
+    ).toBe("local-service");
+
+    expect(
+      scopePortEntry(
+        {
+          port: 135,
+          address: "0.0.0.0",
+          pid: 4,
+          processName: "System",
+          detectedKind: "unknown",
+          confidence: "low",
+          killable: false,
+          protectionReason: "Protected system process"
+        },
+        policy
+      )
+    ).toBe("protected");
   });
 });

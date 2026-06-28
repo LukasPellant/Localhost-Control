@@ -5,6 +5,9 @@ export type Settings = {
   hiddenPorts: number[];
   customPortRange: string;
   trustedProcessNames: string[];
+  trustedProjectRoots: string[];
+  trustedProjectPaths: string[];
+  blockedProcessNames: string[];
 };
 
 const key = "localhost-control-settings";
@@ -15,7 +18,10 @@ export const defaultSettings: Settings = {
   refreshIntervalSec: 0,
   hiddenPorts: [],
   customPortRange: "3000-9999",
-  trustedProcessNames: ["node.exe", "python.exe", "bun.exe", "deno.exe"]
+  trustedProcessNames: ["node.exe", "python.exe", "bun.exe", "deno.exe"],
+  trustedProjectRoots: ["D:\\DevelopmentD"],
+  trustedProjectPaths: [],
+  blockedProcessNames: ["steam.exe", "discord.exe", "battle.net.exe", "agent.exe", "nordvpn-service.exe", "ntkdaemon.exe", "qbittorrent.exe"]
 };
 
 export const loadSettings = async (): Promise<Settings> => {

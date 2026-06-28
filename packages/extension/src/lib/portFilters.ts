@@ -1,9 +1,6 @@
-import type { DetectedKind, PortEntry } from "@localhost-control/shared";
+import { scopePortEntry, type PortEntry, type ScopePolicy } from "@localhost-control/shared";
 
 export type FilterId = "web" | "custom" | "all" | "node" | "python" | "unknown" | "protected";
-
-const webKinds = new Set<DetectedKind>(["vite", "next", "convex"]);
-const trustedStaticProcesses = new Set(["node.exe", "python.exe", "python3.exe", "bun.exe", "deno.exe"]);
 
 const parsePortRanges = (value: string): Array<{ min: number; max: number }> =>
   value
@@ -21,32 +18,23 @@ const parsePortRanges = (value: string): Array<{ min: number; max: number }> =>
       return [{ min, max }];
     });
 
-const isTrustedStaticWebApp = (entry: PortEntry): boolean =>
-  entry.detectedKind === "static" &&
-  trustedStaticProcesses.has(entry.processName.toLowerCase()) &&
-  Boolean(entry.projectHint || entry.commandLine?.toLowerCase().includes("http.server"));
-
-const isTrustedDevServerProcess = (entry: PortEntry): boolean =>
-  ["node", "python"].includes(entry.detectedKind) &&
-  trustedStaticProcesses.has(entry.processName.toLowerCase()) &&
-  Boolean(entry.projectHint || entry.commandLine);
-
-const isWebAppEntry = (entry: PortEntry): boolean =>
-  webKinds.has(entry.detectedKind) || isTrustedStaticWebApp(entry) || isTrustedDevServerProcess(entry);
-
 const isInCustomRange = (entry: PortEntry, customPortRange: string): boolean => {
   const ranges = parsePortRanges(customPortRange);
   if (!ranges.length) return false;
   return ranges.some((range) => entry.port >= range.min && entry.port <= range.max);
 };
 
-export const filterEntries = (entries: PortEntry[], options: { query: string; filter: FilterId; customPortRange?: string }): PortEntry[] => {
+export const filterEntries = (
+  entries: PortEntry[],
+  options: { query: string; filter: FilterId; customPortRange?: string; scopePolicy: ScopePolicy }
+): PortEntry[] => {
   const query = options.query.trim().toLowerCase();
 
   return entries.filter((entry) => {
+    const appScope = entry.appScope ?? scopePortEntry(entry, options.scopePolicy);
     const matchesFilter =
       options.filter === "all" ||
-      (options.filter === "web" && isWebAppEntry(entry)) ||
+      (options.filter === "web" && appScope === "dev-app") ||
       (options.filter === "custom" && isInCustomRange(entry, options.customPortRange ?? "")) ||
       (options.filter === "node" && entry.detectedKind === "node") ||
       (options.filter === "python" && entry.detectedKind === "python") ||
@@ -62,6 +50,7 @@ export const filterEntries = (entries: PortEntry[], options: { query: string; fi
       entry.pid,
       entry.processName,
       entry.detectedKind,
+      appScope,
       entry.title,
       entry.projectHint,
       entry.commandLine,
@@ -76,7 +65,7 @@ export const filterEntries = (entries: PortEntry[], options: { query: string; fi
 
 export const filterLabel = (filter: FilterId): string => {
   const labels: Record<FilterId, string> = {
-    web: "Web apps",
+    web: "Dev apps",
     custom: "Custom",
     all: "All",
     node: "Node",

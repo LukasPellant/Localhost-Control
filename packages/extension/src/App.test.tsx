@@ -20,6 +20,34 @@ const entries: PortEntry[] = [
     title: "DrawCreator"
   },
   {
+    port: 17321,
+    address: "127.0.0.1",
+    pid: 150,
+    processName: "node.exe",
+    commandLine: "node bridge",
+    projectHint: "C:\\Users\\pella\\Documents\\ChatGPT-codex-bridge",
+    detectedKind: "node",
+    confidence: "medium",
+    killable: true,
+    url: "http://127.0.0.1:17321",
+    statusCode: 200,
+    title: "ChatGPT Codex Bridge"
+  },
+  {
+    port: 6463,
+    address: "127.0.0.1",
+    pid: 250,
+    processName: "Discord.exe",
+    commandLine: "discord local listener",
+    projectHint: "C:\\Users\\pella\\AppData\\Local\\Discord",
+    detectedKind: "node",
+    confidence: "medium",
+    killable: true,
+    url: "http://127.0.0.1:6463",
+    statusCode: 200,
+    title: "Discord"
+  },
+  {
     port: 3515,
     address: "127.0.0.1",
     pid: 200,
@@ -81,9 +109,11 @@ describe("App", () => {
 
     expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /select port 5181/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /select port 17321/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /select port 6463/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /select port 3515/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /select port 135/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Web apps" })).toHaveClass("active");
+    expect(screen.getByRole("button", { name: "Dev apps" })).toHaveClass("active");
   });
 
   it("renders scan results, selects a row, and calls kill for a killable dev server", async () => {
@@ -134,6 +164,30 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Custom port range"), { target: { value: "3500-3600" } });
 
     expect(screen.getByRole("button", { name: /select port 3515/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /select port 5173/i })).not.toBeInTheDocument();
+  });
+
+  it("trusts an external project path into Dev apps from the detail panel", async () => {
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /select port 17321/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+    fireEvent.click(screen.getByRole("button", { name: /select port 17321/i }));
+    fireEvent.click(screen.getByRole("button", { name: /trust project/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Dev apps" }));
+
+    expect(screen.getByRole("button", { name: /select port 17321/i })).toBeInTheDocument();
+  });
+
+  it("hides a noisy process from Dev apps immediately", async () => {
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /select port 5173/i }));
+    fireEvent.click(screen.getByRole("button", { name: /hide process/i }));
+
     expect(screen.queryByRole("button", { name: /select port 5173/i })).not.toBeInTheDocument();
   });
 

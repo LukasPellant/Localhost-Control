@@ -2,6 +2,7 @@ export const HOST_NAME = "com.localhost_control.host" as const;
 
 export type DetectedKind = "vite" | "next" | "convex" | "python" | "node" | "static" | "unknown";
 export type Confidence = "high" | "medium" | "low";
+export type AppScope = "dev-app" | "local-service" | "protected";
 
 export type ScanParams = {
   includeSystemPorts: boolean;
@@ -42,6 +43,7 @@ export type PortEntry = {
   confidence: Confidence;
   killable: boolean;
   protectionReason?: string;
+  appScope?: AppScope;
 };
 
 export type ScanResult = {
@@ -84,4 +86,10 @@ export type ClassifyInput = {
 export type Classification = {
   detectedKind: DetectedKind;
   confidence: Confidence;
+};
+
+export type ScopePolicy = {
+  trustedProjectRoots: string[];
+  trustedProjectPaths: string[];
+  blockedProcessNames: string[];
 };
