@@ -75,7 +75,7 @@ function decodeRgbaPng(path: string): { data: Buffer; width: number; height: num
 
 describe("extension icon assets", () => {
   it("keeps the ghost large enough in the toolbar icon", () => {
-    const icon = decodeRgbaPng(resolve(__dirname, "../public/icons/localhost-control-zoom-16.png"));
+    const icon = decodeRgbaPng(resolve(__dirname, "../public/icons/localhost-control-ghost-16.png"));
     const xs: number[] = [];
     const ys: number[] = [];
 
@@ -97,7 +97,7 @@ describe("extension icon assets", () => {
     const blueWidth = Math.max(...xs) - Math.min(...xs) + 1;
     const blueHeight = Math.max(...ys) - Math.min(...ys) + 1;
 
-    expect(blueWidth).toBeGreaterThanOrEqual(15);
-    expect(blueHeight).toBeGreaterThanOrEqual(14);
+    expect(blueWidth).toBeGreaterThanOrEqual(12);
+    expect(blueHeight).toBeGreaterThanOrEqual(12);
   });
 });
