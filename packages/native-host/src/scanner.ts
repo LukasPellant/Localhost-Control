@@ -54,6 +54,7 @@ export const buildPortEntries = async (
     if (metadata?.commandLine) base.commandLine = metadata.commandLine;
     if (metadata?.parentPid !== undefined) base.parentPid = metadata.parentPid;
     if (metadata?.projectHint) base.projectHint = metadata.projectHint;
+    if (metadata?.resources) base.resources = metadata.resources;
     if (probe?.url) base.url = probe.url;
     if (probe?.title) base.title = probe.title;
     if (probe?.statusCode !== undefined) base.statusCode = probe.statusCode;

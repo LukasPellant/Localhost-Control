@@ -70,7 +70,15 @@ const sampleEntries: PortEntry[] = [
     killable: true,
     url: "http://127.0.0.1:5173",
     statusCode: 200,
-    title: "DrawCreator"
+    title: "DrawCreator",
+    resources: {
+      cpuPercent: 6.8,
+      memoryBytes: 241_172_480,
+      privateMemoryBytes: 165_675_008,
+      threadCount: 24,
+      handleCount: 348,
+      uptimeMs: 1_320_000
+    }
   },
   {
     port: 8788,
@@ -84,7 +92,15 @@ const sampleEntries: PortEntry[] = [
     killable: true,
     url: "http://127.0.0.1:8788",
     statusCode: 200,
-    title: "AeroNavML console"
+    title: "AeroNavML console",
+    resources: {
+      cpuPercent: 18.2,
+      memoryBytes: 517_996_544,
+      privateMemoryBytes: 342_884_352,
+      threadCount: 16,
+      handleCount: 190,
+      uptimeMs: 3_840_000
+    }
   },
   {
     port: 17321,
@@ -98,7 +114,15 @@ const sampleEntries: PortEntry[] = [
     killable: true,
     url: "http://127.0.0.1:17321",
     statusCode: 200,
-    title: "Import bridge"
+    title: "Import bridge",
+    resources: {
+      cpuPercent: 1.4,
+      memoryBytes: 126_877_696,
+      privateMemoryBytes: 78_643_200,
+      threadCount: 14,
+      handleCount: 155,
+      uptimeMs: 7_200_000
+    }
   },
   {
     port: 8990,
@@ -108,7 +132,15 @@ const sampleEntries: PortEntry[] = [
     commandLine: "ProjectAirSim Blocks",
     detectedKind: "unknown",
     confidence: "low",
-    killable: true
+    killable: true,
+    resources: {
+      cpuPercent: 22.7,
+      memoryBytes: 1_384_120_320,
+      privateMemoryBytes: 1_006_632_960,
+      threadCount: 48,
+      handleCount: 912,
+      uptimeMs: 540_000
+    }
   },
   {
     port: 135,

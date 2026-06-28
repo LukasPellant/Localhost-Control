@@ -28,7 +28,49 @@ describe("native messaging protocol", () => {
       isKillResult({ killed: true, pid: 1234, port: 5173, portClosed: true, message: "Killed" })
     ).toBe(true);
     expect(isKillResult({ killed: true, portClosed: true })).toBe(false);
-    expect(isScanResult({ entries: [], scannedAt: "2026-06-27T10:00:00.000Z", durationMs: 28 })).toBe(true);
+    expect(
+      isScanResult({
+        entries: [
+          {
+            port: 5173,
+            address: "127.0.0.1",
+            pid: 1234,
+            processName: "node.exe",
+            detectedKind: "vite",
+            confidence: "high",
+            killable: true,
+            resources: {
+              cpuPercent: 8.5,
+              memoryBytes: 268_435_456,
+              privateMemoryBytes: 134_217_728,
+              threadCount: 18,
+              handleCount: 210,
+              uptimeMs: 120_000
+            }
+          }
+        ],
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 28
+      })
+    ).toBe(true);
     expect(isScanResult({ entries: "nope" })).toBe(false);
+    expect(
+      isScanResult({
+        entries: [
+          {
+            port: 5173,
+            address: "127.0.0.1",
+            pid: 1234,
+            processName: "node.exe",
+            detectedKind: "vite",
+            confidence: "high",
+            killable: true,
+            resources: { cpuPercent: "busy" }
+          }
+        ],
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 28
+      })
+    ).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 import { Copy, EyeOff, ExternalLink, FolderPlus, Power, Terminal } from "lucide-react";
 import { kindLabel, type PortEntry } from "@localhost-control/shared";
 import { IconButton } from "./IconButton";
+import { formatCpu, formatMemory, formatUptime } from "../lib/resources";
 
 type DetailPanelProps = {
   entry: PortEntry | undefined;
@@ -20,6 +21,11 @@ export const DetailPanel = ({ entry, onKill, onOpen, onCopy, onTerminal, onTrust
       </section>
     );
   }
+
+  const cpu = formatCpu(entry.resources);
+  const memory = formatMemory(entry.resources?.memoryBytes);
+  const privateMemory = formatMemory(entry.resources?.privateMemoryBytes, "private");
+  const uptime = formatUptime(entry.resources);
 
   return (
     <section className="detail-panel" aria-label={`Port ${entry.port} details`}>
@@ -59,6 +65,30 @@ export const DetailPanel = ({ entry, onKill, onOpen, onCopy, onTerminal, onTrust
         <div>
           <dt>Confidence</dt>
           <dd>{entry.confidence}</dd>
+        </div>
+        <div>
+          <dt>CPU</dt>
+          <dd>{cpu ?? "Unknown"}</dd>
+        </div>
+        <div>
+          <dt>Memory</dt>
+          <dd>{memory ?? "Unknown"}</dd>
+        </div>
+        <div>
+          <dt>Private</dt>
+          <dd>{privateMemory ?? "Unknown"}</dd>
+        </div>
+        <div>
+          <dt>Threads</dt>
+          <dd>{entry.resources?.threadCount ?? "Unknown"}</dd>
+        </div>
+        <div>
+          <dt>Handles</dt>
+          <dd>{entry.resources?.handleCount ?? "Unknown"}</dd>
+        </div>
+        <div>
+          <dt>Uptime</dt>
+          <dd>{uptime ?? "Unknown"}</dd>
         </div>
         <div className="wide">
           <dt>Path</dt>

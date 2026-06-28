@@ -11,6 +11,14 @@ export type ProcessMetadata = {
   executablePath?: string;
   commandLine?: string;
   projectHint?: string;
+  resources?: {
+    cpuPercent?: number;
+    memoryBytes?: number;
+    privateMemoryBytes?: number;
+    threadCount?: number;
+    handleCount?: number;
+    uptimeMs?: number;
+  };
 };
 
 type CimProcess = {
@@ -19,6 +27,12 @@ type CimProcess = {
   Name?: string;
   ExecutablePath?: string;
   CommandLine?: string;
+  WorkingSetSize?: number | string;
+  PrivatePageCount?: number | string;
+  ThreadCount?: number | string;
+  HandleCount?: number | string;
+  CreationDate?: string;
+  PercentProcessorTime?: number | string;
 };
 
 const extractWindowsPath = (commandLine: string): string | undefined => {
@@ -66,6 +80,9 @@ const toProcessMetadata = (processInfo: CimProcess): ProcessMetadata => {
   const projectHint = deriveProjectHint(processInfo);
   if (projectHint) base.projectHint = projectHint;
 
+  const resources = deriveResources(processInfo);
+  if (resources) base.resources = resources;
+
   return base;
 };
 
@@ -76,15 +93,50 @@ const parseCimJson = (stdout: string): CimProcess[] => {
   return Array.isArray(parsed) ? parsed : [parsed];
 };
 
+const finiteNumber = (value: unknown): number | undefined => {
+  const number = typeof value === "string" ? Number(value) : value;
+  return typeof number === "number" && Number.isFinite(number) && number >= 0 ? number : undefined;
+};
+
+const parseCimDate = (value: string | undefined): Date | undefined => {
+  if (!value) return undefined;
+  const jsonDateMatch = value.match(/\/Date\((\d+)\)\//);
+  if (jsonDateMatch?.[1]) return new Date(Number(jsonDateMatch[1]));
+  const normalized = value.replace(/\.(\d{3})\d+/, ".$1");
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+const deriveResources = (processInfo: CimProcess): ProcessMetadata["resources"] | undefined => {
+  const resources: NonNullable<ProcessMetadata["resources"]> = {};
+  const cpuPercent = finiteNumber(processInfo.PercentProcessorTime);
+  const memoryBytes = finiteNumber(processInfo.WorkingSetSize);
+  const privateMemoryBytes = finiteNumber(processInfo.PrivatePageCount);
+  const threadCount = finiteNumber(processInfo.ThreadCount);
+  const handleCount = finiteNumber(processInfo.HandleCount);
+  const creationDate = parseCimDate(processInfo.CreationDate);
+
+  if (cpuPercent !== undefined) resources.cpuPercent = Math.round(cpuPercent * 10) / 10;
+  if (memoryBytes !== undefined) resources.memoryBytes = memoryBytes;
+  if (privateMemoryBytes !== undefined) resources.privateMemoryBytes = privateMemoryBytes;
+  if (threadCount !== undefined) resources.threadCount = threadCount;
+  if (handleCount !== undefined) resources.handleCount = handleCount;
+  if (creationDate) resources.uptimeMs = Math.max(0, Date.now() - creationDate.getTime());
+
+  return Object.keys(resources).length ? resources : undefined;
+};
+
 export const readProcessMetadata = async (pids: Iterable<number>): Promise<Map<number, ProcessMetadata>> => {
   const uniquePids = Array.from(new Set(Array.from(pids).filter((pid) => Number.isInteger(pid) && pid > 0)));
   if (uniquePids.length === 0) return new Map();
 
   const filter = uniquePids.map((pid) => `ProcessId=${pid}`).join(" OR ");
+  const pidArray = uniquePids.join(",");
   const command = [
     `$ErrorActionPreference = 'Stop'`,
     `$items = Get-CimInstance Win32_Process -Filter "${filter}"`,
-    `$items | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine | ConvertTo-Json -Compress`
+    `$perf = Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { @(${pidArray}) -contains $_.IDProcess } | Group-Object IDProcess -AsHashTable -AsString`,
+    `$items | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine,WorkingSetSize,PrivatePageCount,ThreadCount,HandleCount,CreationDate,@{Name='PercentProcessorTime';Expression={ $p = $perf[[string]$_.ProcessId]; if ($p) { $p.PercentProcessorTime } }} | ConvertTo-Json -Compress`
   ].join("; ");
 
   const { stdout } = await execFileAsync("powershell", ["-NoProfile", "-NonInteractive", "-Command", command], {

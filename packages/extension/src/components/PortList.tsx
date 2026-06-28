@@ -1,6 +1,7 @@
 import { AlertTriangle, LockKeyhole, Square, Terminal, X } from "lucide-react";
 import { kindLabel, type PortEntry } from "@localhost-control/shared";
 import { IconButton } from "./IconButton";
+import { compactResourceLabels } from "../lib/resources";
 
 type PortListProps = {
   entries: PortEntry[];
@@ -14,6 +15,19 @@ const healthClass = (entry: PortEntry): string => {
   if (entry.statusCode && entry.statusCode < 400) return "healthy";
   if (entry.confidence === "high") return "active";
   return "unknown";
+};
+
+const ResourceStrip = ({ entry }: { entry: PortEntry }) => {
+  const labels = compactResourceLabels(entry.resources);
+  if (!labels.length) return null;
+
+  return (
+    <span className="port-resources">
+      {labels.map((label) => (
+        <span key={label}>{label}</span>
+      ))}
+    </span>
+  );
 };
 
 export const PortList = ({ entries, selectedPort, onSelect, onKill }: PortListProps) => (
@@ -30,6 +44,7 @@ export const PortList = ({ entries, selectedPort, onSelect, onKill }: PortListPr
               <span>{entry.processName}</span>
               <span>PID {entry.pid}</span>
             </span>
+            <ResourceStrip entry={entry} />
             <span className="port-path">{entry.projectHint ?? entry.commandLine ?? entry.address}</span>
           </span>
         </button>

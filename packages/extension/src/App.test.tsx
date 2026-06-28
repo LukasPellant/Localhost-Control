@@ -17,7 +17,15 @@ const entries: PortEntry[] = [
     killable: true,
     url: "http://127.0.0.1:5173",
     statusCode: 200,
-    title: "DrawCreator"
+    title: "DrawCreator",
+    resources: {
+      cpuPercent: 12.4,
+      memoryBytes: 312_000_000,
+      privateMemoryBytes: 188_000_000,
+      threadCount: 22,
+      handleCount: 240,
+      uptimeMs: 90_000
+    }
   },
   {
     port: 17321,
@@ -125,6 +133,10 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /select port 5173/i }));
     expect(screen.getByText("node vite")).toBeInTheDocument();
+    expect(screen.getAllByText("12.4% CPU").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("298 MB RAM").length).toBeGreaterThan(0);
+    expect(screen.getByText("179 MB private")).toBeInTheDocument();
+    expect(screen.getByText("22 threads")).toBeInTheDocument();
 
     fireEvent.click(within(screen.getByLabelText("Detected localhost ports")).getByRole("button", { name: /kill port 5173/i }));
     await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));

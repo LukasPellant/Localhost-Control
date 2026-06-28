@@ -31,6 +31,20 @@ const hasTerminalParams = (value: unknown): boolean => {
   );
 };
 
+const isOptionalNumber = (value: unknown): boolean => value === undefined || isNumber(value);
+
+const isProcessResources = (value: unknown): boolean => {
+  if (!isObject(value)) return false;
+  return (
+    isOptionalNumber(value.cpuPercent) &&
+    isOptionalNumber(value.memoryBytes) &&
+    isOptionalNumber(value.privateMemoryBytes) &&
+    isOptionalNumber(value.threadCount) &&
+    isOptionalNumber(value.handleCount) &&
+    isOptionalNumber(value.uptimeMs)
+  );
+};
+
 export const isHostRequest = (value: unknown): value is HostRequest => {
   if (!isObject(value) || !isString(value.id) || !isString(value.method)) return false;
 
@@ -57,7 +71,8 @@ const isPortEntry = (value: unknown): value is PortEntry => {
     isString(value.processName) &&
     isString(value.detectedKind) &&
     isString(value.confidence) &&
-    isBoolean(value.killable)
+    isBoolean(value.killable) &&
+    (value.resources === undefined || isProcessResources(value.resources))
   );
 };
 

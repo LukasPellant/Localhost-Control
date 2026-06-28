@@ -17,7 +17,15 @@ describe("buildPortEntries", () => {
             processName: "node.exe",
             executablePath: "C:\\Program Files\\nodejs\\node.exe",
             commandLine: "node vite --host 127.0.0.1",
-            projectHint: "D:\\DevelopmentD\\DrawCreator"
+            projectHint: "D:\\DevelopmentD\\DrawCreator",
+            resources: {
+              cpuPercent: 12.4,
+              memoryBytes: 312_000_000,
+              privateMemoryBytes: 188_000_000,
+              threadCount: 22,
+              handleCount: 240,
+              uptimeMs: 90_000
+            }
           }
         ],
         [4, { pid: 4, parentPid: 0, processName: "System", executablePath: "C:\\Windows\\System32\\ntoskrnl.exe" }]
@@ -32,7 +40,15 @@ describe("buildPortEntries", () => {
       confidence: "high",
       killable: true,
       title: "Vite App",
-      projectHint: "D:\\DevelopmentD\\DrawCreator"
+      projectHint: "D:\\DevelopmentD\\DrawCreator",
+      resources: {
+        cpuPercent: 12.4,
+        memoryBytes: 312_000_000,
+        privateMemoryBytes: 188_000_000,
+        threadCount: 22,
+        handleCount: 240,
+        uptimeMs: 90_000
+      }
     });
     expect(entries[1]).toMatchObject({
       port: 135,

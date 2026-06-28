@@ -21,6 +21,15 @@ export type TerminalParams = {
   commandLine?: string;
 };
 
+export type ProcessResources = {
+  cpuPercent?: number;
+  memoryBytes?: number;
+  privateMemoryBytes?: number;
+  threadCount?: number;
+  handleCount?: number;
+  uptimeMs?: number;
+};
+
 export type HostRequest =
   | { id: string; method: "scan"; params: ScanParams }
   | { id: string; method: "kill"; params: KillParams }
@@ -40,6 +49,7 @@ export type PortEntry = {
   title?: string;
   statusCode?: number;
   projectHint?: string;
+  resources?: ProcessResources;
   confidence: Confidence;
   killable: boolean;
   protectionReason?: string;
