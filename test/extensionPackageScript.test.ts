@@ -11,4 +11,11 @@ describe("package-extension.ps1", () => {
     expect(script).toContain('Compress-Archive -Path (Join-Path $StageDir "*")');
     expect(script).not.toContain('Compress-Archive -Path (Join-Path $DistDir "*")');
   });
+
+  it("serializes package builds because Vite writes to a shared dist directory", () => {
+    expect(script).toContain("[System.Threading.Mutex]");
+    expect(script).toContain("LocalhostControlExtensionPackage");
+    expect(script).toContain("$PackageLockTaken = $PackageMutex.WaitOne");
+    expect(script).toContain("$PackageMutex.ReleaseMutex()");
+  });
 });
