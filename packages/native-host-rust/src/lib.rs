@@ -8,6 +8,7 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+const MAX_CHROME_REQUEST_BYTES: usize = 1024 * 1024;
 const MAX_CHROME_RESPONSE_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -134,6 +135,12 @@ pub fn read_native_messages(reader: &mut impl Read) -> io::Result<Vec<Value>> {
         }
 
         let length = u32::from_le_bytes(header) as usize;
+        if length > MAX_CHROME_REQUEST_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Native messaging payload exceeded Chrome's 1 MB message limit.",
+            ));
+        }
         let mut body = vec![0u8; length];
         reader.read_exact(&mut body)?;
         messages.push(serde_json::from_slice(&body).unwrap_or_else(|_| {
@@ -156,6 +163,12 @@ pub fn run_stdio_loop(mut reader: impl Read, mut writer: impl Write) -> io::Resu
         }
 
         let length = u32::from_le_bytes(header) as usize;
+        if length > MAX_CHROME_REQUEST_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Native messaging payload exceeded Chrome's 1 MB message limit.",
+            ));
+        }
         let mut body = vec![0u8; length];
         reader.read_exact(&mut body)?;
         let request = serde_json::from_slice(&body).unwrap_or_else(|_| {

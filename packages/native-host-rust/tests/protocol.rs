@@ -1,6 +1,6 @@
 use localhost_control_host::{encode_native_message, handle_request, read_native_messages};
 use serde_json::json;
-use std::io::Cursor;
+use std::io::{Cursor, ErrorKind};
 
 #[test]
 fn native_messaging_frames_round_trip_json() {
@@ -12,6 +12,16 @@ fn native_messaging_frames_round_trip_json() {
         messages,
         vec![json!({ "id": "version-1", "method": "version" })]
     );
+}
+
+#[test]
+fn oversized_native_messaging_frames_are_rejected_before_body_read() {
+    let mut encoded = Vec::new();
+    encoded.extend_from_slice(&(1_048_577u32).to_le_bytes());
+
+    let error = read_native_messages(&mut Cursor::new(encoded)).unwrap_err();
+
+    assert_eq!(error.kind(), ErrorKind::InvalidData);
 }
 
 #[test]

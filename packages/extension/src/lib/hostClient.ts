@@ -34,6 +34,8 @@ const requestId = (): string => `${Date.now().toString(36)}-${Math.random().toSt
 
 const hasNativeMessaging = (): boolean => Boolean(getExtensionApi()?.runtime?.sendNativeMessage);
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+const isNativeErrorResult = (value: unknown): value is { error: string; message: string } =>
+  isRecord(value) && typeof value.error === "string" && typeof value.message === "string";
 const isTerminalResult = (value: unknown): value is TerminalResult =>
   isRecord(value) && typeof value.opened === "boolean" && typeof value.message === "string";
 const isVersionResult = (value: unknown): value is VersionResult =>
@@ -44,6 +46,9 @@ const unwrapNativeResponse = <T>(response: NativeEnvelope<T> | undefined): T => 
     throw new Error("Native host returned an empty response.");
   }
   if (typeof response.result === "object" && response.result && "error" in response.result) {
+    if (!isNativeErrorResult(response.result)) {
+      throw new Error("Native host returned an invalid error response.");
+    }
     throw new Error(response.result.message);
   }
   return response.result as T;
@@ -72,7 +77,7 @@ const sendNative = async <T>(request: NativeRequest): Promise<T> => {
     api.runtime?.sendNativeMessage?.(HOST_NAME, message, (response) => {
       const lastError = api.runtime?.lastError;
       if (lastError) {
-        reject(new Error(lastError.message));
+        reject(new Error(lastError.message ?? "Native messaging request failed."));
         return;
       }
       try {

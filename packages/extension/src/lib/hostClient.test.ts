@@ -61,4 +61,30 @@ describe("createNativeHostClient", () => {
       "Native host returned an invalid scan response."
     );
   });
+
+  it("rejects malformed native host error envelopes with a useful message", async () => {
+    (globalThis as { browser?: unknown }).browser = {
+      runtime: {
+        sendNativeMessage: async (_hostName: string, message: { id: string; method: string }) => ({
+          id: message.id,
+          result: { error: "internal_error" }
+        })
+      }
+    };
+
+    await expect(createNativeHostClient().version()).rejects.toThrow("Native host returned an invalid error response.");
+  });
+
+  it("uses a fallback message for callback native messaging errors without a message", async () => {
+    (globalThis as { chrome?: unknown }).chrome = {
+      runtime: {
+        lastError: {},
+        sendNativeMessage: (_hostName: string, _message: unknown, callback: (response: unknown) => void) => {
+          callback(undefined);
+        }
+      }
+    };
+
+    await expect(createNativeHostClient().version()).rejects.toThrow("Native messaging request failed.");
+  });
 });

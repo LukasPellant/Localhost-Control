@@ -26,6 +26,8 @@ const platform = args.get("platform") ?? process.platform;
 const format = args.get("format") ?? (platform === "darwin" ? "pkg" : platform === "win32" ? "zip" : "tarball");
 const arch = args.get("arch") ?? (process.arch === "arm64" ? "arm64" : "amd64");
 const outputDir = path.resolve(args.get("out-dir") ?? path.join(repoRoot, "dist", "native-host"));
+const expectedExtensionId = args.get("extension-id") ?? defaultExtensionId;
+const expectedFirefoxExtensionId = args.get("firefox-extension-id") ?? defaultFirefoxExtensionId;
 
 const defaultArtifactPath = () => {
   if (platform === "darwin" && format === "pkg") {
@@ -122,7 +124,7 @@ const validateNativeManifestFile = async (root, relativePath, browser) => {
   if (browser === "firefox") {
     assertArrayEquals(
       manifest.allowed_extensions,
-      [defaultFirefoxExtensionId],
+      [expectedFirefoxExtensionId],
       `Invalid native messaging manifest: ${relativePath}`
     );
     return;
@@ -130,7 +132,7 @@ const validateNativeManifestFile = async (root, relativePath, browser) => {
 
   assertArrayEquals(
     manifest.allowed_origins,
-    [`chrome-extension://${defaultExtensionId}/`],
+    [`chrome-extension://${expectedExtensionId}/`],
     `Invalid native messaging manifest: ${relativePath}`
   );
 };
