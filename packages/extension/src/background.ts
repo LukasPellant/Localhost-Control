@@ -1,12 +1,33 @@
-chrome.runtime.onInstalled.addListener(() => {
-  void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+type ExtensionApi = typeof chrome & {
+  browserAction?: typeof chrome.action;
+  sidebarAction?: {
+    open?: () => Promise<void> | void;
+  };
+};
+
+const globalExtensionApi = globalThis as typeof globalThis & {
+  browser?: ExtensionApi;
+  chrome?: ExtensionApi;
+};
+
+const extensionApi = globalExtensionApi.browser ?? globalExtensionApi.chrome;
+const actionApi = extensionApi?.action ?? extensionApi?.browserAction;
+
+extensionApi?.runtime?.onInstalled.addListener(() => {
+  void extensionApi.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true });
 });
 
-chrome.action.onClicked.addListener(async (tab) => {
+actionApi?.onClicked.addListener(async (tab) => {
   if (!tab.id) return;
+
+  if (extensionApi?.sidebarAction?.open) {
+    await extensionApi.sidebarAction.open();
+    return;
+  }
+
   try {
-    await chrome.sidePanel.open({ tabId: tab.id });
+    await extensionApi?.sidePanel?.open?.({ tabId: tab.id });
   } catch {
-    await chrome.sidePanel.setOptions({ tabId: tab.id, path: "sidepanel.html", enabled: true });
+    await extensionApi?.sidePanel?.setOptions?.({ tabId: tab.id, path: "sidepanel.html", enabled: true });
   }
 });

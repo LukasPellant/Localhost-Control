@@ -13,6 +13,10 @@ export const buildFirefoxManifest = (chromeManifest) => {
     default_panel: manifest.side_panel?.default_path ?? "sidepanel.html",
     default_icon: icons
   };
+  manifest.background = {
+    scripts: [manifest.background?.service_worker ?? "background.js"],
+    service_worker: manifest.background?.service_worker ?? "background.js"
+  };
   manifest.browser_specific_settings = {
     ...(manifest.browser_specific_settings ?? {}),
     gecko: {
@@ -24,7 +28,6 @@ export const buildFirefoxManifest = (chromeManifest) => {
     }
   };
 
-  delete manifest.background;
   delete manifest.side_panel;
   return manifest;
 };

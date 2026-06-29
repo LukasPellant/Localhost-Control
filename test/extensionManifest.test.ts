@@ -12,8 +12,11 @@ describe("buildFirefoxManifest", () => {
 
     expect(manifest.permissions).toEqual(["nativeMessaging", "storage"]);
     expect(manifest).not.toHaveProperty("side_panel");
-    expect(manifest).not.toHaveProperty("background");
     expect(manifest).toMatchObject({
+      background: {
+        scripts: ["background.js"],
+        service_worker: "background.js"
+      },
       sidebar_action: {
         default_panel: "sidepanel.html",
         default_title: "Localhost Control"
