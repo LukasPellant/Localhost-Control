@@ -242,7 +242,7 @@ fn scan_local_ports(params: &ScanParams) -> Result<Value, String> {
             build_port_entry(
                 listener,
                 metadata.get(&listener.pid),
-                probes.get(&listener.port),
+                probes.get(&listener_probe_key(listener)),
             )
         })
         .collect();
@@ -703,7 +703,7 @@ fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
             "killed": false,
             "pid": params.pid,
             "port": params.port,
-            "portClosed": !listeners.iter().any(|listener| listener.port == params.port),
+            "portClosed": !is_target_listener_active(&listeners, params.pid, params.port),
             "message": message
         }));
     }
@@ -713,7 +713,7 @@ fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
         .creation_flags_no_window()
         .output()
         .map_err(|error| error.to_string())?;
-    let port_closed = wait_for_port_closed(params.port, Duration::from_secs(3));
+    let port_closed = wait_for_listener_closed(params.pid, params.port, Duration::from_secs(3));
     Ok(json!({
         "killed": output.status.success(),
         "pid": params.pid,
@@ -751,7 +751,7 @@ fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
             "killed": false,
             "pid": params.pid,
             "port": params.port,
-            "portClosed": !listeners.iter().any(|listener| listener.port == params.port),
+            "portClosed": !is_target_listener_active(&listeners, params.pid, params.port),
             "message": message
         }));
     }
@@ -764,7 +764,7 @@ fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
     for pid in &pids {
         let _ = send_unix_signal(*pid, "KILL");
     }
-    let port_closed = wait_for_port_closed(params.port, Duration::from_secs(3));
+    let port_closed = wait_for_listener_closed(params.pid, params.port, Duration::from_secs(3));
     Ok(json!({
         "killed": true,
         "pid": params.pid,
@@ -904,29 +904,33 @@ fn open_terminal(params: &TerminalParams) -> Value {
     }
 }
 
-fn wait_for_port_closed(port: u16, timeout: Duration) -> bool {
+fn is_target_listener_active(listeners: &[Listener], pid: u32, port: u16) -> bool {
+    listeners
+        .iter()
+        .any(|listener| listener.pid == pid && listener.port == port)
+}
+
+fn wait_for_listener_closed(pid: u32, port: u16, timeout: Duration) -> bool {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
-        if !read_tcp_listeners()
-            .unwrap_or_default()
-            .iter()
-            .any(|listener| listener.port == port)
-        {
+        if !is_target_listener_active(&read_tcp_listeners().unwrap_or_default(), pid, port) {
             return true;
         }
         std::thread::sleep(Duration::from_millis(120));
     }
-    !read_tcp_listeners()
-        .unwrap_or_default()
-        .iter()
-        .any(|listener| listener.port == port)
+    !is_target_listener_active(&read_tcp_listeners().unwrap_or_default(), pid, port)
 }
 
-fn probe_listeners(listeners: &[Listener], max_probe_ms: u64) -> HashMap<u16, ProbeResult> {
+fn listener_probe_key(listener: &Listener) -> (u32, u16) {
+    (listener.pid, listener.port)
+}
+
+fn probe_listeners(listeners: &[Listener], max_probe_ms: u64) -> HashMap<(u32, u16), ProbeResult> {
     listeners
         .iter()
         .filter_map(|listener| {
-            probe_listener(listener, max_probe_ms).map(|probe| (listener.port, probe))
+            probe_listener(listener, max_probe_ms)
+                .map(|probe| (listener_probe_key(listener), probe))
         })
         .collect()
 }
@@ -1461,6 +1465,28 @@ next    42126 pella   10u  IPv4 0x123456789abcdec      0t0  TCP localhost:3000 (
         assert_eq!(super::probe_hosts("::"), ("[::1]", "::1"));
         assert_eq!(super::probe_hosts("::1"), ("[::1]", "::1"));
         assert_eq!(super::probe_hosts("127.0.0.1"), ("127.0.0.1", "127.0.0.1"));
+    }
+
+    #[test]
+    fn listener_identity_includes_pid_for_duplicate_ports() {
+        let listeners = vec![
+            super::Listener {
+                address: "127.0.0.1".to_string(),
+                port: 5173,
+                pid: 100,
+            },
+            super::Listener {
+                address: "::1".to_string(),
+                port: 5173,
+                pid: 101,
+            },
+        ];
+
+        assert!(super::is_target_listener_active(&listeners, 100, 5173));
+        assert!(super::is_target_listener_active(&listeners, 101, 5173));
+        assert!(!super::is_target_listener_active(&listeners, 102, 5173));
+        assert_eq!(super::listener_probe_key(&listeners[0]), (100, 5173));
+        assert_eq!(super::listener_probe_key(&listeners[1]), (101, 5173));
     }
 
     #[cfg(target_os = "linux")]
