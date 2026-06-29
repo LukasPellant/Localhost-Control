@@ -9,7 +9,6 @@ export type Settings = {
   themeMode: ThemeMode;
   hiddenPorts: number[];
   customPortRange: string;
-  trustedProcessNames: string[];
   trustedProjectRoots: string[];
   trustedProjectPaths: string[];
   blockedProcessNames: string[];
@@ -24,8 +23,7 @@ export const defaultSettings: Settings = {
   themeMode: "system",
   hiddenPorts: [],
   customPortRange: "3000-9999",
-  trustedProcessNames: ["node.exe", "python.exe", "bun.exe", "deno.exe"],
-  trustedProjectRoots: ["D:\\Projects", "C:\\Projects"],
+  trustedProjectRoots: [],
   trustedProjectPaths: [],
   blockedProcessNames: ["steam.exe", "discord.exe", "battle.net.exe", "agent.exe", "nordvpn-service.exe", "ntkdaemon.exe", "qbittorrent.exe"]
 };
