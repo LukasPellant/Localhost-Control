@@ -20,7 +20,7 @@ const parseArgs = () => {
 
 const args = parseArgs();
 const platform = args.get("platform") ?? process.platform;
-const format = args.get("format") ?? (platform === "darwin" ? "pkg" : "tarball");
+const format = args.get("format") ?? (platform === "darwin" ? "pkg" : platform === "win32" ? "zip" : "tarball");
 const arch = args.get("arch") ?? (process.arch === "arm64" ? "arm64" : "amd64");
 const outputDir = path.resolve(args.get("out-dir") ?? path.join(repoRoot, "dist", "native-host"));
 

@@ -93,6 +93,47 @@ describe("validate-native-host-package", () => {
     expect(output).toContain("Validated");
   });
 
+  it("accepts a Windows zip with installer scripts and the Rust host binary", () => {
+    if (process.platform !== "win32") return;
+
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-winzip-"));
+    const stageDir = path.join(tempRoot, "stage");
+    const artifact = path.join(tempRoot, "host-windows.zip");
+
+    mkdirSync(path.join(stageDir, "out"), { recursive: true });
+    writeFileSync(path.join(stageDir, "install.ps1"), "$ErrorActionPreference = 'Stop'\n");
+    writeFileSync(path.join(stageDir, "uninstall.ps1"), "$ErrorActionPreference = 'Stop'\n");
+    writeFileSync(path.join(stageDir, "out", "localhost-control-host.exe"), "rust-host\n");
+
+    execFileSync(
+      "powershell",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "Compress-Archive -Path (Join-Path $env:LOCALHOST_CONTROL_STAGE '*') -DestinationPath $env:LOCALHOST_CONTROL_ARTIFACT -Force"
+      ],
+      {
+        stdio: "pipe",
+        env: {
+          ...process.env,
+          LOCALHOST_CONTROL_STAGE: stageDir,
+          LOCALHOST_CONTROL_ARTIFACT: artifact
+        }
+      }
+    );
+
+    const output = execFileSync(
+      process.execPath,
+      [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), "--platform=win32", `--artifact=${artifact}`],
+      { encoding: "utf8" }
+    );
+
+    expect(output).toContain("Validated");
+  });
+
   it("rejects a Debian package that cannot restore the host executable permission", () => {
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-deb-"));
     const controlDir = path.join(tempRoot, "control");
