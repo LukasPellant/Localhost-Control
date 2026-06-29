@@ -46,4 +46,19 @@ describe("createNativeHostClient", () => {
 
     await expect(createNativeHostClient().version()).resolves.toEqual({ version: "0.1.5", platform: "win32" });
   });
+
+  it("rejects malformed scan responses before they reach the UI", async () => {
+    (globalThis as { browser?: unknown }).browser = {
+      runtime: {
+        sendNativeMessage: async (_hostName: string, message: { id: string; method: string }) => ({
+          id: message.id,
+          result: { entries: "not-an-array" }
+        })
+      }
+    };
+
+    await expect(createNativeHostClient().scan({ includeSystemPorts: false, httpProbe: true, maxProbeMs: 550 })).rejects.toThrow(
+      "Native host returned an invalid scan response."
+    );
+  });
 });

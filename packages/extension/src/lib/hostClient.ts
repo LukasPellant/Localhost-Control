@@ -1,4 +1,15 @@
-import { HOST_NAME, type KillParams, type KillResult, type ScanParams, type ScanResult, type TerminalParams, type TerminalResult, type VersionResult } from "@localhost-control/shared";
+import {
+  HOST_NAME,
+  isKillResult,
+  isScanResult,
+  type KillParams,
+  type KillResult,
+  type ScanParams,
+  type ScanResult,
+  type TerminalParams,
+  type TerminalResult,
+  type VersionResult
+} from "@localhost-control/shared";
 import { getExtensionApi, hasPromiseExtensionApi } from "./extensionApi";
 
 export type HostClient = {
@@ -22,6 +33,11 @@ type NativeRequest =
 const requestId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
 const hasNativeMessaging = (): boolean => Boolean(getExtensionApi()?.runtime?.sendNativeMessage);
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+const isTerminalResult = (value: unknown): value is TerminalResult =>
+  isRecord(value) && typeof value.opened === "boolean" && typeof value.message === "string";
+const isVersionResult = (value: unknown): value is VersionResult =>
+  isRecord(value) && typeof value.version === "string" && typeof value.platform === "string";
 
 const unwrapNativeResponse = <T>(response: NativeEnvelope<T> | undefined): T => {
   if (!response || !("result" in response)) {
@@ -31,6 +47,13 @@ const unwrapNativeResponse = <T>(response: NativeEnvelope<T> | undefined): T => 
     throw new Error(response.result.message);
   }
   return response.result as T;
+};
+
+const validateNativeResult = <T>(value: T, isValid: (value: unknown) => boolean, label: string): T => {
+  if (!isValid(value)) {
+    throw new Error(`Native host returned an invalid ${label} response.`);
+  }
+  return value;
 };
 
 const sendNative = async <T>(request: NativeRequest): Promise<T> => {
@@ -62,10 +85,11 @@ const sendNative = async <T>(request: NativeRequest): Promise<T> => {
 };
 
 export const createNativeHostClient = (): HostClient => ({
-  scan: (params) => sendNative<ScanResult>({ method: "scan", params }),
-  kill: (params) => sendNative<KillResult>({ method: "kill", params }),
-  openTerminal: (params) => sendNative<TerminalResult>({ method: "openTerminal", params }),
-  version: () => sendNative<VersionResult>({ method: "version" })
+  scan: async (params) => validateNativeResult(await sendNative<ScanResult>({ method: "scan", params }), isScanResult, "scan"),
+  kill: async (params) => validateNativeResult(await sendNative<KillResult>({ method: "kill", params }), isKillResult, "kill"),
+  openTerminal: async (params) =>
+    validateNativeResult(await sendNative<TerminalResult>({ method: "openTerminal", params }), isTerminalResult, "openTerminal"),
+  version: async () => validateNativeResult(await sendNative<VersionResult>({ method: "version" }), isVersionResult, "version")
 });
 
 export const shouldUseMockClient = (isDevBuild = import.meta.env.DEV): boolean =>
