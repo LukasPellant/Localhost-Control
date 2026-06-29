@@ -5,7 +5,7 @@ import { compactResourceLabels } from "../lib/resources";
 
 type PortListProps = {
   entries: PortEntry[];
-  selectedPort: number | undefined;
+  selectedKey: string | null;
   onSelect(entry: PortEntry): void;
   onOpen(entry: PortEntry): void;
   onKill(entry: PortEntry): void;
@@ -31,10 +31,10 @@ const ResourceStrip = ({ entry }: { entry: PortEntry }) => {
   );
 };
 
-export const PortList = ({ entries, selectedPort, onSelect, onOpen, onKill }: PortListProps) => (
+export const PortList = ({ entries, selectedKey, onSelect, onOpen, onKill }: PortListProps) => (
   <div className="port-list" aria-label="Detected localhost ports">
     {entries.map((entry) => (
-      <div className={`port-row ${selectedPort === entry.port ? "selected" : ""}`} key={`${entry.pid}-${entry.port}`}>
+      <div className={`port-row ${selectedKey === `${entry.pid}:${entry.port}` ? "selected" : ""}`} key={`${entry.pid}-${entry.port}`}>
         <button className="port-main" type="button" aria-label={`Select port ${entry.port}`} onClick={() => onSelect(entry)}>
           <span className={`health ${healthClass(entry)}`} />
           <span className="port-number">{entry.port}</span>

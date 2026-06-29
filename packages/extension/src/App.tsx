@@ -265,7 +265,7 @@ export const App = ({ client }: AppProps) => {
 
       <PortList
         entries={visibleEntries}
-        selectedPort={selectedEntry?.port}
+        selectedKey={selectedEntry ? `${selectedEntry.pid}:${selectedEntry.port}` : null}
         onSelect={(entry) => setSelectedKey(`${entry.pid}:${entry.port}`)}
         onOpen={openEntry}
         onKill={(entry) => void killEntry(entry)}

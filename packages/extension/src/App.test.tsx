@@ -300,4 +300,30 @@ describe("App", () => {
     expect(screen.getByLabelText("Port 135 details")).toBeInTheDocument();
     expect(screen.getByText("Protected system process")).toBeInTheDocument();
   });
+
+  it("marks only the selected PID when multiple listeners share a port number", async () => {
+    const baseEntry = entries[0]!;
+    const duplicatePortEntries: PortEntry[] = [
+      { ...baseEntry, pid: 100, port: 5173, title: "Vite IPv4" },
+      { ...baseEntry, pid: 101, port: 5173, title: "Vite IPv6", address: "::1" }
+    ];
+    const duplicateClient: HostClient = {
+      ...client,
+      scan: vi.fn(async () => ({
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 12,
+        entries: duplicatePortEntries
+      }))
+    };
+
+    render(<App client={duplicateClient} />);
+
+    const selectButtons = await screen.findAllByRole("button", { name: /select port 5173/i });
+    fireEvent.click(selectButtons[1]!);
+
+    const selectedRows = document.querySelectorAll(".port-row.selected");
+    expect(selectedRows).toHaveLength(1);
+    expect(selectedRows[0]!).toHaveTextContent("PID 101");
+    expect(screen.getByLabelText("Port 5173 details")).toHaveTextContent("101");
+  });
 });
