@@ -12,7 +12,7 @@ import "./styles.css";
 
 const filters: FilterId[] = ["web", "custom", "all", "node", "python", "unknown", "protected"];
 const themeQuery = "(prefers-color-scheme: dark)";
-const nativeHostDownloadUrl = "https://github.com/LukasPellant/Localhost-Control/releases/tag/v0.1.5";
+const nativeHostReleasesUrl = "https://github.com/LukasPellant/Localhost-Control/releases";
 
 type AppProps = {
   client: HostClient;
@@ -21,6 +21,10 @@ type AppProps = {
 const isLowConfidenceUnknown = (entry: PortEntry): boolean => entry.detectedKind === "unknown" && entry.confidence === "low";
 const isMissingNativeHostError = (message: string): boolean =>
   /native messaging host.*not found|specified native messaging host not found|no such native application/i.test(message);
+const nativeHostDownloadUrl = (): string => {
+  const version = getExtensionApi()?.runtime?.getManifest?.().version;
+  return version ? `${nativeHostReleasesUrl}/tag/v${version}` : nativeHostReleasesUrl;
+};
 const resolveTheme = (themeMode: Settings["themeMode"]): "light" | "dark" => {
   if (themeMode === "dark") return "dark";
   if (themeMode === "light") return "light";
@@ -75,7 +79,7 @@ export const App = ({ client }: AppProps) => {
   }, []);
 
   const openNativeHostDownload = useCallback(() => {
-    openExternalUrl(nativeHostDownloadUrl);
+    openExternalUrl(nativeHostDownloadUrl());
   }, [openExternalUrl]);
 
   useEffect(() => {

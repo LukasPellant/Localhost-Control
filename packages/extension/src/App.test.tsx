@@ -337,6 +337,9 @@ describe("App", () => {
   it("opens the native host download page once when the installed extension cannot find the host", async () => {
     const createTab = vi.fn();
     (globalThis as { browser?: unknown }).browser = {
+      runtime: {
+        getManifest: () => ({ version: "9.8.7" })
+      },
       tabs: {
         create: createTab
       }
@@ -347,7 +350,7 @@ describe("App", () => {
     expect(await screen.findByText("Native host offline")).toBeInTheDocument();
     await waitFor(() =>
       expect(createTab).toHaveBeenCalledWith({
-        url: "https://github.com/LukasPellant/Localhost-Control/releases/tag/v0.1.5"
+        url: "https://github.com/LukasPellant/Localhost-Control/releases/tag/v9.8.7"
       })
     );
     expect(createTab).toHaveBeenCalledOnce();

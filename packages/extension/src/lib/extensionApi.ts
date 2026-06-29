@@ -4,6 +4,7 @@ type RuntimeLastError = {
 
 type RuntimeApi = {
   lastError?: RuntimeLastError;
+  getManifest?: () => { version?: string };
   sendNativeMessage?: (application: string, message: unknown, callback?: (response: unknown) => void) => Promise<unknown> | void;
 };
 
