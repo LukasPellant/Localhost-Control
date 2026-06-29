@@ -25,17 +25,20 @@ export const parseLinuxPsOutput = (
     const line = rawLine.trim();
     if (!line || line.startsWith("PID")) continue;
 
-    const match =
+    const matchWithThreads =
       /^(?<pid>\d+)\s+(?<ppid>\d+)\s+(?<comm>\S+)\s+(?<elapsed>\S+)\s+(?<cpu>[\d.]+)\s+(?<rss>\d+)\s+(?<threads>\d+)\s+(?<command>.+)$/.exec(line);
-    if (!match?.groups) continue;
+    const matchWithoutThreads =
+      /^(?<pid>\d+)\s+(?<ppid>\d+)\s+(?<comm>\S+)\s+(?<elapsed>\S+)\s+(?<cpu>[\d.]+)\s+(?<rss>\d+)\s+(?<command>.*)$/.exec(line);
+    const groups = matchWithThreads?.groups ?? matchWithoutThreads?.groups;
+    if (!groups) continue;
 
-    const { pid: pidText, ppid, comm, elapsed, cpu: cpuText, rss: rssText, threads: threadsText, command } = match.groups;
-    if (!pidText || !ppid || !comm || !elapsed || !cpuText || !rssText || !threadsText || !command) continue;
+    const { pid: pidText, ppid, comm, elapsed, cpu: cpuText, rss: rssText, threads: threadsText, command } = groups;
+    if (!pidText || !ppid || !comm || !elapsed || !cpuText || !rssText) continue;
 
     const pid = Number(pidText);
     const executablePath = executableByPid.get(pid);
     const cwd = cwdByPid.get(pid);
-    const commandLine = command;
+    const commandLine = command?.trim();
     const elapsedSeconds = parseElapsedSeconds(elapsed);
     const resources: NonNullable<ProcessMetadata["resources"]> = {};
     const cpu = finiteNumber(cpuText);
@@ -76,7 +79,7 @@ export const readProcessMetadata = async (pids: Iterable<number>): Promise<Map<n
         cwd: await readProcLink(pid, "cwd")
       }))
     ),
-    execFileAsync("ps", ["-p", uniquePids.join(","), "-o", "pid=", "-o", "ppid=", "-o", "comm=", "-o", "etimes=", "-o", "%cpu=", "-o", "rss=", "-o", "nlwp=", "-o", "args="], {
+    execFileAsync("ps", ["-p", uniquePids.join(","), "-o", "pid=", "-o", "ppid=", "-o", "comm=", "-o", "etimes=", "-o", "pcpu=", "-o", "rss=", "-o", "nlwp=", "-o", "args="], {
       maxBuffer: 1024 * 1024 * 8
     })
   ]);

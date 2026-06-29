@@ -107,4 +107,24 @@ describe("parseLinuxPsOutput", () => {
       }
     });
   });
+
+  it("maps Linux ps rows when thread count is not available", () => {
+    const output = `
+ 2222  1000 python3             3661  0.4 32768 python3 -m http.server 8000
+`;
+
+    const metadata = parseLinuxPsOutput(output);
+    expect(metadata.get(2222)).toMatchObject({
+      pid: 2222,
+      parentPid: 1000,
+      processName: "python3",
+      commandLine: "python3 -m http.server 8000",
+      resources: {
+        cpuPercent: 0.4,
+        memoryBytes: 33_554_432,
+        uptimeMs: 3_661_000
+      }
+    });
+    expect(metadata.get(2222)?.resources?.threadCount).toBeUndefined();
+  });
 });
