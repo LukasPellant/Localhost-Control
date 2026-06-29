@@ -277,6 +277,21 @@ describe("App", () => {
     expect(await screen.findByText("Copied http://127.0.0.1:5173")).toBeInTheDocument();
   });
 
+  it("shows terminal errors from the native host", async () => {
+    const terminalClient: HostClient = {
+      ...client,
+      openTerminal: vi.fn(async () => Promise.reject(new Error("No supported terminal was found.")))
+    };
+
+    render(<App client={terminalClient} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByLabelText("Port 5173 details")).getByRole("button", { name: /open terminal for port 5173/i }));
+
+    await waitFor(() => expect(terminalClient.openTerminal).toHaveBeenCalled());
+    expect(await screen.findByText("No supported terminal was found.")).toBeInTheDocument();
+  });
+
   it("shows install help when native host is unavailable", async () => {
     render(<App client={{ ...client, scan: vi.fn(async () => Promise.reject(new Error("Specified native messaging host not found."))) }} />);
 

@@ -203,11 +203,15 @@ export const App = ({ client }: AppProps) => {
   };
 
   const openTerminalForEntry = async (entry: PortEntry) => {
-    const result = await client.openTerminal({
-      ...(entry.projectHint ? { projectHint: entry.projectHint } : {}),
-      ...(entry.commandLine ? { commandLine: entry.commandLine } : {})
-    });
-    setMessage(result.message);
+    try {
+      const result = await client.openTerminal({
+        ...(entry.projectHint ? { projectHint: entry.projectHint } : {}),
+        ...(entry.commandLine ? { commandLine: entry.commandLine } : {})
+      });
+      setMessage(result.message);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const trustProject = async (entry: PortEntry) => {
