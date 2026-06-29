@@ -117,9 +117,13 @@ const validateDeb = async () => {
     const controlRoot = path.join(tempRoot, "control");
     await extractTarGz(controlTar, tempRoot, "control.tar.gz", controlRoot);
     const control = await readFile(path.join(controlRoot, "control"), "utf8");
+    const postinst = await readFile(path.join(controlRoot, "postinst"), "utf8").catch(() => "");
     if (!control.includes("localhost-control-native-host")) throw new Error("Debian package metadata is missing the package name.");
     if (!control.includes(packageJson.version)) throw new Error("Debian package metadata is missing the project version.");
     if (!control.includes("nodejs")) throw new Error("Debian package metadata must depend on nodejs.");
+    if (!postinst.includes("chmod 755 /usr/lib/localhost-control/localhost-control-host")) {
+      throw new Error("Debian package postinst must restore the native host executable permission.");
+    }
 
     const dataEntries = await listTarGzEntries(dataTar, tempRoot, "data.tar.gz");
     requireEntry(dataEntries, "usr/lib/localhost-control/localhost-control-host");

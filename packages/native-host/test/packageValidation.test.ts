@@ -82,12 +82,13 @@ describe("validate-native-host-package", () => {
       path.join(controlDir, "control"),
       [
         "Package: localhost-control-native-host",
-        "Version: 0.1.2",
+        "Version: 0.1.4",
         "Architecture: amd64",
         "Depends: nodejs (>= 18)",
         ""
       ].join("\n")
     );
+    writeFileSync(path.join(controlDir, "postinst"), "#!/usr/bin/env sh\nchmod 755 /usr/lib/localhost-control/localhost-control-host\n");
     writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
     writeFileSync(path.join(dataDir, "usr/lib/localhost-control/app/native-host/dist/index.js"), "#!/usr/bin/env node\n");
     writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
@@ -108,5 +109,54 @@ describe("validate-native-host-package", () => {
     );
 
     expect(output).toContain("Validated");
+  });
+
+  it("rejects a Debian package that cannot restore the host executable permission", () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-deb-"));
+    const controlDir = path.join(tempRoot, "control");
+    const dataDir = path.join(tempRoot, "data");
+    const controlTar = path.join(tempRoot, "control.tar.gz");
+    const dataTar = path.join(tempRoot, "data.tar.gz");
+    const artifact = path.join(tempRoot, "host.deb");
+
+    for (const directory of [
+      controlDir,
+      path.join(dataDir, "usr/lib/localhost-control/app/native-host/dist"),
+      path.join(dataDir, "etc/opt/chrome/native-messaging-hosts"),
+      path.join(dataDir, "etc/brave/native-messaging-hosts")
+    ]) {
+      mkdirSync(directory, { recursive: true });
+    }
+
+    writeFileSync(
+      path.join(controlDir, "control"),
+      [
+        "Package: localhost-control-native-host",
+        "Version: 0.1.4",
+        "Architecture: amd64",
+        "Depends: nodejs (>= 18)",
+        ""
+      ].join("\n")
+    );
+    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
+    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/app/native-host/dist/index.js"), "#!/usr/bin/env node\n");
+    writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
+    writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
+
+    execFileSync("tar", ["-czf", controlTar, "-C", controlDir, "."], { stdio: "pipe" });
+    execFileSync("tar", ["-czf", dataTar, "-C", dataDir, "."], { stdio: "pipe" });
+    writeArArchive(artifact, [
+      { name: "debian-binary", data: Buffer.from("2.0\n") },
+      { name: "control.tar.gz", data: readFileSync(controlTar) },
+      { name: "data.tar.gz", data: readFileSync(dataTar) }
+    ]);
+
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), "--platform=linux", "--format=deb", `--artifact=${artifact}`],
+        { encoding: "utf8", stdio: "pipe" }
+      )
+    ).toThrow(/postinst/);
   });
 });

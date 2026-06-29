@@ -321,7 +321,7 @@ button:disabled {
 .port-copy {
   display: grid;
   min-width: 0;
-  gap: 2px;
+  gap: 1px;
 }
 
 .port-title,
@@ -341,17 +341,21 @@ button:disabled {
 
 .port-meta {
   display: flex;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 1px 6px;
   color: var(--muted);
   font-size: 11px;
+  line-height: 1.2;
 }
 
 .port-resources {
   display: flex;
-  gap: 5px;
+  flex-wrap: wrap;
+  gap: 1px 5px;
   color: var(--accent);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
 
 .port-resources span {

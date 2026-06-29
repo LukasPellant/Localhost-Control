@@ -11,7 +11,7 @@ import "./styles.css";
 
 const filters: FilterId[] = ["web", "custom", "all", "node", "python", "unknown", "protected"];
 const themeQuery = "(prefers-color-scheme: dark)";
-const nativeHostDownloadUrl = "https://github.com/LukasPellant/Localhost-Control/releases/tag/v0.1.2";
+const nativeHostDownloadUrl = "https://github.com/LukasPellant/Localhost-Control/releases/tag/v0.1.4";
 
 type AppProps = {
   client: HostClient;

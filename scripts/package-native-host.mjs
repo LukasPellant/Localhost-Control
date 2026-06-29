@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { gzipSync } from "node:zlib";
 import { buildNativeHostManifest, DEFAULT_EXTENSION_ID, resolveNativeMessagingManifestTargets } from "../packages/native-host/dist/nativeHostManifest.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -79,6 +80,66 @@ const writeArArchive = async (output, entries) => {
   await writeFile(output, Buffer.concat(chunks));
 };
 
+const tarString = (header, offset, length, value) => {
+  header.write(String(value).slice(0, length), offset, length, "utf8");
+};
+
+const tarOctal = (header, offset, length, value) => {
+  const text = value.toString(8).padStart(length - 1, "0").slice(0, length - 1);
+  header.write(`${text}\0`, offset, length, "ascii");
+};
+
+const writeTarHeader = ({ name, mode, size, type = "0" }) => {
+  const header = Buffer.alloc(512, 0);
+  tarString(header, 0, 100, name);
+  tarOctal(header, 100, 8, mode);
+  tarOctal(header, 108, 8, 0);
+  tarOctal(header, 116, 8, 0);
+  tarOctal(header, 124, 12, size);
+  tarOctal(header, 136, 12, 0);
+  header.fill(" ", 148, 156);
+  tarString(header, 156, 1, type);
+  tarString(header, 257, 6, "ustar");
+  tarString(header, 263, 2, "00");
+  let checksum = 0;
+  for (const byte of header) checksum += byte;
+  tarOctal(header, 148, 8, checksum);
+  return header;
+};
+
+const listTarEntries = async (root, relative = "") => {
+  const entries = [];
+  const items = await import("node:fs/promises").then((fs) => fs.readdir(path.join(root, relative), { withFileTypes: true }));
+  for (const item of items.sort((left, right) => left.name.localeCompare(right.name))) {
+    const relativePath = path.posix.join(relative.replace(/\\/g, "/"), item.name);
+    const fullPath = path.join(root, relativePath);
+    if (item.isDirectory()) {
+      entries.push({ name: `${relativePath}/`, type: "5", mode: 0o755, data: Buffer.alloc(0) });
+      entries.push(...(await listTarEntries(root, relativePath)));
+    } else if (item.isFile()) {
+      const executableNames = new Set(["localhost-control-host", "postinst", "postrm", "preinst", "prerm"]);
+      entries.push({
+        name: relativePath,
+        type: "0",
+        mode: executableNames.has(item.name) ? 0o755 : 0o644,
+        data: await readFile(fullPath)
+      });
+    }
+  }
+  return entries;
+};
+
+const writeTarGzArchive = async (output, root) => {
+  const chunks = [];
+  for (const entry of await listTarEntries(root)) {
+    chunks.push(writeTarHeader({ name: entry.name, mode: entry.mode, size: entry.data.length, type: entry.type }), entry.data);
+    const padding = (512 - (entry.data.length % 512)) % 512;
+    if (padding) chunks.push(Buffer.alloc(padding, 0));
+  }
+  chunks.push(Buffer.alloc(1024, 0));
+  await writeFile(output, gzipSync(Buffer.concat(chunks)));
+};
+
 const packageTarball = async ({ platform, stageDir, outputDir, version }) => {
   const installerDir = platform === "darwin" ? "macos" : "linux";
   await cp(path.join(repoRoot, "installer", installerDir, "install.sh"), path.join(stageDir, "install.sh"));
@@ -124,17 +185,21 @@ const packageDeb = async ({ stageDir, outputDir, version, arch }) => {
       ""
     ].join("\n")
   );
+  await writeFile(
+    path.join(controlRoot, "postinst"),
+    [
+      "#!/usr/bin/env sh",
+      "set -eu",
+      "chmod 755 /usr/lib/localhost-control/localhost-control-host",
+      ""
+    ].join("\n")
+  );
 
   const output = path.join(outputDir, `localhost-control-native-host_${version}_${arch}.deb`);
   const controlTar = path.join(stageDir, "control.tar.gz");
   const dataTar = path.join(stageDir, "data.tar.gz");
-  for (const [source, destination] of [
-    [controlRoot, controlTar],
-    [dataRoot, dataTar]
-  ]) {
-    const result = spawnSync("tar", ["-czf", destination, "-C", source, "."], { stdio: "inherit" });
-    if (result.status !== 0) throw new Error(`tar packaging failed for ${destination}`);
-  }
+  await writeTarGzArchive(controlTar, controlRoot);
+  await writeTarGzArchive(dataTar, dataRoot);
   await writeArArchive(output, [
     { name: "debian-binary", data: Buffer.from("2.0\n") },
     { name: "control.tar.gz", data: controlTar },
