@@ -1,14 +1,16 @@
 $ErrorActionPreference = "Stop"
 
 $HostName = "com.localhost_control.host"
+$DefaultExtensionId = "oamllgeaemchejbebgamdakjloahgjdc"
 $DefaultFirefoxExtensionId = "localhost-control@lukaspellant.dev"
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $OutDir = Join-Path $PSScriptRoot "out"
 $RustTargetExe = Join-Path $Root "target\release\localhost-control-host.exe"
 $HostExe = Join-Path $OutDir "localhost-control-host.exe"
 
-$Browser = "brave"
-$ExtensionId = $null
+$Browser = "all"
+$ExtensionId = $DefaultExtensionId
+$ExtensionIdExplicit = $false
 $FirefoxExtensionId = $DefaultFirefoxExtensionId
 $SkipBuild = $false
 
@@ -38,11 +40,13 @@ function Read-InstallArgs {
       }
       "^-{1,2}extension-id$" {
         $script:ExtensionId = Read-OptionValue -Values $values -Index $i -Name $values[$i]
+        $script:ExtensionIdExplicit = $true
         $i++
         continue
       }
       "^-{1,2}extensionid$" {
         $script:ExtensionId = Read-OptionValue -Values $values -Index $i -Name $values[$i]
+        $script:ExtensionIdExplicit = $true
         $i++
         continue
       }
@@ -73,12 +77,12 @@ function Read-InstallArgs {
     throw "Missing or invalid extension id. Expected 32 characters using letters a-p."
   }
 
-  if ($Browser -eq "firefox" -and !$ExtensionId) {
-    $script:ExtensionId = $FirefoxExtensionId
+  if ($Browser -eq "firefox" -and $ExtensionIdExplicit) {
+    $script:FirefoxExtensionId = $ExtensionId
   }
 
-  if ($Browser -eq "firefox" -and $ExtensionId) {
-    $script:FirefoxExtensionId = $ExtensionId
+  if ($Browser -eq "firefox") {
+    $script:ExtensionId = $FirefoxExtensionId
   }
 }
 
@@ -93,8 +97,17 @@ function Build-RustHost {
     return
   }
 
+  if ((Test-Path $HostExe) -and !(Test-Path (Join-Path $Root "Cargo.toml"))) {
+    Write-Host "Using bundled Rust native host at $HostExe"
+    return
+  }
+
   $cargo = Get-Command cargo -ErrorAction SilentlyContinue
   if (!$cargo) {
+    if (Test-Path $HostExe) {
+      Write-Host "Using bundled Rust native host at $HostExe"
+      return
+    }
     throw "Cargo was not found. Install Rust to build the Windows native host from source, or provide $HostExe and rerun with -SkipBuild."
   }
 

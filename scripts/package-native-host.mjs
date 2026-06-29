@@ -26,6 +26,9 @@ const copyHostBinary = async (source, destination) => {
 };
 
 const buildRustHost = (platform) => {
+  if (platform === "win32" && process.platform !== "win32") {
+    throw new Error("Windows Rust native host packages must be built on Windows, or pass --host-binary=/path/to/windows/localhost-control-host.exe.");
+  }
   if (platform === "linux" && process.platform !== "linux") {
     throw new Error("Linux Rust native host packages must be built on Linux, or pass --host-binary=/path/to/linux/localhost-control-host.");
   }
@@ -151,6 +154,34 @@ const packageTarball = async ({ platform, stageDir, outputDir, version }) => {
   return output;
 };
 
+const packageWindowsZip = async ({ stageDir, outputDir, version }) => {
+  await cp(path.join(repoRoot, "installer", "windows", "install.ps1"), path.join(stageDir, "install.ps1"));
+  await cp(path.join(repoRoot, "installer", "windows", "uninstall.ps1"), path.join(stageDir, "uninstall.ps1"));
+  const output = path.join(outputDir, `localhost-control-native-host-windows-${version}.zip`);
+  await rm(output, { force: true });
+  const result = spawnSync(
+    "powershell",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "Compress-Archive -Path (Join-Path $env:LOCALHOST_CONTROL_STAGE '*') -DestinationPath $env:LOCALHOST_CONTROL_OUTPUT -Force"
+    ],
+    {
+      env: {
+        ...process.env,
+        LOCALHOST_CONTROL_STAGE: stageDir,
+        LOCALHOST_CONTROL_OUTPUT: output
+      },
+      stdio: "inherit"
+    }
+  );
+  if (result.status !== 0) throw new Error("Windows zip packaging failed");
+  return output;
+};
+
 const packageDeb = async ({ stageDir, outputDir, version, arch, extensionId, firefoxExtensionId }) => {
   const dataRoot = path.join(stageDir, "deb-data");
   const controlRoot = path.join(stageDir, "deb-control");
@@ -230,7 +261,7 @@ const packagePkg = async ({ stageDir, outputDir, version, extensionId, firefoxEx
 const main = async () => {
   const args = parseArgs();
   const platform = args.get("platform") ?? process.platform;
-  const format = args.get("format") ?? (platform === "darwin" ? "pkg" : "tarball");
+  const format = args.get("format") ?? (platform === "darwin" ? "pkg" : platform === "win32" ? "zip" : "tarball");
   const arch = args.get("arch") ?? (process.arch === "arm64" ? "arm64" : "amd64");
   const extensionId = args.get("extension-id") ?? DEFAULT_EXTENSION_ID;
   const firefoxExtensionId = args.get("firefox-extension-id") ?? DEFAULT_FIREFOX_EXTENSION_ID;
@@ -242,17 +273,20 @@ const main = async () => {
   await mkdir(stageDir, { recursive: true });
   await mkdir(outputDir, { recursive: true });
 
-  const hostName = platform === "win32" ? "localhost-control-host.exe" : "localhost-control-host";
+  const hostName = platform === "win32" ? path.join("out", "localhost-control-host.exe") : "localhost-control-host";
   if (hostBinary) {
     await copyHostBinary(hostBinary, path.join(stageDir, hostName));
   } else if (platform === "linux" || platform === "darwin") {
     await stageRustHostApp(stageDir, platform);
+  } else if (platform === "win32") {
+    await copyHostBinary(buildRustHost(platform), path.join(stageDir, hostName));
   } else {
     throw new Error(`Unsupported native host packaging platform: ${platform}`);
   }
 
   let output;
-  if (platform === "darwin" && format === "pkg") output = await packagePkg({ stageDir, outputDir, version: packageJson.version, extensionId, firefoxExtensionId });
+  if (platform === "win32" && format === "zip") output = await packageWindowsZip({ stageDir, outputDir, version: packageJson.version });
+  else if (platform === "darwin" && format === "pkg") output = await packagePkg({ stageDir, outputDir, version: packageJson.version, extensionId, firefoxExtensionId });
   else if (platform === "darwin" && format === "tarball") output = await packageTarball({ platform, stageDir, outputDir, version: packageJson.version });
   else if (platform === "linux" && format === "deb") output = await packageDeb({ stageDir, outputDir, version: packageJson.version, arch, extensionId, firefoxExtensionId });
   else if (platform === "linux" && format === "tarball") output = await packageTarball({ platform, stageDir, outputDir, version: packageJson.version });

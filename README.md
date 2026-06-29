@@ -24,7 +24,7 @@ Then install the native host for your operating system from GitHub Releases:
 https://github.com/LukasPellant/Localhost-Control/releases
 ```
 
-Use the macOS `.pkg` when available, the Linux `.deb` on Debian/Ubuntu systems, or the `.tar.gz` packages for portable installs. The native host packages are built for the published Chrome Web Store extension ID `oamllgeaemchejbebgamdakjloahgjdc`.
+Use the Windows `.zip`, the macOS `.pkg` when available, the Linux `.deb` on Debian/Ubuntu systems, or the `.tar.gz` packages for portable installs. The native host packages are built for the published Chrome Web Store extension ID `oamllgeaemchejbebgamdakjloahgjdc`.
 
 Firefox builds are packaged separately as `dist\firefox-addons\localhost-control-<version>-firefox.zip` and use the add-on ID `localhost-control@lukaspellant.dev` for native messaging.
 
@@ -78,17 +78,19 @@ pnpm host:install -- --browser brave --extension-id <extension-id>
 pnpm host:uninstall -- --browser brave
 EXTENSION_ID=<extension-id> pnpm host:install:mac
 EXTENSION_ID=<extension-id> pnpm host:install:linux
+pnpm host:package:windows
 pnpm host:package:mac
 pnpm host:package:mac:tarball
 pnpm host:package:linux
 pnpm host:package:release-local
+pnpm host:verify:windows
 pnpm host:verify:mac
 pnpm host:verify:mac:tarball
 pnpm host:verify:linux
 pnpm host:verify:release-local
 ```
 
-Use `--browser all` to register the native host for Brave, Chrome, Chromium, Edge, and Firefox under HKCU. The Windows installer builds and registers the Rust native host binary at `installer\windows\out\localhost-control-host.exe`; the installed Windows host does not require Node.js.
+Use `--browser all` to register the native host for Brave, Chrome, Chromium, Edge, and Firefox under HKCU. The Windows installer builds and registers the Rust native host binary at `installer\windows\out\localhost-control-host.exe`; the installed Windows host does not require Node.js. Release ZIPs include a prebuilt `out\localhost-control-host.exe`, so end users do not need Rust.
 
 The macOS and Linux installers register Chrome, Brave, and Firefox. The macOS and Linux packages install the Rust native host binary directly, so end users do not need Node.js. The default Chromium extension ID for packaged artifacts is the published Chrome Web Store ID `oamllgeaemchejbebgamdakjloahgjdc`; Firefox uses `localhost-control@lukaspellant.dev`. Use `EXTENSION_ID=<id>` and `FIREFOX_EXTENSION_ID=<id>` for unpacked local development.
 
@@ -98,7 +100,7 @@ For local native host artifacts, build on the target operating system or pass `-
 
 `pnpm test:run` runs deterministic unit and packaging tests. `pnpm smoke:native-host` runs the Rust native-host test suite.
 
-GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml` and publishes release assets through `.github/workflows/release-native-host.yml`. The workflows run deterministic tests, Rust native-host tests, typecheck, the workspace build, OS-specific packaging, and artifact validation before uploading the macOS `.pkg`/`.tar.gz` and Linux `.tar.gz`/`.deb` files.
+GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml` and publishes release assets through `.github/workflows/release-native-host.yml`. The workflows run deterministic tests, Rust native-host tests, typecheck, the workspace build, OS-specific packaging, and artifact validation before uploading the Windows `.zip`, macOS `.pkg`/`.tar.gz`, and Linux `.tar.gz`/`.deb` files.
 
 ## Chrome Web Store package
 

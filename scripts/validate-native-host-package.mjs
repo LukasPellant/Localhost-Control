@@ -34,6 +34,9 @@ const defaultArtifactPath = () => {
   if (platform === "linux" && format === "tarball") {
     return path.join(outputDir, `localhost-control-native-host-linux-${packageJson.version}.tar.gz`);
   }
+  if (platform === "win32" && format === "zip") {
+    return path.join(outputDir, `localhost-control-native-host-windows-${packageJson.version}.zip`);
+  }
   if (platform === "linux" && format === "deb") {
     return path.join(outputDir, `localhost-control-native-host_${packageJson.version}_${arch}.deb`);
   }
@@ -42,8 +45,8 @@ const defaultArtifactPath = () => {
 
 const artifact = path.resolve(args.get("artifact") ?? defaultArtifactPath());
 
-const run = (command, commandArgs) => {
-  const result = spawnSync(command, commandArgs, { encoding: "utf8" });
+const run = (command, commandArgs, env = {}) => {
+  const result = spawnSync(command, commandArgs, { encoding: "utf8", env: { ...process.env, ...env } });
   if (result.status !== 0) {
     const details = [result.stdout, result.stderr].filter(Boolean).join("\n");
     throw new Error(`${command} ${commandArgs.join(" ")} failed${details ? `\n${details}` : ""}`);
@@ -149,9 +152,48 @@ const validatePkg = () => {
   requireEntry(entries, `Library/Application Support/Mozilla/NativeMessagingHosts/${hostName}.json`);
 };
 
+const validateWindowsZip = async () => {
+  if (process.platform !== "win32") {
+    throw new Error("Windows zip validation must run on Windows.");
+  }
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "localhost-control-winzip-"));
+  try {
+    run("powershell", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "Expand-Archive -LiteralPath $env:LOCALHOST_CONTROL_ARTIFACT -DestinationPath $env:LOCALHOST_CONTROL_OUTPUT -Force"
+    ], {
+      LOCALHOST_CONTROL_ARTIFACT: artifact,
+      LOCALHOST_CONTROL_OUTPUT: tempRoot
+    });
+    const entries = run("powershell", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "Get-ChildItem -LiteralPath $env:LOCALHOST_CONTROL_OUTPUT -Recurse -File | ForEach-Object { $_.FullName.Substring($env:LOCALHOST_CONTROL_OUTPUT.Length + 1).Replace('\\\\', '/') }"
+    ], {
+      LOCALHOST_CONTROL_OUTPUT: tempRoot
+    }).split(/\r?\n/).filter(Boolean);
+    requireEntry(entries, "install.ps1");
+    requireEntry(entries, "uninstall.ps1");
+    requireEntry(entries, "out/localhost-control-host.exe");
+    if (entries.some((entry) => normalizeEntry(entry).includes("app/native-host"))) {
+      throw new Error("Windows zip must package the Rust native host without the Node app payload.");
+    }
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+};
+
 if ((platform === "linux" || platform === "darwin") && format === "tarball") validateTarball();
 else if (platform === "linux" && format === "deb") await validateDeb();
 else if (platform === "darwin" && format === "pkg") validatePkg();
+else if (platform === "win32" && format === "zip") await validateWindowsZip();
 else throw new Error(`Unsupported package target: ${platform}/${format}`);
 
 console.log(`Validated ${artifact}`);

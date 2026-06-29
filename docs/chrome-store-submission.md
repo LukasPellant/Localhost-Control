@@ -17,6 +17,8 @@ Localhost Control is a developer utility for local web development on Windows, m
 After installing the extension, install the Localhost Control native host for your operating system from GitHub Releases:
 https://github.com/LukasPellant/Localhost-Control/releases
 
+Windows users can download the Windows native host ZIP, extract it, and run `install.ps1`. macOS users can use the `.pkg` installer, and Debian/Ubuntu users can use the `.deb` package.
+
 The extension communicates only with its native messaging host installed on the same computer. It does not run a local HTTP server, does not collect telemetry, and does not send browsing data or process data to any external service.
 
 ## Permission Justification
