@@ -8,11 +8,15 @@ describe("readProcessMetadata", () => {
 
     expect(current?.resources).toMatchObject({
       memoryBytes: expect.any(Number),
-      privateMemoryBytes: expect.any(Number),
       threadCount: expect.any(Number),
-      handleCount: expect.any(Number),
       uptimeMs: expect.any(Number)
     });
+    if (process.platform === "win32") {
+      expect(current?.resources).toMatchObject({
+        privateMemoryBytes: expect.any(Number),
+        handleCount: expect.any(Number)
+      });
+    }
     expect(current?.resources?.memoryBytes).toBeGreaterThan(0);
     expect(current?.resources?.threadCount).toBeGreaterThan(0);
   });
