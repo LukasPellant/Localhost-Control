@@ -94,6 +94,7 @@ const packageDeb = async ({ stageDir, outputDir, version, arch }) => {
       "Section: utils",
       "Priority: optional",
       `Architecture: ${arch}`,
+      "Depends: nodejs (>= 18)",
       "Maintainer: Localhost Control <support@localhost-control.local>",
       "Description: Native messaging host for the Localhost Control browser extension",
       ""

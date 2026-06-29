@@ -1,0 +1,95 @@
+name: Native Host Artifacts
+
+on:
+  push:
+    branches:
+      - main
+      - "codex/**"
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    name: Linux native host
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test:run
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build workspace
+        run: pnpm build
+
+      - name: Package Linux native host
+        run: pnpm host:package:linux
+
+      - name: Validate Linux tarball
+        run: node scripts/validate-native-host-package.mjs --platform=linux --format=tarball
+
+      - name: Validate Linux deb
+        run: node scripts/validate-native-host-package.mjs --platform=linux --format=deb
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: localhost-control-native-host-linux
+          path: dist/native-host/*
+          if-no-files-found: error
+
+  macos:
+    name: macOS native host
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test:run
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build workspace
+        run: pnpm build
+
+      - name: Package macOS native host
+        run: pnpm host:package:mac
+
+      - name: Validate macOS pkg
+        run: node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: localhost-control-native-host-macos
+          path: dist/native-host/*
+          if-no-files-found: error
