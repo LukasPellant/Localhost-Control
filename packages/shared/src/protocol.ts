@@ -1,5 +1,8 @@
 import type { HostRequest, KillResult, PortEntry, ScanResult } from "./types.js";
 
+const detectedKinds = new Set(["vite", "next", "convex", "python", "node", "static", "unknown"]);
+const confidenceLevels = new Set(["high", "medium", "low"]);
+
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -34,6 +37,8 @@ const hasTerminalParams = (value: unknown): boolean => {
 };
 
 const isOptionalNumber = (value: unknown): boolean => value === undefined || isNumber(value);
+const isDetectedKind = (value: unknown): boolean => isString(value) && detectedKinds.has(value);
+const isConfidence = (value: unknown): boolean => isString(value) && confidenceLevels.has(value);
 
 const isProcessResources = (value: unknown): boolean => {
   if (!isObject(value)) return false;
@@ -67,12 +72,12 @@ export const isHostRequest = (value: unknown): value is HostRequest => {
 const isPortEntry = (value: unknown): value is PortEntry => {
   if (!isObject(value)) return false;
   return (
-    isNumber(value.port) &&
+    isTcpPort(value.port) &&
     isString(value.address) &&
-    isNumber(value.pid) &&
+    isPositiveInteger(value.pid) &&
     isString(value.processName) &&
-    isString(value.detectedKind) &&
-    isString(value.confidence) &&
+    isDetectedKind(value.detectedKind) &&
+    isConfidence(value.confidence) &&
     isBoolean(value.killable) &&
     (value.resources === undefined || isProcessResources(value.resources))
   );

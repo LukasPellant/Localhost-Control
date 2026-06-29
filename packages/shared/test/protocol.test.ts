@@ -76,5 +76,56 @@ describe("native messaging protocol", () => {
         durationMs: 28
       })
     ).toBe(false);
+    expect(
+      isScanResult({
+        entries: [
+          {
+            port: 5173,
+            address: "127.0.0.1",
+            pid: 1234,
+            processName: "node.exe",
+            detectedKind: "definitely-not-a-kind",
+            confidence: "high",
+            killable: true
+          }
+        ],
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 28
+      })
+    ).toBe(false);
+    expect(
+      isScanResult({
+        entries: [
+          {
+            port: 5173,
+            address: "127.0.0.1",
+            pid: 1234,
+            processName: "node.exe",
+            detectedKind: "vite",
+            confidence: "maybe",
+            killable: true
+          }
+        ],
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 28
+      })
+    ).toBe(false);
+    expect(
+      isScanResult({
+        entries: [
+          {
+            port: 70000,
+            address: "127.0.0.1",
+            pid: 1234,
+            processName: "node.exe",
+            detectedKind: "vite",
+            confidence: "high",
+            killable: true
+          }
+        ],
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 28
+      })
+    ).toBe(false);
   });
 });
