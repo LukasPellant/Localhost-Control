@@ -102,8 +102,8 @@ export const isKillResult = (value: unknown): value is KillResult => {
   if (!isObject(value)) return false;
   return (
     isBoolean(value.killed) &&
-    isNumber(value.pid) &&
-    isNumber(value.port) &&
+    isPositiveInteger(value.pid) &&
+    isTcpPort(value.port) &&
     isBoolean(value.portClosed) &&
     isString(value.message)
   );

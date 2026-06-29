@@ -42,6 +42,9 @@ describe("native messaging protocol", () => {
       isKillResult({ killed: true, pid: 1234, port: 5173, portClosed: true, message: "Killed" })
     ).toBe(true);
     expect(isKillResult({ killed: true, portClosed: true })).toBe(false);
+    expect(isKillResult({ killed: true, pid: -1, port: 5173, portClosed: true, message: "Killed" })).toBe(false);
+    expect(isKillResult({ killed: true, pid: 1234.5, port: 5173, portClosed: true, message: "Killed" })).toBe(false);
+    expect(isKillResult({ killed: true, pid: 1234, port: 70000, portClosed: true, message: "Killed" })).toBe(false);
     expect(
       isScanResult({
         entries: [
