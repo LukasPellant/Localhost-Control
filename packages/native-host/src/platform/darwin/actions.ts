@@ -5,11 +5,24 @@ import type { KillParams, TerminalParams, TerminalResult } from "@localhost-cont
 
 const execFileAsync = promisify(execFile);
 
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+const killSignal = async (pid: number, signal: "-TERM" | "-KILL"): Promise<void> => {
+  try {
+    await execFileAsync("kill", [signal, String(-pid)]);
+  } catch {
+    await execFileAsync("kill", [signal, String(pid)]);
+  }
+};
+
 export const killProcessTree = async (params: KillParams): Promise<void> => {
   try {
-    await execFileAsync("kill", ["-TERM", String(-params.pid)]);
-  } catch {
-    await execFileAsync("kill", ["-TERM", String(params.pid)]);
+    await killSignal(params.pid, "-TERM");
+    await sleep(250);
+    await killSignal(params.pid, "-KILL");
+  } catch (error) {
+    if (error instanceof Error && /No such process/i.test(error.message)) return;
+    throw error;
   }
 };
 

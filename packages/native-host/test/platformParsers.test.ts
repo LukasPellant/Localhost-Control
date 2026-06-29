@@ -61,6 +61,25 @@ describe("parseDarwinPsOutput", () => {
       }
     });
   });
+
+  it("parses macOS ps rows when thread count is not available", () => {
+    const output = `
+  PID  PPID COMM             ELAPSED  %CPU   RSS COMMAND
+ 1234     1 node             01:02:03   7.5 51200 node /Users/pella/dev/app/node_modules/.bin/vite --host 127.0.0.1
+`;
+
+    expect(parseDarwinPsOutput(output).get(1234)).toMatchObject({
+      pid: 1234,
+      parentPid: 1,
+      processName: "node",
+      resources: {
+        cpuPercent: 7.5,
+        memoryBytes: 52_428_800,
+        uptimeMs: 3_723_000
+      }
+    });
+    expect(parseDarwinPsOutput(output).get(1234)?.resources?.threadCount).toBeUndefined();
+  });
 });
 
 describe("parseLinuxPsOutput", () => {
