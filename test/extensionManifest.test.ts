@@ -12,6 +12,7 @@ describe("buildFirefoxManifest", () => {
 
     expect(manifest.permissions).toEqual(["nativeMessaging", "storage"]);
     expect(manifest).not.toHaveProperty("side_panel");
+    expect(manifest).not.toHaveProperty("action");
     expect(manifest).toMatchObject({
       background: {
         scripts: ["background.js"]
