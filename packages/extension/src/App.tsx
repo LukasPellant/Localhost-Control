@@ -59,14 +59,24 @@ export const App = ({ client }: AppProps) => {
   const [hostError, setHostError] = useState<string | null>(null);
   const openedDownloadForError = useRef(false);
 
-  const openNativeHostDownload = useCallback(() => {
+  const openExternalUrl = useCallback((url: string) => {
     const tabs = getExtensionApi()?.tabs;
     if (tabs?.create) {
-      void tabs.create({ url: nativeHostDownloadUrl });
+      void Promise.resolve(tabs.create({ url })).catch((error: unknown) => {
+        setMessage(error instanceof Error ? error.message : String(error));
+      });
       return;
     }
-    window.open(nativeHostDownloadUrl, "_blank", "noopener,noreferrer");
+    try {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
   }, []);
+
+  const openNativeHostDownload = useCallback(() => {
+    openExternalUrl(nativeHostDownloadUrl);
+  }, [openExternalUrl]);
 
   useEffect(() => {
     void loadSettings().then(setSettings);
@@ -192,12 +202,7 @@ export const App = ({ client }: AppProps) => {
 
   const openEntry = (entry: PortEntry) => {
     const url = entry.url ?? `http://127.0.0.1:${entry.port}`;
-    const tabs = getExtensionApi()?.tabs;
-    if (tabs?.create) {
-      void tabs.create({ url });
-      return;
-    }
-    window.open(url, "_blank", "noopener,noreferrer");
+    openExternalUrl(url);
   };
 
   const copyEntry = async (entry: PortEntry) => {

@@ -8,6 +8,9 @@ import { spawnSync } from "node:child_process";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
 const hostName = "com.localhost_control.host";
+const defaultExtensionId = "oamllgeaemchejbebgamdakjloahgjdc";
+const defaultFirefoxExtensionId = "localhost-control@lukaspellant.dev";
+const linuxHostPath = "/usr/lib/localhost-control/localhost-control-host";
 
 const parseArgs = () => {
   const args = new Map();
@@ -97,6 +100,41 @@ const requireEntry = (entries, expectedSuffix) => {
   }
 };
 
+const assertArrayEquals = (actual, expected, message) => {
+  if (!Array.isArray(actual) || actual.length !== expected.length || actual.some((value, index) => value !== expected[index])) {
+    throw new Error(message);
+  }
+};
+
+const validateNativeManifestFile = async (root, relativePath, browser) => {
+  const fullPath = path.join(root, ...relativePath.split("/"));
+  let manifest;
+  try {
+    manifest = JSON.parse(await readFile(fullPath, "utf8"));
+  } catch {
+    throw new Error(`Invalid native messaging manifest: ${relativePath}`);
+  }
+
+  if (manifest.name !== hostName || manifest.description !== "Localhost Control native messaging host" || manifest.path !== linuxHostPath || manifest.type !== "stdio") {
+    throw new Error(`Invalid native messaging manifest: ${relativePath}`);
+  }
+
+  if (browser === "firefox") {
+    assertArrayEquals(
+      manifest.allowed_extensions,
+      [defaultFirefoxExtensionId],
+      `Invalid native messaging manifest: ${relativePath}`
+    );
+    return;
+  }
+
+  assertArrayEquals(
+    manifest.allowed_origins,
+    [`chrome-extension://${defaultExtensionId}/`],
+    `Invalid native messaging manifest: ${relativePath}`
+  );
+};
+
 const validateTarball = () => {
   const entries = run("tar", ["-tzf", artifact]).split(/\r?\n/).filter(Boolean);
   requireEntry(entries, "localhost-control-host");
@@ -128,14 +166,22 @@ const validateDeb = async () => {
       throw new Error("Debian package postinst must restore the native host executable permission.");
     }
 
+    const dataRoot = path.join(tempRoot, "data");
     const dataEntries = await listTarGzEntries(dataTar, tempRoot, "data.tar.gz");
+    await extractTarGz(dataTar, tempRoot, "data.tar.gz", dataRoot);
     requireEntry(dataEntries, "usr/lib/localhost-control/localhost-control-host");
     if (dataEntries.some((entry) => normalizeEntry(entry).includes("usr/lib/localhost-control/app/native-host"))) {
       throw new Error("Debian package must package the Rust native host without the Node app payload.");
     }
-    requireEntry(dataEntries, `etc/opt/chrome/native-messaging-hosts/${hostName}.json`);
-    requireEntry(dataEntries, `etc/brave/native-messaging-hosts/${hostName}.json`);
-    requireEntry(dataEntries, `usr/lib/mozilla/native-messaging-hosts/${hostName}.json`);
+    const chromeManifest = `etc/opt/chrome/native-messaging-hosts/${hostName}.json`;
+    const braveManifest = `etc/brave/native-messaging-hosts/${hostName}.json`;
+    const firefoxManifest = `usr/lib/mozilla/native-messaging-hosts/${hostName}.json`;
+    requireEntry(dataEntries, chromeManifest);
+    requireEntry(dataEntries, braveManifest);
+    requireEntry(dataEntries, firefoxManifest);
+    await validateNativeManifestFile(dataRoot, chromeManifest, "chrome");
+    await validateNativeManifestFile(dataRoot, braveManifest, "brave");
+    await validateNativeManifestFile(dataRoot, firefoxManifest, "firefox");
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

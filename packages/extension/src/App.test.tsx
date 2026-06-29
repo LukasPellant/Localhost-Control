@@ -160,6 +160,21 @@ describe("App", () => {
     expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:5173", "_blank", "noopener,noreferrer");
   });
 
+  it("shows tab open errors from the browser API", async () => {
+    (globalThis as { browser?: unknown }).browser = {
+      tabs: {
+        create: vi.fn(async () => Promise.reject(new Error("tabs.create failed")))
+      }
+    };
+
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByLabelText("Detected localhost ports")).getByRole("button", { name: /open port 5173/i }));
+
+    expect(await screen.findByText("tabs.create failed")).toBeInTheDocument();
+  });
+
   it("loads a saved dark theme and exposes the theme picker", async () => {
     window.localStorage.setItem("localhost-control-settings", JSON.stringify({ themeMode: "dark" }));
 

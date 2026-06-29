@@ -6,8 +6,24 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const hostName = "com.localhost_control.host";
+const linuxHostPath = "/usr/lib/localhost-control/localhost-control-host";
+const chromeExtensionId = "oamllgeaemchejbebgamdakjloahgjdc";
+const firefoxExtensionId = "localhost-control@lukaspellant.dev";
 
 const padArField = (value: string | number, length: number) => String(value).slice(0, length).padEnd(length, " ");
+const manifestJson = (browser: "chrome" | "firefox") =>
+  `${JSON.stringify(
+    {
+      name: hostName,
+      description: "Localhost Control native messaging host",
+      path: linuxHostPath,
+      type: "stdio",
+      ...(browser === "firefox" ? { allowed_extensions: [firefoxExtensionId] } : { allowed_origins: [`chrome-extension://${chromeExtensionId}/`] })
+    },
+    null,
+    2
+  )}\n`;
 
 const writeArArchive = (output: string, entries: { name: string; data: Buffer }[]) => {
   const chunks = [Buffer.from("!<arch>\n")];
@@ -72,9 +88,9 @@ describe("validate-native-host-package", () => {
     writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.5", "Architecture: amd64", ""].join("\n"));
     writeFileSync(path.join(controlDir, "postinst"), "#!/usr/bin/env sh\nchmod 755 /usr/lib/localhost-control/localhost-control-host\n");
     writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
-    writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
-    writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
-    writeFileSync(path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
+    writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("chrome"));
+    writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("chrome"));
+    writeFileSync(path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("firefox"));
 
     execFileSync("tar", ["-czf", controlTar, "-C", controlDir, "."], { stdio: "pipe" });
     execFileSync("tar", ["-czf", dataTar, "-C", dataDir, "."], { stdio: "pipe" });
@@ -173,5 +189,47 @@ describe("validate-native-host-package", () => {
         { encoding: "utf8", stdio: "pipe" }
       )
     ).toThrow(/postinst/);
+  });
+
+  it("rejects a Debian package with invalid native messaging manifests", () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-deb-"));
+    const controlDir = path.join(tempRoot, "control");
+    const dataDir = path.join(tempRoot, "data");
+    const controlTar = path.join(tempRoot, "control.tar.gz");
+    const dataTar = path.join(tempRoot, "data.tar.gz");
+    const artifact = path.join(tempRoot, "host.deb");
+
+    for (const directory of [
+      controlDir,
+      path.join(dataDir, "usr/lib/localhost-control"),
+      path.join(dataDir, "etc/opt/chrome/native-messaging-hosts"),
+      path.join(dataDir, "etc/brave/native-messaging-hosts"),
+      path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts")
+    ]) {
+      mkdirSync(directory, { recursive: true });
+    }
+
+    writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.5", "Architecture: amd64", ""].join("\n"));
+    writeFileSync(path.join(controlDir, "postinst"), "#!/usr/bin/env sh\nchmod 755 /usr/lib/localhost-control/localhost-control-host\n");
+    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
+    writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
+    writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
+    writeFileSync(path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
+
+    execFileSync("tar", ["-czf", controlTar, "-C", controlDir, "."], { stdio: "pipe" });
+    execFileSync("tar", ["-czf", dataTar, "-C", dataDir, "."], { stdio: "pipe" });
+    writeArArchive(artifact, [
+      { name: "debian-binary", data: Buffer.from("2.0\n") },
+      { name: "control.tar.gz", data: readFileSync(controlTar) },
+      { name: "data.tar.gz", data: readFileSync(dataTar) }
+    ]);
+
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), "--platform=linux", "--format=deb", `--artifact=${artifact}`],
+        { encoding: "utf8", stdio: "pipe" }
+      )
+    ).toThrow(/native messaging manifest/i);
   });
 });
