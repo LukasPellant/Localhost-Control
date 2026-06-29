@@ -14,8 +14,7 @@ describe("buildFirefoxManifest", () => {
     expect(manifest).not.toHaveProperty("side_panel");
     expect(manifest).toMatchObject({
       background: {
-        scripts: ["background.js"],
-        service_worker: "background.js"
+        scripts: ["background.js"]
       },
       sidebar_action: {
         default_panel: "sidepanel.html",

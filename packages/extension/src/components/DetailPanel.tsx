@@ -109,7 +109,6 @@ export const DetailPanel = ({ entry, onKill, onOpen, onCopy, onTerminal, onTrust
           Hide process
         </button>
       </div>
-      <code className="kill-command">taskkill /PID {entry.pid} /T /F</code>
     </section>
   );
 };

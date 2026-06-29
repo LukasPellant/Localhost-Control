@@ -481,20 +481,6 @@ button:disabled {
   color: var(--text);
 }
 
-.kill-command {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--control);
-  color: var(--danger);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .settings-bar {
   display: flex;
   align-items: center;

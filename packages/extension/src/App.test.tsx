@@ -103,7 +103,7 @@ const client: HostClient = {
   })),
   kill: vi.fn(async () => ({ killed: true, pid: 100, port: 5173, portClosed: true, message: "Killed 100" })),
   openTerminal: vi.fn(async () => ({ opened: true, message: "Opened" })),
-  version: vi.fn(async () => ({ version: "0.1.4", platform: "win32" }))
+  version: vi.fn(async () => ({ version: "0.1.5", platform: "win32" }))
 };
 
 describe("App", () => {
@@ -282,7 +282,7 @@ describe("App", () => {
     expect(await screen.findByText("Native host offline")).toBeInTheDocument();
     await waitFor(() =>
       expect(createTab).toHaveBeenCalledWith({
-        url: "https://github.com/LukasPellant/Localhost-Control/releases/tag/v0.1.4"
+        url: "https://github.com/LukasPellant/Localhost-Control/releases/tag/v0.1.5"
       })
     );
     expect(createTab).toHaveBeenCalledOnce();

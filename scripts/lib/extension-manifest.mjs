@@ -14,8 +14,7 @@ export const buildFirefoxManifest = (chromeManifest) => {
     default_icon: icons
   };
   manifest.background = {
-    scripts: [manifest.background?.service_worker ?? "background.js"],
-    service_worker: manifest.background?.service_worker ?? "background.js"
+    scripts: [manifest.background?.service_worker ?? "background.js"]
   };
   manifest.browser_specific_settings = {
     ...(manifest.browser_specific_settings ?? {}),

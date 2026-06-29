@@ -366,12 +366,20 @@ fn parse_lsof_listeners(output: &str) -> Vec<Listener> {
 fn parse_address_port(value: &str) -> Option<(String, u16)> {
     if value.starts_with('[') {
         let end = value.rfind("]:")?;
-        let address = value[1..end].to_string();
+        let address = normalize_listener_address(&value[1..end]);
         let port = value[end + 2..].parse().ok()?;
         return Some((address, port));
     }
     let (address, port) = value.rsplit_once(':')?;
-    Some((address.to_string(), port.parse().ok()?))
+    Some((normalize_listener_address(address), port.parse().ok()?))
+}
+
+fn normalize_listener_address(address: &str) -> String {
+    match address {
+        "*" => "0.0.0.0".to_string(),
+        "localhost" => "127.0.0.1".to_string(),
+        value => value.to_string(),
+    }
 }
 
 #[cfg(windows)]
@@ -924,15 +932,9 @@ fn probe_listeners(listeners: &[Listener], max_probe_ms: u64) -> HashMap<u16, Pr
 }
 
 fn probe_listener(listener: &Listener, max_probe_ms: u64) -> Option<ProbeResult> {
-    let host = if listener.address == "0.0.0.0" || listener.address == "::" {
-        "127.0.0.1"
-    } else if listener.address == "::1" {
-        "[::1]"
-    } else {
-        &listener.address
-    };
+    let (host, connect_host) = probe_hosts(&listener.address);
     let url = format!("http://{host}:{}", listener.port);
-    let address = ("127.0.0.1", listener.port)
+    let address = (connect_host, listener.port)
         .to_socket_addrs()
         .ok()?
         .next()?;
@@ -955,6 +957,15 @@ fn probe_listener(listener: &Listener, max_probe_ms: u64) -> Option<ProbeResult>
         title,
         status_code,
     })
+}
+
+fn probe_hosts(address: &str) -> (&str, &str) {
+    match address {
+        "0.0.0.0" => ("127.0.0.1", "127.0.0.1"),
+        "::" => ("[::1]", "::1"),
+        "::1" => ("[::1]", "::1"),
+        value => (value, value),
+    }
 }
 
 fn extract_title(response: &str) -> Option<String> {
@@ -1403,17 +1414,25 @@ LISTEN 0      5          127.0.0.1:5176      0.0.0.0:*    users:(("python3",pid=
         let output = r#"COMMAND   PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
 node    42123 pella   23u  IPv4 0x123456789abcdef      0t0  TCP 127.0.0.1:5173 (LISTEN)
 Python  42124 pella    4u  IPv6 0x123456789abcdea      0t0  TCP [::1]:8000 (LISTEN)
+vite    42125 pella    9u  IPv4 0x123456789abcdeb      0t0  TCP *:5174 (LISTEN)
+next    42126 pella   10u  IPv4 0x123456789abcdec      0t0  TCP localhost:3000 (LISTEN)
 "#;
 
         let listeners = parse_lsof_listeners(output);
 
-        assert_eq!(listeners.len(), 2);
+        assert_eq!(listeners.len(), 4);
         assert_eq!(listeners[0].address, "127.0.0.1");
         assert_eq!(listeners[0].port, 5173);
         assert_eq!(listeners[0].pid, 42123);
         assert_eq!(listeners[1].address, "::1");
         assert_eq!(listeners[1].port, 8000);
         assert_eq!(listeners[1].pid, 42124);
+        assert_eq!(listeners[2].address, "0.0.0.0");
+        assert_eq!(listeners[2].port, 5174);
+        assert_eq!(listeners[2].pid, 42125);
+        assert_eq!(listeners[3].address, "127.0.0.1");
+        assert_eq!(listeners[3].port, 3000);
+        assert_eq!(listeners[3].pid, 42126);
     }
 
     #[test]
@@ -1434,6 +1453,14 @@ Python  42124 pella    4u  IPv6 0x123456789abcdea      0t0  TCP [::1]:8000 (LIST
         assert_eq!(resources.cpu_percent, Some(3.4));
         assert_eq!(resources.memory_bytes, Some(2_097_152));
         assert_eq!(resources.uptime_ms, Some(3_723_000));
+    }
+
+    #[test]
+    fn maps_probe_hosts_to_matching_loopback_family() {
+        assert_eq!(super::probe_hosts("0.0.0.0"), ("127.0.0.1", "127.0.0.1"));
+        assert_eq!(super::probe_hosts("::"), ("[::1]", "::1"));
+        assert_eq!(super::probe_hosts("::1"), ("[::1]", "::1"));
+        assert_eq!(super::probe_hosts("127.0.0.1"), ("127.0.0.1", "127.0.0.1"));
     }
 
     #[cfg(target_os = "linux")]
