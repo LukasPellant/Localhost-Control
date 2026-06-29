@@ -96,7 +96,7 @@ The macOS and Linux installers register Chrome, Brave, and Firefox. The macOS an
 
 `pnpm host:package:mac:tarball` creates a self-contained macOS `.tar.gz` with the Rust macOS native host; run it on macOS or pass `--host-binary` to `scripts/package-native-host.mjs` with a macOS-built `localhost-control-host` binary. `pnpm host:package:mac` also creates a native `.pkg` and must run on macOS with `pkgbuild` available. `pnpm host:package:linux` builds the Rust Linux native host and creates a tarball plus `.deb`; run it on Linux or pass `--host-binary` with a Linux-built `localhost-control-host` binary.
 
-For local native host artifacts, build on the target operating system or pass `--host-binary` to `scripts/package-native-host.mjs` with a binary built for that target. `pnpm host:package:release-local` is intended for an environment where the required target binaries are available; otherwise use GitHub Actions to produce the macOS and Linux release assets on their native runners.
+For local native host artifacts, build on the target operating system or pass `--host-binary` to `scripts/package-native-host.mjs` with a binary built for that target. `pnpm host:package:release-local` is intended for an environment where the required target binaries are available; otherwise use GitHub Actions to produce the Windows, macOS, and Linux release assets on their native runners.
 
 `pnpm test:run` runs deterministic unit and packaging tests. `pnpm smoke:native-host` runs the Rust native-host test suite.
 

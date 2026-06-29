@@ -30,7 +30,7 @@
     "host:verify:mac": "node scripts/validate-native-host-package.mjs --platform=darwin --format=tarball && node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg",
     "host:verify:mac:tarball": "node scripts/validate-native-host-package.mjs --platform=darwin --format=tarball",
     "host:verify:linux": "node scripts/validate-native-host-package.mjs --platform=linux --format=tarball && node scripts/validate-native-host-package.mjs --platform=linux --format=deb",
-    "host:verify:release-local": "pnpm host:verify:mac:tarball && pnpm host:verify:linux"
+    "host:verify:release-local": "pnpm host:verify:windows && pnpm host:verify:mac:tarball && pnpm host:verify:linux"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
