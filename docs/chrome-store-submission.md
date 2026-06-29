@@ -75,8 +75,8 @@ pnpm host:uninstall -- --browser chrome
 - [ ] Run `pnpm test:run`.
 - [ ] Run `pnpm build`.
 - [ ] Run `pnpm extension:package`.
-- [ ] Confirm `packages/extension/dist/manifest.json` uses Manifest V3.
-- [ ] Confirm `packages/extension/dist/manifest.json` permissions are only `nativeMessaging`, `sidePanel`, and `storage`.
+- [ ] Confirm the Chrome ZIP root `manifest.json` uses Manifest V3.
+- [ ] Confirm the Chrome ZIP root `manifest.json` permissions are only `nativeMessaging`, `sidePanel`, and `storage`.
 - [ ] Confirm the ZIP contains `manifest.json` at the archive root.
 - [ ] Confirm the production bundle does not contain demo project names or paths.
 - [ ] Confirm the native host has been tested with the final extension ID.

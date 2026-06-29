@@ -4,6 +4,7 @@ import { withAppScope, type KillParams, type PortEntry, type ScanResult } from "
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
 import { PortList } from "./components/PortList";
+import { getExtensionApi } from "./lib/extensionApi";
 import { type HostClient } from "./lib/hostClient";
 import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
 import { defaultSettings, loadSettings, saveSettings, type Settings } from "./lib/settings";
@@ -18,7 +19,8 @@ type AppProps = {
 };
 
 const isLowConfidenceUnknown = (entry: PortEntry): boolean => entry.detectedKind === "unknown" && entry.confidence === "low";
-const isMissingNativeHostError = (message: string): boolean => /native messaging host.*not found|specified native messaging host not found/i.test(message);
+const isMissingNativeHostError = (message: string): boolean =>
+  /native messaging host.*not found|specified native messaging host not found|no such native application/i.test(message);
 const resolveTheme = (themeMode: Settings["themeMode"]): "light" | "dark" => {
   if (themeMode === "dark") return "dark";
   if (themeMode === "light") return "light";
@@ -37,8 +39,9 @@ export const App = ({ client }: AppProps) => {
   const openedDownloadForError = useRef(false);
 
   const openNativeHostDownload = useCallback(() => {
-    if (typeof chrome !== "undefined" && chrome.tabs?.create) {
-      void chrome.tabs.create({ url: nativeHostDownloadUrl });
+    const tabs = getExtensionApi()?.tabs;
+    if (tabs?.create) {
+      void tabs.create({ url: nativeHostDownloadUrl });
       return;
     }
     window.open(nativeHostDownloadUrl, "_blank", "noopener,noreferrer");
@@ -91,7 +94,7 @@ export const App = ({ client }: AppProps) => {
 
   useEffect(() => {
     if (!hostError || openedDownloadForError.current || !isMissingNativeHostError(hostError)) return;
-    if (typeof chrome === "undefined" || !chrome.tabs?.create) return;
+    if (!getExtensionApi()?.tabs?.create) return;
     openedDownloadForError.current = true;
     openNativeHostDownload();
   }, [hostError, openNativeHostDownload]);
@@ -160,8 +163,9 @@ export const App = ({ client }: AppProps) => {
 
   const openEntry = (entry: PortEntry) => {
     const url = entry.url ?? `http://127.0.0.1:${entry.port}`;
-    if (typeof chrome !== "undefined" && chrome.tabs?.create) {
-      void chrome.tabs.create({ url });
+    const tabs = getExtensionApi()?.tabs;
+    if (tabs?.create) {
+      void tabs.create({ url });
       return;
     }
     window.open(url, "_blank", "noopener,noreferrer");

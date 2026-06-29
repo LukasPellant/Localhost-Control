@@ -110,6 +110,7 @@ describe("App", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete (globalThis as { chrome?: unknown }).chrome;
+    delete (globalThis as { browser?: unknown }).browser;
     window.localStorage.clear();
     document.documentElement.removeAttribute("data-theme");
     document.documentElement.removeAttribute("data-theme-mode");
@@ -271,13 +272,13 @@ describe("App", () => {
 
   it("opens the native host download page once when the installed extension cannot find the host", async () => {
     const createTab = vi.fn();
-    (globalThis as { chrome?: unknown }).chrome = {
+    (globalThis as { browser?: unknown }).browser = {
       tabs: {
         create: createTab
       }
     };
 
-    render(<App client={{ ...client, scan: vi.fn(async () => Promise.reject(new Error("Specified native messaging host not found."))) }} />);
+    render(<App client={{ ...client, scan: vi.fn(async () => Promise.reject(new Error("No such native application com.localhost_control.host"))) }} />);
 
     expect(await screen.findByText("Native host offline")).toBeInTheDocument();
     await waitFor(() =>

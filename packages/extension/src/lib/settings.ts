@@ -1,3 +1,5 @@
+import { getExtensionApi } from "./extensionApi";
+
 export type ThemeMode = "system" | "light" | "dark";
 
 export type Settings = {
@@ -29,8 +31,9 @@ export const defaultSettings: Settings = {
 };
 
 export const loadSettings = async (): Promise<Settings> => {
-  if (typeof chrome !== "undefined" && chrome.storage?.local) {
-    const result = await chrome.storage.local.get(key);
+  const storage = getExtensionApi()?.storage?.local;
+  if (storage) {
+    const result = await storage.get(key);
     return { ...defaultSettings, ...(result[key] as Partial<Settings> | undefined) };
   }
 
@@ -39,8 +42,9 @@ export const loadSettings = async (): Promise<Settings> => {
 };
 
 export const saveSettings = async (settings: Settings): Promise<void> => {
-  if (typeof chrome !== "undefined" && chrome.storage?.local) {
-    await chrome.storage.local.set({ [key]: settings });
+  const storage = getExtensionApi()?.storage?.local;
+  if (storage) {
+    await storage.set({ [key]: settings });
     return;
   }
 

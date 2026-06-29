@@ -8,7 +8,7 @@ It has two pieces:
 - `packages/native-host-rust`: Rust native messaging host for Windows, macOS, and Linux. It scans TCP listeners, probes HTTP, and stops killable dev processes without requiring Node.js on the user's machine.
 - `scripts`: packaging, checksum, and native messaging manifest tooling for the Rust host artifacts.
 
-The extension talks only to the native host through Chromium native messaging. It does not expose a local HTTP server and does not send telemetry.
+The extension talks only to the native host through browser native messaging. It does not expose a local HTTP server and does not send telemetry.
 
 ## Downloads
 
@@ -94,11 +94,11 @@ The macOS and Linux installers register Chrome, Brave, and Firefox. The macOS an
 
 `pnpm host:package:mac:tarball` creates a self-contained macOS `.tar.gz` with the Rust macOS native host; run it on macOS or pass `--host-binary` to `scripts/package-native-host.mjs` with a macOS-built `localhost-control-host` binary. `pnpm host:package:mac` also creates a native `.pkg` and must run on macOS with `pkgbuild` available. `pnpm host:package:linux` builds the Rust Linux native host and creates a tarball plus `.deb`; run it on Linux or pass `--host-binary` with a Linux-built `localhost-control-host` binary.
 
-For a local cross-platform release bundle, run `pnpm host:package:release-local`. It writes the macOS `.tar.gz`, Linux `.tar.gz`, Linux `.deb`, validates all three, and emits `dist\native-host\SHA256SUMS`.
+For local native host artifacts, build on the target operating system or pass `--host-binary` to `scripts/package-native-host.mjs` with a binary built for that target. `pnpm host:package:release-local` is intended for an environment where the required target binaries are available; otherwise use GitHub Actions to produce the macOS and Linux release assets on their native runners.
 
 `pnpm test:run` runs deterministic unit and packaging tests. `pnpm smoke:native-host` runs the Rust native-host test suite.
 
-GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml`. The workflow runs deterministic tests, Rust native-host tests, typecheck, the workspace build, OS-specific packaging, and artifact validation before uploading the macOS `.pkg` and Linux `.tar.gz`/`.deb` files.
+GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml` and publishes release assets through `.github/workflows/release-native-host.yml`. The workflows run deterministic tests, Rust native-host tests, typecheck, the workspace build, OS-specific packaging, and artifact validation before uploading the macOS `.pkg`/`.tar.gz` and Linux `.tar.gz`/`.deb` files.
 
 ## Chrome Web Store package
 

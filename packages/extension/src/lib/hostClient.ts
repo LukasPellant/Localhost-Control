@@ -1,4 +1,5 @@
 import { HOST_NAME, type KillParams, type KillResult, type ScanParams, type ScanResult, type TerminalParams, type TerminalResult, type VersionResult } from "@localhost-control/shared";
+import { getExtensionApi, hasPromiseExtensionApi } from "./extensionApi";
 
 export type HostClient = {
   scan(params: ScanParams): Promise<ScanResult>;
@@ -20,35 +21,45 @@ type NativeRequest =
 
 const requestId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
-const hasChromeNativeMessaging = (): boolean =>
-  typeof chrome !== "undefined" &&
-  Boolean(chrome.runtime?.sendNativeMessage);
+const hasNativeMessaging = (): boolean => Boolean(getExtensionApi()?.runtime?.sendNativeMessage);
 
-const sendNative = async <T>(request: NativeRequest): Promise<T> =>
-  new Promise<T>((resolve, reject) => {
-    if (!hasChromeNativeMessaging()) {
-      reject(new Error("Native messaging is only available inside the installed extension."));
-      return;
-    }
+const unwrapNativeResponse = <T>(response: NativeEnvelope<T> | undefined): T => {
+  if (!response || !("result" in response)) {
+    throw new Error("Native host returned an empty response.");
+  }
+  if (typeof response.result === "object" && response.result && "error" in response.result) {
+    throw new Error(response.result.message);
+  }
+  return response.result as T;
+};
 
-    const id = requestId();
-    chrome.runtime.sendNativeMessage(HOST_NAME, { id, ...request }, (response: NativeEnvelope<T> | undefined) => {
-      const lastError = chrome.runtime.lastError;
+const sendNative = async <T>(request: NativeRequest): Promise<T> => {
+  const api = getExtensionApi();
+  if (!api?.runtime?.sendNativeMessage) {
+    throw new Error("Native messaging is only available inside the installed extension.");
+  }
+
+  const message = { id: requestId(), ...request };
+  if (hasPromiseExtensionApi()) {
+    const response = (await api.runtime.sendNativeMessage(HOST_NAME, message)) as NativeEnvelope<T> | undefined;
+    return unwrapNativeResponse(response);
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    api.runtime?.sendNativeMessage?.(HOST_NAME, message, (response) => {
+      const lastError = api.runtime?.lastError;
       if (lastError) {
         reject(new Error(lastError.message));
         return;
       }
-      if (!response || !("result" in response)) {
-        reject(new Error("Native host returned an empty response."));
-        return;
+      try {
+        resolve(unwrapNativeResponse(response as NativeEnvelope<T> | undefined));
+      } catch (error) {
+        reject(error);
       }
-      if (typeof response.result === "object" && response.result && "error" in response.result) {
-        reject(new Error(response.result.message));
-        return;
-      }
-      resolve(response.result as T);
     });
   });
+};
 
 export const createNativeHostClient = (): HostClient => ({
   scan: (params) => sendNative<ScanResult>({ method: "scan", params }),
@@ -58,4 +69,4 @@ export const createNativeHostClient = (): HostClient => ({
 });
 
 export const shouldUseMockClient = (isDevBuild = import.meta.env.DEV): boolean =>
-  isDevBuild && (new URLSearchParams(window.location.search).has("mock") || !hasChromeNativeMessaging());
+  isDevBuild && (new URLSearchParams(window.location.search).has("mock") || !hasNativeMessaging());
