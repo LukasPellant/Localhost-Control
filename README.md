@@ -5,7 +5,8 @@ Localhost Control is a Chrome/Brave extension for finding stale local dev server
 It has two pieces:
 
 - `packages/extension`: MV3 side panel built with React, TypeScript, Vite, and `chrome.sidePanel`.
-- `packages/native-host`: Node-based native messaging host that scans TCP listeners, probes HTTP, and stops killable dev processes through the host operating system.
+- `packages/native-host-rust`: Rust native messaging host for Windows. It scans TCP listeners, probes HTTP, and stops killable dev processes without requiring Node.js on the user's machine.
+- `packages/native-host`: Node-based native messaging host currently used by the macOS and Linux packages.
 
 The extension talks only to the native host through Chromium native messaging. It does not expose a local HTTP server and does not send telemetry.
 
@@ -64,6 +65,7 @@ Then click the Localhost Control toolbar icon. Brave opens the persistent side p
 
 ```powershell
 pnpm test:run
+pnpm host:test:windows-rust
 pnpm smoke:native-host
 pnpm typecheck
 pnpm build
@@ -82,7 +84,7 @@ pnpm host:verify:linux
 pnpm host:verify:release-local
 ```
 
-Use `--browser all` to register the native host for Brave, Chrome, Chromium, and Edge under HKCU.
+Use `--browser all` to register the native host for Brave, Chrome, Chromium, and Edge under HKCU. The Windows installer builds and registers the Rust native host binary at `installer\windows\out\localhost-control-host.exe`; the installed Windows host does not require Node.js.
 
 The macOS and Linux installers register Chrome and Brave. The default extension ID for packaged v2 artifacts is the published Chrome Web Store ID `oamllgeaemchejbebgamdakjloahgjdc`; use `EXTENSION_ID=<id>` for unpacked local development.
 

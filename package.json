@@ -13,6 +13,8 @@
     "extension:package": "powershell -ExecutionPolicy Bypass -File scripts/package-extension.ps1",
     "host:install": "powershell -ExecutionPolicy Bypass -File installer/windows/install.ps1",
     "host:uninstall": "powershell -ExecutionPolicy Bypass -File installer/windows/uninstall.ps1",
+    "host:build:windows": "cargo build --release -p localhost-control-host",
+    "host:test:windows-rust": "cargo test -p localhost-control-host",
     "host:install:mac": "bash installer/macos/install.sh",
     "host:uninstall:mac": "bash installer/macos/uninstall.sh",
     "host:install:linux": "bash installer/linux/install.sh",

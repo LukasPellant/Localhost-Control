@@ -2,11 +2,9 @@ $ErrorActionPreference = "Stop"
 
 $HostName = "com.localhost_control.host"
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-$HostEntry = Join-Path $Root "packages\native-host\dist\index.js"
 $OutDir = Join-Path $PSScriptRoot "out"
-$LauncherSource = Join-Path $PSScriptRoot "LocalhostControlHost.cs"
-$LauncherExe = Join-Path $OutDir "LocalhostControlHost.exe"
-$HostPathFile = Join-Path $OutDir "host-path.txt"
+$RustTargetExe = Join-Path $Root "target\release\localhost-control-host.exe"
+$HostExe = Join-Path $OutDir "localhost-control-host.exe"
 $ManifestPath = Join-Path $OutDir "$HostName.json"
 
 $Browser = "brave"
@@ -70,39 +68,34 @@ function Read-InstallArgs {
   }
 }
 
-function Invoke-RepoBuild {
-  if ($SkipBuild) { return }
-  Push-Location $Root
-  try {
-    pnpm build
-  }
-  finally {
-    Pop-Location
-  }
-}
-
-function Build-Launcher {
+function Build-RustHost {
   New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
+  Remove-Item -Path (Join-Path $OutDir "LocalhostControlHost.exe"), (Join-Path $OutDir "host-path.txt") -Force -ErrorAction SilentlyContinue
 
-  if ($SkipBuild -and (Test-Path $LauncherExe)) {
-    return
-  }
-
-  $csc = Get-Command csc.exe -ErrorAction SilentlyContinue
-  if ($csc) {
-    & $csc.Source /nologo /target:exe /out:$LauncherExe $LauncherSource
-    if ($LASTEXITCODE -ne 0) {
-      throw "csc.exe failed to build LocalhostControlHost.exe"
+  if ($SkipBuild) {
+    if (!(Test-Path $HostExe)) {
+      throw "Rust native host not found at $HostExe. Rerun without -SkipBuild."
     }
     return
   }
 
+  $cargo = Get-Command cargo -ErrorAction SilentlyContinue
+  if (!$cargo) {
+    throw "Cargo was not found. Install Rust to build the Windows native host from source, or provide $HostExe and rerun with -SkipBuild."
+  }
+
+  Push-Location $Root
   try {
-    Add-Type -TypeDefinition (Get-Content -Raw $LauncherSource) -OutputAssembly $LauncherExe -OutputType ConsoleApplication
+    & $cargo.Source build --release -p localhost-control-host
+    if ($LASTEXITCODE -ne 0) {
+      throw "cargo build failed for localhost-control-host"
+    }
   }
-  catch {
-    throw "Unable to compile native host launcher. Install .NET SDK or Visual Studio Build Tools, then rerun this script. $($_.Exception.Message)"
+  finally {
+    Pop-Location
   }
+
+  Copy-Item -Path $RustTargetExe -Destination $HostExe -Force
 }
 
 function Write-Utf8NoBom {
@@ -146,13 +139,12 @@ function Write-NativeManifest {
   $manifest = [ordered]@{
     name = $HostName
     description = "Localhost Control native host"
-    path = $LauncherExe
+    path = $HostExe
     type = "stdio"
     allowed_origins = @("chrome-extension://$ExtensionId/")
   }
 
   Write-Utf8NoBom -Path $ManifestPath -Value ($manifest | ConvertTo-Json -Depth 4)
-  Write-Utf8NoBom -Path $HostPathFile -Value $HostEntry
 }
 
 function Register-Manifest {
@@ -164,18 +156,12 @@ function Register-Manifest {
 }
 
 Read-InstallArgs @args
-Invoke-RepoBuild
-
-if (!(Test-Path $HostEntry)) {
-  throw "Native host entry not found at $HostEntry. Run pnpm build first or omit -SkipBuild."
-}
-
-Build-Launcher
+Build-RustHost
 Write-NativeManifest
 Register-Manifest
 
 Write-Host ""
 Write-Host "Localhost Control native host installed."
 Write-Host "Manifest: $ManifestPath"
-Write-Host "Launcher: $LauncherExe"
+Write-Host "Host: $HostExe"
 Write-Host "Allowed origin: chrome-extension://$ExtensionId/"
