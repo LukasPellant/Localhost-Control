@@ -13,4 +13,27 @@ describe("loadSettings", () => {
 
     await expect(loadSettings()).resolves.toEqual(defaultSettings);
   });
+
+  it("sanitizes malformed saved settings while preserving valid values", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        includeSystemPorts: true,
+        httpProbe: "yes",
+        refreshIntervalSec: "fast",
+        themeMode: "neon",
+        hiddenPorts: ["5173"],
+        customPortRange: 3000,
+        trustedProjectRoots: "/work",
+        trustedProjectPaths: ["D:\\Projects\\Safe"],
+        blockedProcessNames: 123
+      })
+    );
+
+    await expect(loadSettings()).resolves.toEqual({
+      ...defaultSettings,
+      includeSystemPorts: true,
+      trustedProjectPaths: ["D:\\Projects\\Safe"]
+    });
+  });
 });
