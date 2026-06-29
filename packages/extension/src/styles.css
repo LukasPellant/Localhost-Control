@@ -64,7 +64,6 @@
 
 body {
   margin: 0;
-  min-width: 340px;
   background: var(--bg);
 }
 
@@ -325,9 +324,7 @@ button:disabled {
 }
 
 .port-title,
-.port-path,
-.port-meta,
-.port-resources {
+.port-path {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -341,21 +338,25 @@ button:disabled {
 
 .port-meta {
   display: flex;
+  min-width: 0;
   flex-wrap: wrap;
   gap: 1px 6px;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.2;
+  white-space: normal;
 }
 
 .port-resources {
   display: flex;
+  min-width: 0;
   flex-wrap: wrap;
   gap: 1px 5px;
   color: var(--accent);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
+  white-space: normal;
 }
 
 .port-resources span {
@@ -497,6 +498,7 @@ button:disabled {
 .settings-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 9px;
   padding-top: 2px;
   color: var(--muted);
