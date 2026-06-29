@@ -1,0 +1,144 @@
+name: Release Native Host
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish, for example v0.1.2"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Linux release assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test:run
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build workspace
+        run: pnpm build
+
+      - name: Package Linux native host
+        run: pnpm host:package:linux
+
+      - name: Validate Linux assets
+        run: pnpm host:verify:linux
+
+      - name: Upload Linux release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: |
+            dist/native-host/localhost-control-native-host-linux-*.tar.gz
+            dist/native-host/localhost-control-native-host_*_amd64.deb
+          if-no-files-found: error
+
+  macos:
+    name: macOS release assets
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test:run
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build workspace
+        run: pnpm build
+
+      - name: Package macOS native host
+        run: pnpm host:package:mac
+
+      - name: Validate macOS assets
+        run: pnpm host:verify:mac
+
+      - name: Upload macOS release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: |
+            dist/native-host/localhost-control-native-host-macos-*.tar.gz
+            dist/native-host/localhost-control-native-host-*.pkg
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    needs:
+      - linux
+      - macos
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist/native-host
+          merge-multiple: true
+
+      - name: Write checksums
+        run: sha256sum dist/native-host/* > dist/native-host/SHA256SUMS
+
+      - name: Resolve release notes
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if [ -f "docs/releases/${RELEASE_TAG}.md" ]; then
+            cp "docs/releases/${RELEASE_TAG}.md" dist/release-notes.md
+          else
+            {
+              echo "# Localhost Control ${RELEASE_TAG}"
+              echo
+              echo "Install the browser extension from the Chrome Web Store, then download the native host package for your operating system from this release."
+            } > dist/release-notes.md
+          fi
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" dist/native-host/* \
+            --title "Localhost Control $RELEASE_TAG" \
+            --notes-file dist/release-notes.md \
+            --verify-tag

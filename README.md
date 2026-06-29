@@ -9,6 +9,22 @@ It has two pieces:
 
 The extension talks only to the native host through Chromium native messaging. It does not expose a local HTTP server and does not send telemetry.
 
+## Downloads
+
+Install the browser extension from the Chrome Web Store:
+
+```text
+https://chromewebstore.google.com/detail/localhost-control/oamllgeaemchejbebgamdakjloahgjdc
+```
+
+Then install the native host for your operating system from GitHub Releases:
+
+```text
+https://github.com/LukasPellant/Localhost-Control/releases
+```
+
+Use the macOS `.pkg` when available, the Linux `.deb` on Debian/Ubuntu systems, or the `.tar.gz` packages for portable installs. The native host packages are built for the published Chrome Web Store extension ID `oamllgeaemchejbebgamdakjloahgjdc`.
+
 ## Setup
 
 ```powershell

@@ -14,6 +14,9 @@ Find and stop stale localhost development servers from a clean Chrome side panel
 
 Localhost Control is a developer utility for local web development on Windows, macOS, and Linux. It scans localhost TCP listeners, shows useful process metadata such as PID, command, CPU, memory, threads, handles where available, and uptime, and lets you open, copy, or stop known local development servers.
 
+After installing the extension, install the Localhost Control native host for your operating system from GitHub Releases:
+https://github.com/LukasPellant/Localhost-Control/releases
+
 The extension communicates only with its native messaging host installed on the same computer. It does not run a local HTTP server, does not collect telemetry, and does not send browsing data or process data to any external service.
 
 ## Permission Justification
