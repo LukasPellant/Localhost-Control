@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw, Search, Settings2, ShieldAlert } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Download, RefreshCw, Search, Settings2, ShieldAlert } from "lucide-react";
 import { withAppScope, type KillParams, type PortEntry, type ScanResult } from "@localhost-control/shared";
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
@@ -11,12 +11,14 @@ import "./styles.css";
 
 const filters: FilterId[] = ["web", "custom", "all", "node", "python", "unknown", "protected"];
 const themeQuery = "(prefers-color-scheme: dark)";
+const nativeHostDownloadUrl = "https://github.com/LukasPellant/Localhost-Control/releases/tag/v0.1.2";
 
 type AppProps = {
   client: HostClient;
 };
 
 const isLowConfidenceUnknown = (entry: PortEntry): boolean => entry.detectedKind === "unknown" && entry.confidence === "low";
+const isMissingNativeHostError = (message: string): boolean => /native messaging host.*not found|specified native messaging host not found/i.test(message);
 const resolveTheme = (themeMode: Settings["themeMode"]): "light" | "dark" => {
   if (themeMode === "dark") return "dark";
   if (themeMode === "light") return "light";
@@ -32,6 +34,15 @@ export const App = ({ client }: AppProps) => {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [hostError, setHostError] = useState<string | null>(null);
+  const openedDownloadForError = useRef(false);
+
+  const openNativeHostDownload = useCallback(() => {
+    if (typeof chrome !== "undefined" && chrome.tabs?.create) {
+      void chrome.tabs.create({ url: nativeHostDownloadUrl });
+      return;
+    }
+    window.open(nativeHostDownloadUrl, "_blank", "noopener,noreferrer");
+  }, []);
 
   useEffect(() => {
     void loadSettings().then(setSettings);
@@ -77,6 +88,13 @@ export const App = ({ client }: AppProps) => {
   useEffect(() => {
     void scan();
   }, [scan]);
+
+  useEffect(() => {
+    if (!hostError || openedDownloadForError.current || !isMissingNativeHostError(hostError)) return;
+    if (typeof chrome === "undefined" || !chrome.tabs?.create) return;
+    openedDownloadForError.current = true;
+    openNativeHostDownload();
+  }, [hostError, openNativeHostDownload]);
 
   useEffect(() => {
     if (!settings.refreshIntervalSec) return;
@@ -185,7 +203,11 @@ export const App = ({ client }: AppProps) => {
           <ShieldAlert size={28} />
           <h1>Native host offline</h1>
           <p>{hostError}</p>
-          <code>pnpm host:install -- --browser brave --extension-id &lt;id&gt;</code>
+          <p>Install the Localhost Control native host for your operating system, then retry the connection.</p>
+          <button className="primary-button" type="button" onClick={openNativeHostDownload}>
+            <Download size={15} />
+            Download native host
+          </button>
           <button className="primary-button" type="button" onClick={() => void scan()}>
             Retry connection
           </button>

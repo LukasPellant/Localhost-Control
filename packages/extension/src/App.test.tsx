@@ -109,6 +109,7 @@ const client: HostClient = {
 describe("App", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete (globalThis as { chrome?: unknown }).chrome;
     window.localStorage.clear();
     document.documentElement.removeAttribute("data-theme");
     document.documentElement.removeAttribute("data-theme-mode");
@@ -264,7 +265,27 @@ describe("App", () => {
     render(<App client={{ ...client, scan: vi.fn(async () => Promise.reject(new Error("Specified native messaging host not found."))) }} />);
 
     expect(await screen.findByText("Native host offline")).toBeInTheDocument();
-    expect(screen.getByText(/pnpm host:install/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /download native host/i })).toBeInTheDocument();
+    expect(screen.getByText(/install the localhost control native host/i)).toBeInTheDocument();
+  });
+
+  it("opens the native host download page once when the installed extension cannot find the host", async () => {
+    const createTab = vi.fn();
+    (globalThis as { chrome?: unknown }).chrome = {
+      tabs: {
+        create: createTab
+      }
+    };
+
+    render(<App client={{ ...client, scan: vi.fn(async () => Promise.reject(new Error("Specified native messaging host not found."))) }} />);
+
+    expect(await screen.findByText("Native host offline")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(createTab).toHaveBeenCalledWith({
+        url: "https://github.com/LukasPellant/Localhost-Control/releases/tag/v0.1.2"
+      })
+    );
+    expect(createTab).toHaveBeenCalledOnce();
   });
 
   it("keeps the detail panel aligned with the active filter", async () => {

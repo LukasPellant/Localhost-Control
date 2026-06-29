@@ -565,7 +565,11 @@ button:disabled {
 }
 
 .primary-button {
+  display: inline-flex;
   height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 1px solid var(--accent-border);
   border-radius: 7px;
   background: var(--accent);
