@@ -27,4 +27,9 @@ describe("release-native-host workflow", () => {
   it("includes Windows artifacts in local release verification", () => {
     expect(packageJson.scripts["host:verify:release-local"]).toContain("pnpm host:verify:windows");
   });
+
+  it("writes release checksums with the artifact-aware checksum script", () => {
+    expect(workflow).toContain("node scripts/write-native-host-checksums.mjs");
+    expect(workflow).not.toContain("sha256sum dist/native-host/* > dist/native-host/SHA256SUMS");
+  });
 });

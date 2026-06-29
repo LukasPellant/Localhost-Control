@@ -184,7 +184,7 @@ jobs:
           merge-multiple: true
 
       - name: Write checksums
-        run: sha256sum dist/native-host/* > dist/native-host/SHA256SUMS
+        run: node scripts/write-native-host-checksums.mjs
 
       - name: Resolve release notes
         env:

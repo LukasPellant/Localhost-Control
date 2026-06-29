@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 $HostName = "com.localhost_control.host"
 $OutDir = Join-Path $PSScriptRoot "out"
 
-$Browser = "brave"
+$Browser = "all"
 $KeepFiles = $false
 
 function Read-OptionValue {
