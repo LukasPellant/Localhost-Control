@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { chmod, cp, mkdir, rm, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,6 +58,27 @@ const writeManifestTargets = async ({ platform, scope, rootDir, hostPath, extens
   }
 };
 
+const padArField = (value, length) => String(value).slice(0, length).padEnd(length, " ");
+
+const writeArArchive = async (output, entries) => {
+  const chunks = [Buffer.from("!<arch>\n")];
+  for (const entry of entries) {
+    const data = Buffer.isBuffer(entry.data) ? entry.data : await readFile(entry.data);
+    const header = [
+      padArField(`${entry.name}/`, 16),
+      padArField(0, 12),
+      padArField(0, 6),
+      padArField(0, 6),
+      padArField((entry.mode ?? 0o100644).toString(8), 8),
+      padArField(data.length, 10),
+      "`\n"
+    ].join("");
+    chunks.push(Buffer.from(header), data);
+    if (data.length % 2 === 1) chunks.push(Buffer.from("\n"));
+  }
+  await writeFile(output, Buffer.concat(chunks));
+};
+
 const packageTarball = async ({ stageDir, outputDir, version }) => {
   await cp(path.join(repoRoot, "installer", "linux", "install.sh"), path.join(stageDir, "install.sh"));
   await cp(path.join(repoRoot, "installer", "linux", "uninstall.sh"), path.join(stageDir, "uninstall.sh"));
@@ -70,9 +91,10 @@ const packageTarball = async ({ stageDir, outputDir, version }) => {
 };
 
 const packageDeb = async ({ stageDir, outputDir, version, arch }) => {
-  const debRoot = path.join(stageDir, "deb-root");
-  const installRoot = path.join(debRoot, "usr", "lib", "localhost-control");
-  await mkdir(path.join(debRoot, "DEBIAN"), { recursive: true });
+  const dataRoot = path.join(stageDir, "deb-data");
+  const controlRoot = path.join(stageDir, "deb-control");
+  const installRoot = path.join(dataRoot, "usr", "lib", "localhost-control");
+  await mkdir(controlRoot, { recursive: true });
   await mkdir(installRoot, { recursive: true });
   await cp(path.join(stageDir, "localhost-control-host"), path.join(installRoot, "localhost-control-host"));
   if (await pathExists(path.join(stageDir, "app"))) {
@@ -82,12 +104,12 @@ const packageDeb = async ({ stageDir, outputDir, version, arch }) => {
   await writeManifestTargets({
     platform: "linux",
     scope: "system",
-    rootDir: debRoot,
+    rootDir: dataRoot,
     hostPath: "/usr/lib/localhost-control/localhost-control-host",
     extensionId: DEFAULT_EXTENSION_ID
   });
   await writeFile(
-    path.join(debRoot, "DEBIAN", "control"),
+    path.join(controlRoot, "control"),
     [
       "Package: localhost-control-native-host",
       `Version: ${version}`,
@@ -102,8 +124,20 @@ const packageDeb = async ({ stageDir, outputDir, version, arch }) => {
   );
 
   const output = path.join(outputDir, `localhost-control-native-host_${version}_${arch}.deb`);
-  const result = spawnSync("dpkg-deb", ["--build", debRoot, output], { stdio: "inherit" });
-  if (result.status !== 0) throw new Error("dpkg-deb packaging failed");
+  const controlTar = path.join(stageDir, "control.tar.gz");
+  const dataTar = path.join(stageDir, "data.tar.gz");
+  for (const [source, destination] of [
+    [controlRoot, controlTar],
+    [dataRoot, dataTar]
+  ]) {
+    const result = spawnSync("tar", ["-czf", destination, "-C", source, "."], { stdio: "inherit" });
+    if (result.status !== 0) throw new Error(`tar packaging failed for ${destination}`);
+  }
+  await writeArArchive(output, [
+    { name: "debian-binary", data: Buffer.from("2.0\n") },
+    { name: "control.tar.gz", data: controlTar },
+    { name: "data.tar.gz", data: dataTar }
+  ]);
   return output;
 };
 
