@@ -29,13 +29,30 @@ const writeArArchive = (output: string, entries: { name: string; data: Buffer }[
 };
 
 describe("validate-native-host-package", () => {
-  it.each([
-    { platform: "linux", fileName: "host-linux.tar.gz" },
-    { platform: "darwin", fileName: "host-macos.tar.gz" }
-  ])("accepts a $platform tarball with the packaged host layout", ({ platform, fileName }) => {
+  it("accepts a Linux tarball with the Rust host layout", () => {
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-package-"));
     const stageDir = path.join(tempRoot, "stage");
-    const artifact = path.join(tempRoot, fileName);
+    const artifact = path.join(tempRoot, "host-linux.tar.gz");
+
+    mkdirSync(stageDir, { recursive: true });
+    writeFileSync(path.join(stageDir, "localhost-control-host"), "#!/usr/bin/env sh\n");
+    writeFileSync(path.join(stageDir, "install.sh"), "#!/usr/bin/env sh\n");
+    writeFileSync(path.join(stageDir, "uninstall.sh"), "#!/usr/bin/env sh\n");
+
+    execFileSync("tar", ["-czf", artifact, "-C", stageDir, "."], { stdio: "pipe" });
+    const output = execFileSync(
+      process.execPath,
+      [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), "--platform=linux", "--format=tarball", `--artifact=${artifact}`],
+      { encoding: "utf8" }
+    );
+
+    expect(output).toContain("Validated");
+  });
+
+  it("accepts a macOS tarball with the Node host layout", () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-package-"));
+    const stageDir = path.join(tempRoot, "stage");
+    const artifact = path.join(tempRoot, "host-macos.tar.gz");
 
     for (const directory of [
       "app/native-host/dist",
@@ -54,7 +71,7 @@ describe("validate-native-host-package", () => {
     execFileSync("tar", ["-czf", artifact, "-C", stageDir, "."], { stdio: "pipe" });
     const output = execFileSync(
       process.execPath,
-      [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), `--platform=${platform}`, "--format=tarball", `--artifact=${artifact}`],
+      [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), "--platform=darwin", "--format=tarball", `--artifact=${artifact}`],
       { encoding: "utf8" }
     );
 
@@ -71,7 +88,7 @@ describe("validate-native-host-package", () => {
 
     for (const directory of [
       controlDir,
-      path.join(dataDir, "usr/lib/localhost-control/app/native-host/dist"),
+      path.join(dataDir, "usr/lib/localhost-control"),
       path.join(dataDir, "etc/opt/chrome/native-messaging-hosts"),
       path.join(dataDir, "etc/brave/native-messaging-hosts")
     ]) {
@@ -84,13 +101,11 @@ describe("validate-native-host-package", () => {
         "Package: localhost-control-native-host",
         "Version: 0.1.4",
         "Architecture: amd64",
-        "Depends: nodejs (>= 18)",
         ""
       ].join("\n")
     );
     writeFileSync(path.join(controlDir, "postinst"), "#!/usr/bin/env sh\nchmod 755 /usr/lib/localhost-control/localhost-control-host\n");
     writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
-    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/app/native-host/dist/index.js"), "#!/usr/bin/env node\n");
     writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
     writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
 
@@ -121,7 +136,7 @@ describe("validate-native-host-package", () => {
 
     for (const directory of [
       controlDir,
-      path.join(dataDir, "usr/lib/localhost-control/app/native-host/dist"),
+      path.join(dataDir, "usr/lib/localhost-control"),
       path.join(dataDir, "etc/opt/chrome/native-messaging-hosts"),
       path.join(dataDir, "etc/brave/native-messaging-hosts")
     ]) {
@@ -134,12 +149,10 @@ describe("validate-native-host-package", () => {
         "Package: localhost-control-native-host",
         "Version: 0.1.4",
         "Architecture: amd64",
-        "Depends: nodejs (>= 18)",
         ""
       ].join("\n")
     );
     writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
-    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/app/native-host/dist/index.js"), "#!/usr/bin/env node\n");
     writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
     writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
 

@@ -47,6 +47,19 @@ const stageNodeHostApp = async (stageDir) => {
   await chmod(path.join(stageDir, "localhost-control-host"), 0o755);
 };
 
+const buildRustHost = (platform) => {
+  if (platform === "linux" && process.platform !== "linux") {
+    throw new Error("Linux Rust native host packages must be built on Linux, or pass --host-binary=/path/to/linux/localhost-control-host.");
+  }
+  const result = spawnSync("cargo", ["build", "--release", "-p", "localhost-control-host"], { cwd: repoRoot, stdio: "inherit" });
+  if (result.status !== 0) throw new Error("cargo build failed for localhost-control-host");
+  return path.join(repoRoot, "target", "release", process.platform === "win32" ? "localhost-control-host.exe" : "localhost-control-host");
+};
+
+const stageRustHostApp = async (stageDir, platform) => {
+  await copyHostBinary(buildRustHost(platform), path.join(stageDir, "localhost-control-host"));
+};
+
 const stagePath = (rootDir, targetPath) => (rootDir ? path.join(rootDir, targetPath.replace(/^[/\\]+/, "")) : targetPath);
 
 const writeManifestTargets = async ({ platform, scope, rootDir, hostPath, extensionId }) => {
@@ -179,7 +192,6 @@ const packageDeb = async ({ stageDir, outputDir, version, arch }) => {
       "Section: utils",
       "Priority: optional",
       `Architecture: ${arch}`,
-      "Depends: nodejs (>= 18)",
       "Maintainer: Localhost Control <support@localhost-control.local>",
       "Description: Native messaging host for the Localhost Control browser extension",
       ""
@@ -248,6 +260,8 @@ const main = async () => {
   const hostName = platform === "win32" ? "localhost-control-host.exe" : "localhost-control-host";
   if (hostBinary) {
     await copyHostBinary(hostBinary, path.join(stageDir, hostName));
+  } else if (platform === "linux") {
+    await stageRustHostApp(stageDir, platform);
   } else {
     await stageNodeHostApp(stageDir);
   }

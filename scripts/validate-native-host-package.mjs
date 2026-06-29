@@ -97,9 +97,14 @@ const requireEntry = (entries, expectedSuffix) => {
 const validateTarball = () => {
   const entries = run("tar", ["-tzf", artifact]).split(/\r?\n/).filter(Boolean);
   requireEntry(entries, "localhost-control-host");
-  requireEntry(entries, "app/native-host/dist/index.js");
-  requireEntry(entries, "app/native-host/package.json");
-  requireEntry(entries, "app/native-host/node_modules/@localhost-control/shared/dist/index.js");
+  if (platform === "darwin") {
+    requireEntry(entries, "app/native-host/dist/index.js");
+    requireEntry(entries, "app/native-host/package.json");
+    requireEntry(entries, "app/native-host/node_modules/@localhost-control/shared/dist/index.js");
+  }
+  if (platform === "linux" && entries.some((entry) => normalizeEntry(entry).includes("app/native-host"))) {
+    throw new Error("Linux tarball must package the Rust native host without the Node app payload.");
+  }
   requireEntry(entries, "install.sh");
   requireEntry(entries, "uninstall.sh");
 };
@@ -120,14 +125,16 @@ const validateDeb = async () => {
     const postinst = await readFile(path.join(controlRoot, "postinst"), "utf8").catch(() => "");
     if (!control.includes("localhost-control-native-host")) throw new Error("Debian package metadata is missing the package name.");
     if (!control.includes(packageJson.version)) throw new Error("Debian package metadata is missing the project version.");
-    if (!control.includes("nodejs")) throw new Error("Debian package metadata must depend on nodejs.");
+    if (control.includes("nodejs")) throw new Error("Debian package metadata must not depend on nodejs.");
     if (!postinst.includes("chmod 755 /usr/lib/localhost-control/localhost-control-host")) {
       throw new Error("Debian package postinst must restore the native host executable permission.");
     }
 
     const dataEntries = await listTarGzEntries(dataTar, tempRoot, "data.tar.gz");
     requireEntry(dataEntries, "usr/lib/localhost-control/localhost-control-host");
-    requireEntry(dataEntries, "usr/lib/localhost-control/app/native-host/dist/index.js");
+    if (dataEntries.some((entry) => normalizeEntry(entry).includes("usr/lib/localhost-control/app/native-host"))) {
+      throw new Error("Debian package must package the Rust native host without the Node app payload.");
+    }
     requireEntry(dataEntries, `etc/opt/chrome/native-messaging-hosts/${hostName}.json`);
     requireEntry(dataEntries, `etc/brave/native-messaging-hosts/${hostName}.json`);
   } finally {

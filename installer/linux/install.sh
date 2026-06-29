@@ -13,6 +13,8 @@ if [ -d "${SCRIPT_DIR}/app" ]; then
   rm -rf "${ROOT}/app"
   cp -R "${SCRIPT_DIR}/app" "${ROOT}/app"
   cp "${SCRIPT_DIR}/localhost-control-host" "${HOST_TARGET}"
+elif [ -f "${SCRIPT_DIR}/localhost-control-host" ]; then
+  cp "${SCRIPT_DIR}/localhost-control-host" "${HOST_TARGET}"
 else
   cp "${HOST_SOURCE}" "${HOST_TARGET}"
 fi

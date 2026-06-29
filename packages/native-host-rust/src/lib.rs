@@ -76,6 +76,7 @@ pub enum TargetResolution {
     Denied(String),
 }
 
+#[cfg(windows)]
 #[derive(Clone, Debug, Deserialize)]
 struct CimProcess {
     #[serde(rename = "ProcessId")]
@@ -250,6 +251,7 @@ fn scan_local_ports(params: &ScanParams) -> Result<Value, String> {
     }))
 }
 
+#[cfg(windows)]
 fn read_tcp_listeners() -> Result<Vec<Listener>, String> {
     let output = Command::new("netstat")
         .args(["-ano", "-p", "tcp"])
@@ -264,6 +266,7 @@ fn read_tcp_listeners() -> Result<Vec<Listener>, String> {
     )))
 }
 
+#[cfg(windows)]
 fn parse_netstat_listeners(output: &str) -> Vec<Listener> {
     output
         .lines()
@@ -282,6 +285,44 @@ fn parse_netstat_listeners(output: &str) -> Vec<Listener> {
         .collect()
 }
 
+#[cfg(target_os = "linux")]
+fn read_tcp_listeners() -> Result<Vec<Listener>, String> {
+    let output = Command::new("ss")
+        .args(["-ltnp"])
+        .output()
+        .map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    }
+    Ok(parse_ss_listeners(&String::from_utf8_lossy(&output.stdout)))
+}
+
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn parse_ss_listeners(output: &str) -> Vec<Listener> {
+    output
+        .lines()
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() < 5 || parts[0] != "LISTEN" {
+                return None;
+            }
+            let (address, port) = parse_address_port(parts[3])?;
+            let pid = extract_ss_pid(line)?;
+            Some(Listener { address, port, pid })
+        })
+        .collect()
+}
+
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn extract_ss_pid(line: &str) -> Option<u32> {
+    let start = line.find("pid=")? + "pid=".len();
+    let digits: String = line[start..]
+        .chars()
+        .take_while(|value| value.is_ascii_digit())
+        .collect();
+    digits.parse().ok()
+}
+
 fn parse_address_port(value: &str) -> Option<(String, u16)> {
     if value.starts_with('[') {
         let end = value.rfind("]:")?;
@@ -293,6 +334,7 @@ fn parse_address_port(value: &str) -> Option<(String, u16)> {
     Some((address.to_string(), port.parse().ok()?))
 }
 
+#[cfg(windows)]
 fn read_process_metadata(
     pids: &[u32],
 ) -> Result<HashMap<u32, (ProcessMetadata, Option<ProcessResources>)>, String> {
@@ -360,6 +402,55 @@ fn read_process_metadata(
             (metadata.pid, (metadata, Some(resources)))
         })
         .collect())
+}
+
+#[cfg(target_os = "linux")]
+fn read_process_metadata(
+    pids: &[u32],
+) -> Result<HashMap<u32, (ProcessMetadata, Option<ProcessResources>)>, String> {
+    let mut result = HashMap::new();
+    for pid in pids.iter().copied().collect::<HashSet<_>>() {
+        let proc_root = Path::new("/proc").join(pid.to_string());
+        let process_name = std::fs::read_to_string(proc_root.join("comm"))
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| format!("pid-{pid}"));
+        let command_line = std::fs::read(proc_root.join("cmdline"))
+            .ok()
+            .map(|bytes| {
+                bytes
+                    .split(|byte| *byte == 0)
+                    .filter(|part| !part.is_empty())
+                    .map(|part| String::from_utf8_lossy(part).to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .filter(|value| !value.is_empty());
+        let executable_path = std::fs::read_link(proc_root.join("exe"))
+            .ok()
+            .map(|path| path.display().to_string());
+        let cwd = std::fs::read_link(proc_root.join("cwd"))
+            .ok()
+            .map(|path| path.display().to_string());
+        let parent_pid = std::fs::read_to_string(proc_root.join("stat"))
+            .ok()
+            .and_then(|value| parse_proc_stat_parent_pid(&value));
+        let resources = read_linux_resources(&proc_root);
+        let project_hint = cwd
+            .filter(|value| is_likely_project_path(value))
+            .or_else(|| derive_project_hint(command_line.as_deref(), executable_path.as_deref()));
+        let metadata = ProcessMetadata {
+            pid,
+            parent_pid,
+            process_name,
+            executable_path,
+            command_line,
+            project_hint,
+        };
+        result.insert(pid, (metadata, resources));
+    }
+    Ok(result)
 }
 
 fn build_port_entry(
@@ -447,6 +538,7 @@ pub fn resolve_kill_target(
     }
 }
 
+#[cfg(windows)]
 fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
     if params.mode != "force-tree" {
         return Ok(json!({
@@ -494,6 +586,56 @@ fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
     }))
 }
 
+#[cfg(target_os = "linux")]
+fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
+    if params.mode != "force-tree" {
+        return Ok(json!({
+            "killed": false,
+            "pid": params.pid,
+            "port": params.port,
+            "portClosed": false,
+            "message": "Unsupported kill mode."
+        }));
+    }
+    let listeners = read_tcp_listeners()?;
+    let metadata_map = read_process_metadata(&[params.pid]).unwrap_or_default();
+    let metadata: Vec<ProcessMetadata> = metadata_map
+        .values()
+        .map(|(item, _)| item.clone())
+        .collect();
+    if let TargetResolution::Denied(message) = resolve_kill_target(params, &listeners, &metadata) {
+        return Ok(json!({
+            "killed": false,
+            "pid": params.pid,
+            "port": params.port,
+            "portClosed": !listeners.iter().any(|listener| listener.port == params.port),
+            "message": message
+        }));
+    }
+
+    let pids = collect_linux_process_tree(params.pid);
+    for pid in &pids {
+        let _ = send_unix_signal(*pid, "TERM");
+    }
+    std::thread::sleep(Duration::from_millis(250));
+    for pid in &pids {
+        let _ = send_unix_signal(*pid, "KILL");
+    }
+    let port_closed = wait_for_port_closed(params.port, Duration::from_secs(3));
+    Ok(json!({
+        "killed": true,
+        "pid": params.pid,
+        "port": params.port,
+        "portClosed": port_closed,
+        "message": if port_closed {
+            format!("Killed PID {}; port {} is closed.", params.pid, params.port)
+        } else {
+            format!("Killed PID {}; port {} is still listening.", params.pid, params.port)
+        }
+    }))
+}
+
+#[cfg(windows)]
 fn open_terminal(params: &TerminalParams) -> Value {
     let command_hint = params
         .command_line
@@ -537,6 +679,55 @@ fn open_terminal(params: &TerminalParams) -> Value {
         Ok(_) => json!({ "opened": true, "message": format!("Opened terminal in {cwd}") }),
         Err(error) => json!({ "opened": false, "message": error.to_string() }),
     }
+}
+
+#[cfg(target_os = "linux")]
+fn open_terminal(params: &TerminalParams) -> Value {
+    let command_hint = params
+        .command_line
+        .as_deref()
+        .and_then(|command_line| derive_project_hint(Some(command_line), None));
+    let cwd = params
+        .project_hint
+        .as_deref()
+        .filter(|value| Path::new(value).exists())
+        .map(str::to_string)
+        .or_else(|| command_hint.filter(|value| Path::new(value).exists()))
+        .or_else(|| std::env::var("HOME").ok())
+        .or_else(|| {
+            std::env::current_dir()
+                .ok()
+                .map(|path| path.display().to_string())
+        })
+        .unwrap_or_else(|| "/".to_string());
+    for terminal in [
+        "xdg-terminal-exec",
+        "gnome-terminal",
+        "konsole",
+        "xfce4-terminal",
+        "xterm",
+    ] {
+        let mut command = Command::new(terminal);
+        if terminal == "gnome-terminal" {
+            command.args(["--working-directory", &cwd]);
+        } else if terminal == "konsole" {
+            command.args(["--workdir", &cwd]);
+        }
+        match command
+            .current_dir(&cwd)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            Ok(_) => {
+                return json!({ "opened": true, "message": format!("Opened terminal in {cwd}") })
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return json!({ "opened": false, "message": error.to_string() }),
+        }
+    }
+    json!({ "opened": false, "message": "No supported Linux terminal was found." })
 }
 
 fn wait_for_port_closed(port: u16, timeout: Duration) -> bool {
@@ -767,11 +958,120 @@ fn insert_optional_str(target: &mut Value, key: &str, value: Option<&str>) {
     }
 }
 
+#[cfg(windows)]
 fn value_to_u64(value: Option<Value>) -> Option<u64> {
     match value? {
         Value::Number(number) => number.as_u64(),
         Value::String(text) => text.parse().ok(),
         _ => None,
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn read_linux_resources(proc_root: &Path) -> Option<ProcessResources> {
+    let status = std::fs::read_to_string(proc_root.join("status")).ok()?;
+    let memory_bytes = read_status_kb(&status, "VmRSS:").map(|value| value * 1024);
+    let private_memory_bytes = read_status_kb(&status, "VmData:").map(|value| value * 1024);
+    let thread_count = read_status_number(&status, "Threads:");
+    let handle_count = std::fs::read_dir(proc_root.join("fd"))
+        .ok()
+        .map(|entries| entries.filter_map(Result::ok).count() as u64);
+    Some(ProcessResources {
+        memory_bytes,
+        private_memory_bytes,
+        thread_count,
+        handle_count,
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn read_status_kb(status: &str, key: &str) -> Option<u64> {
+    status
+        .lines()
+        .find(|line| line.starts_with(key))?
+        .split_whitespace()
+        .nth(1)?
+        .parse()
+        .ok()
+}
+
+#[cfg(target_os = "linux")]
+fn read_status_number(status: &str, key: &str) -> Option<u64> {
+    status
+        .lines()
+        .find(|line| line.starts_with(key))?
+        .split_whitespace()
+        .nth(1)?
+        .parse()
+        .ok()
+}
+
+#[cfg(target_os = "linux")]
+fn parse_proc_stat_parent_pid(stat: &str) -> Option<u32> {
+    let end = stat.rfind(") ")?;
+    stat[end + 2..].split_whitespace().nth(1)?.parse().ok()
+}
+
+#[cfg(target_os = "linux")]
+fn is_likely_project_path(value: &str) -> bool {
+    !(value == "/"
+        || value.starts_with("/usr")
+        || value.starts_with("/bin")
+        || value.starts_with("/sbin")
+        || value.starts_with("/lib"))
+}
+
+#[cfg(target_os = "linux")]
+fn collect_linux_process_tree(root_pid: u32) -> Vec<u32> {
+    fn collect(
+        pid: u32,
+        children_by_parent: &HashMap<u32, Vec<u32>>,
+        seen: &mut HashSet<u32>,
+        output: &mut Vec<u32>,
+    ) {
+        if !seen.insert(pid) {
+            return;
+        }
+        if let Some(children) = children_by_parent.get(&pid) {
+            for child in children {
+                collect(*child, children_by_parent, seen, output);
+            }
+        }
+        output.push(pid);
+    }
+
+    let mut children_by_parent: HashMap<u32, Vec<u32>> = HashMap::new();
+    if let Ok(entries) = std::fs::read_dir("/proc") {
+        for entry in entries.filter_map(Result::ok) {
+            let Ok(pid) = entry.file_name().to_string_lossy().parse::<u32>() else {
+                continue;
+            };
+            let Some(parent_pid) = std::fs::read_to_string(entry.path().join("stat"))
+                .ok()
+                .and_then(|value| parse_proc_stat_parent_pid(&value))
+            else {
+                continue;
+            };
+            children_by_parent.entry(parent_pid).or_default().push(pid);
+        }
+    }
+
+    let mut seen = HashSet::new();
+    let mut output = Vec::new();
+    collect(root_pid, &children_by_parent, &mut seen, &mut output);
+    output
+}
+
+#[cfg(target_os = "linux")]
+fn send_unix_signal(pid: u32, signal: &str) -> Result<(), String> {
+    let status = Command::new("kill")
+        .args([format!("-{signal}"), pid.to_string()])
+        .status()
+        .map_err(|error| error.to_string())?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("kill -{signal} {pid} failed"))
     }
 }
 
@@ -840,7 +1140,7 @@ fn iso_now() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::derive_project_hint;
+    use super::{derive_project_hint, parse_ss_listeners};
 
     #[test]
     fn derives_project_hint_from_node_modules_path_inside_quoted_command() {
@@ -851,12 +1151,36 @@ mod tests {
             Some("D:\\DevelopmentD\\DarkBurn".to_string())
         );
     }
+
+    #[test]
+    fn parses_linux_ss_listener_with_process_pid() {
+        let output = r#"State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess
+LISTEN 0      5          127.0.0.1:5176      0.0.0.0:*    users:(("python3",pid=3040,fd=3))
+"#;
+
+        let listeners = parse_ss_listeners(output);
+
+        assert_eq!(listeners.len(), 1);
+        assert_eq!(listeners[0].address, "127.0.0.1");
+        assert_eq!(listeners[0].port, 5176);
+        assert_eq!(listeners[0].pid, 3040);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn parses_linux_proc_stat_parent_pid() {
+        let stat = "1234 (python worker) S 99 1 1 0 -1 4194560";
+
+        assert_eq!(super::parse_proc_stat_parent_pid(stat), Some(99));
+    }
 }
 
+#[cfg(windows)]
 trait CommandExt {
     fn creation_flags_no_window(&mut self) -> &mut Self;
 }
 
+#[cfg(windows)]
 impl CommandExt for Command {
     fn creation_flags_no_window(&mut self) -> &mut Self {
         #[cfg(windows)]

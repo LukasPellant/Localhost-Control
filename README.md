@@ -5,8 +5,8 @@ Localhost Control is a Chrome/Brave extension for finding stale local dev server
 It has two pieces:
 
 - `packages/extension`: MV3 side panel built with React, TypeScript, Vite, and `chrome.sidePanel`.
-- `packages/native-host-rust`: Rust native messaging host for Windows. It scans TCP listeners, probes HTTP, and stops killable dev processes without requiring Node.js on the user's machine.
-- `packages/native-host`: Node-based native messaging host currently used by the macOS and Linux packages.
+- `packages/native-host-rust`: Rust native messaging host for Windows and Linux. It scans TCP listeners, probes HTTP, and stops killable dev processes without requiring Node.js on the user's machine.
+- `packages/native-host`: Node-based native messaging host currently used by the macOS package.
 
 The extension talks only to the native host through Chromium native messaging. It does not expose a local HTTP server and does not send telemetry.
 
@@ -86,9 +86,9 @@ pnpm host:verify:release-local
 
 Use `--browser all` to register the native host for Brave, Chrome, Chromium, and Edge under HKCU. The Windows installer builds and registers the Rust native host binary at `installer\windows\out\localhost-control-host.exe`; the installed Windows host does not require Node.js.
 
-The macOS and Linux installers register Chrome and Brave. The default extension ID for packaged v2 artifacts is the published Chrome Web Store ID `oamllgeaemchejbebgamdakjloahgjdc`; use `EXTENSION_ID=<id>` for unpacked local development.
+The macOS and Linux installers register Chrome and Brave. The Linux package installs the Rust native host binary directly, so end users do not need Node.js. The default extension ID for packaged v2 artifacts is the published Chrome Web Store ID `oamllgeaemchejbebgamdakjloahgjdc`; use `EXTENSION_ID=<id>` for unpacked local development.
 
-`pnpm host:package:mac:tarball` creates a self-contained macOS `.tar.gz` on Windows, macOS, or Linux. `pnpm host:package:mac` also creates a native `.pkg` and must run on macOS with `pkgbuild` available. `pnpm host:package:linux` creates a tarball and a `.deb` using Node and `tar`, so the Linux artifacts can be assembled on Windows, macOS, or Linux and are still verified on Ubuntu in CI.
+`pnpm host:package:mac:tarball` creates a self-contained macOS `.tar.gz` on Windows, macOS, or Linux. `pnpm host:package:mac` also creates a native `.pkg` and must run on macOS with `pkgbuild` available. `pnpm host:package:linux` builds the Rust Linux native host and creates a tarball plus `.deb`; run it on Linux or pass `--host-binary` to `scripts/package-native-host.mjs` with a Linux-built `localhost-control-host` binary.
 
 For a local cross-platform release bundle, run `pnpm host:package:release-local`. It writes the macOS `.tar.gz`, Linux `.tar.gz`, Linux `.deb`, validates all three, and emits `dist\native-host\SHA256SUMS`.
 
