@@ -75,7 +75,7 @@ export const scanLocalPorts = async (params: ScanParams): Promise<ScanResult> =>
     .filter(isLocalishListener)
     .filter((listener) => params.includeSystemPorts || listener.port >= 1024);
   const pids = listeners.map((listener) => listener.pid);
-  const metadataByPid = await readProcessMetadata(pids);
+  const metadataByPid = await readProcessMetadata(pids).catch(() => new Map<number, ProcessMetadata>());
   const probesByPort = params.httpProbe ? await probeListeners(listeners, params.maxProbeMs) : new Map<number, ProbeResult>();
   const entries = await buildPortEntries(listeners, metadataByPid, probesByPort);
 

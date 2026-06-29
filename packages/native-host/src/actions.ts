@@ -3,13 +3,27 @@ import { killProcessTree as platformKillProcessTree, openTerminal as platformOpe
 import { isPortListening, readTcpListeners, type Listener } from "./netstat.js";
 import { readProcessMetadata, type ProcessMetadata } from "./processMetadata.js";
 
-const waitForPortClosed = async (port: number): Promise<boolean> => {
-  const deadline = Date.now() + 3000;
+type KillProcessTreeDependencies = {
+  readTcpListeners: () => Promise<Listener[]>;
+  readProcessMetadata: (pids: Iterable<number>) => Promise<Map<number, ProcessMetadata>>;
+  isPortListening: (port: number) => Promise<boolean>;
+  platformKillProcessTree: (params: KillParams) => Promise<void>;
+  portCloseTimeoutMs?: number;
+  portPollIntervalMs?: number;
+};
+
+const waitForPortClosed = async (
+  port: number,
+  isListening: (port: number) => Promise<boolean>,
+  timeoutMs = 3000,
+  pollIntervalMs = 120
+): Promise<boolean> => {
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (!(await isPortListening(port))) return true;
-    await new Promise((resolve) => setTimeout(resolve, 120));
+    if (!(await isListening(port))) return true;
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
   }
-  return !(await isPortListening(port));
+  return !(await isListening(port));
 };
 
 type KillTargetResolution =
@@ -54,39 +68,56 @@ export const resolveKillTarget = (
   return { allowed: true };
 };
 
-export const killProcessTree = async (params: KillParams): Promise<KillResult> => {
-  const [listeners, metadataByPid] = await Promise.all([readTcpListeners(), readProcessMetadata([params.pid])]);
-  const target = resolveKillTarget(params, listeners, metadataByPid);
-  if (!target.allowed) {
-    return {
-      killed: false,
-      pid: params.pid,
-      port: params.port,
-      portClosed: !isPortListeningIn(listeners, params.port),
-      message: target.message
-    };
-  }
+export const createKillProcessTree =
+  (dependencies: KillProcessTreeDependencies) =>
+  async (params: KillParams): Promise<KillResult> => {
+    const [listeners, metadataByPid] = await Promise.all([
+      dependencies.readTcpListeners(),
+      dependencies.readProcessMetadata([params.pid]).catch(() => new Map<number, ProcessMetadata>())
+    ]);
+    const target = resolveKillTarget(params, listeners, metadataByPid);
+    if (!target.allowed) {
+      return {
+        killed: false,
+        pid: params.pid,
+        port: params.port,
+        portClosed: !isPortListeningIn(listeners, params.port),
+        message: target.message
+      };
+    }
 
-  try {
-    await platformKillProcessTree(params);
-    const portClosed = await waitForPortClosed(params.port);
-    return {
-      killed: true,
-      pid: params.pid,
-      port: params.port,
-      portClosed,
-      message: portClosed ? `Killed PID ${params.pid}; port ${params.port} is closed.` : `Killed PID ${params.pid}; port ${params.port} is still listening.`
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      killed: false,
-      pid: params.pid,
-      port: params.port,
-      portClosed: !(await isPortListening(params.port)),
-      message
-    };
-  }
-};
+    try {
+      await dependencies.platformKillProcessTree(params);
+      const portClosed = await waitForPortClosed(
+        params.port,
+        dependencies.isPortListening,
+        dependencies.portCloseTimeoutMs,
+        dependencies.portPollIntervalMs
+      );
+      return {
+        killed: true,
+        pid: params.pid,
+        port: params.port,
+        portClosed,
+        message: portClosed ? `Killed PID ${params.pid}; port ${params.port} is closed.` : `Killed PID ${params.pid}; port ${params.port} is still listening.`
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        killed: false,
+        pid: params.pid,
+        port: params.port,
+        portClosed: !(await dependencies.isPortListening(params.port)),
+        message
+      };
+    }
+  };
+
+export const killProcessTree = createKillProcessTree({
+  readTcpListeners,
+  readProcessMetadata,
+  isPortListening,
+  platformKillProcessTree
+});
 
 export const openTerminal = async (params: TerminalParams): Promise<TerminalResult> => platformOpenTerminal(params);

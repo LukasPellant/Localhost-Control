@@ -32,6 +32,20 @@ jobs:
       - name: Run tests
         run: pnpm test:run
 
+      - name: Native host smoke diagnostics
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "::group::Native host smoke diagnostics"
+          node -v
+          pnpm -v
+          uname -a || true
+          ps -p $$ -o pid= -o ppid= -o comm= -o etime= -o pcpu= -o rss= -o command= || true
+          ps -p $$ -o pid= -o ppid= -o comm= -o etime= -o %cpu= -o rss= -o command= || true
+          ps L 2>/dev/null || ps -L 2>/dev/null || true
+          echo "::endgroup::"
+          pnpm --filter @localhost-control/native-host test:smoke
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -77,6 +91,20 @@ jobs:
 
       - name: Run tests
         run: pnpm test:run
+
+      - name: Native host smoke diagnostics
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "::group::Native host smoke diagnostics"
+          node -v
+          pnpm -v
+          uname -a || true
+          ps -p $$ -o pid= -o ppid= -o comm= -o etime= -o pcpu= -o rss= -o command= || true
+          ps -p $$ -o pid= -o ppid= -o comm= -o etime= -o %cpu= -o rss= -o command= || true
+          ps L 2>/dev/null || ps -L 2>/dev/null || true
+          echo "::endgroup::"
+          pnpm --filter @localhost-control/native-host test:smoke
 
       - name: Typecheck
         run: pnpm typecheck

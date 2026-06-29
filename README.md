@@ -48,6 +48,7 @@ Then click the Localhost Control toolbar icon. Brave opens the persistent side p
 
 ```powershell
 pnpm test:run
+pnpm smoke:native-host
 pnpm typecheck
 pnpm build
 pnpm extension:package
@@ -73,7 +74,9 @@ The macOS and Linux installers register Chrome and Brave. The default extension 
 
 For a local cross-platform release bundle, run `pnpm host:package:release-local`. It writes the macOS `.tar.gz`, Linux `.tar.gz`, Linux `.deb`, validates all three, and emits `dist\native-host\SHA256SUMS`.
 
-GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml`. The workflow runs tests, typecheck, the workspace build, OS-specific packaging, and artifact validation before uploading the macOS `.pkg` and Linux `.tar.gz`/`.deb` files.
+`pnpm test:run` runs deterministic unit and packaging tests. `pnpm smoke:native-host` runs live native-host checks that inspect the host OS process table and kill a disposable localhost server.
+
+GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml`. The workflow runs deterministic tests, typecheck, the workspace build, OS-specific packaging, and artifact validation before uploading the macOS `.pkg` and Linux `.tar.gz`/`.deb` files. Live native-host smoke checks run with OS diagnostics as a non-blocking step.
 
 ## Chrome Web Store package
 

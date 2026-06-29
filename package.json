@@ -8,6 +8,7 @@
     "build": "pnpm -r --sort build",
     "test": "pnpm -r --sort test",
     "test:run": "pnpm -r --sort test:run",
+    "smoke:native-host": "pnpm --filter @localhost-control/native-host test:smoke",
     "typecheck": "pnpm -r --sort typecheck",
     "extension:package": "powershell -ExecutionPolicy Bypass -File scripts/package-extension.ps1",
     "host:install": "powershell -ExecutionPolicy Bypass -File installer/windows/install.ps1",
