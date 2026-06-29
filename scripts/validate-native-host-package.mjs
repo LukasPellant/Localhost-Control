@@ -28,6 +28,9 @@ const defaultArtifactPath = () => {
   if (platform === "darwin" && format === "pkg") {
     return path.join(outputDir, `localhost-control-native-host-${packageJson.version}.pkg`);
   }
+  if (platform === "darwin" && format === "tarball") {
+    return path.join(outputDir, `localhost-control-native-host-macos-${packageJson.version}.tar.gz`);
+  }
   if (platform === "linux" && format === "tarball") {
     return path.join(outputDir, `localhost-control-native-host-linux-${packageJson.version}.tar.gz`);
   }
@@ -114,9 +117,9 @@ const validateDeb = async () => {
     const controlRoot = path.join(tempRoot, "control");
     await extractTarGz(controlTar, tempRoot, "control.tar.gz", controlRoot);
     const control = await readFile(path.join(controlRoot, "control"), "utf8");
-  if (!control.includes("localhost-control-native-host")) throw new Error("Debian package metadata is missing the package name.");
-  if (!control.includes(packageJson.version)) throw new Error("Debian package metadata is missing the project version.");
-  if (!control.includes("nodejs")) throw new Error("Debian package metadata must depend on nodejs.");
+    if (!control.includes("localhost-control-native-host")) throw new Error("Debian package metadata is missing the package name.");
+    if (!control.includes(packageJson.version)) throw new Error("Debian package metadata is missing the project version.");
+    if (!control.includes("nodejs")) throw new Error("Debian package metadata must depend on nodejs.");
 
     const dataEntries = await listTarGzEntries(dataTar, tempRoot, "data.tar.gz");
     requireEntry(dataEntries, "usr/lib/localhost-control/localhost-control-host");
@@ -136,7 +139,7 @@ const validatePkg = () => {
   requireEntry(entries, `Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/${hostName}.json`);
 };
 
-if (platform === "linux" && format === "tarball") validateTarball();
+if ((platform === "linux" || platform === "darwin") && format === "tarball") validateTarball();
 else if (platform === "linux" && format === "deb") await validateDeb();
 else if (platform === "darwin" && format === "pkg") validatePkg();
 else throw new Error(`Unsupported package target: ${platform}/${format}`);

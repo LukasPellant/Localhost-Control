@@ -79,12 +79,14 @@ const writeArArchive = async (output, entries) => {
   await writeFile(output, Buffer.concat(chunks));
 };
 
-const packageTarball = async ({ stageDir, outputDir, version }) => {
-  await cp(path.join(repoRoot, "installer", "linux", "install.sh"), path.join(stageDir, "install.sh"));
-  await cp(path.join(repoRoot, "installer", "linux", "uninstall.sh"), path.join(stageDir, "uninstall.sh"));
+const packageTarball = async ({ platform, stageDir, outputDir, version }) => {
+  const installerDir = platform === "darwin" ? "macos" : "linux";
+  await cp(path.join(repoRoot, "installer", installerDir, "install.sh"), path.join(stageDir, "install.sh"));
+  await cp(path.join(repoRoot, "installer", installerDir, "uninstall.sh"), path.join(stageDir, "uninstall.sh"));
   await chmod(path.join(stageDir, "install.sh"), 0o755);
   await chmod(path.join(stageDir, "uninstall.sh"), 0o755);
-  const output = path.join(outputDir, `localhost-control-native-host-linux-${version}.tar.gz`);
+  const label = platform === "darwin" ? "macos" : "linux";
+  const output = path.join(outputDir, `localhost-control-native-host-${label}-${version}.tar.gz`);
   const result = spawnSync("tar", ["-czf", output, "-C", stageDir, "."], { stdio: "inherit" });
   if (result.status !== 0) throw new Error("tar packaging failed");
   return output;
@@ -187,8 +189,9 @@ const main = async () => {
 
   let output;
   if (platform === "darwin" && format === "pkg") output = await packagePkg({ stageDir, outputDir, version: packageJson.version });
+  else if (platform === "darwin" && format === "tarball") output = await packageTarball({ platform, stageDir, outputDir, version: packageJson.version });
   else if (platform === "linux" && format === "deb") output = await packageDeb({ stageDir, outputDir, version: packageJson.version, arch });
-  else if (platform === "linux" && format === "tarball") output = await packageTarball({ stageDir, outputDir, version: packageJson.version });
+  else if (platform === "linux" && format === "tarball") output = await packageTarball({ platform, stageDir, outputDir, version: packageJson.version });
   else throw new Error(`Unsupported package target: ${platform}/${format}`);
 
   console.log(output);

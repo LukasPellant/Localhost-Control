@@ -29,10 +29,13 @@ const writeArArchive = (output: string, entries: { name: string; data: Buffer }[
 };
 
 describe("validate-native-host-package", () => {
-  it("accepts a Linux tarball with the packaged host layout", () => {
+  it.each([
+    { platform: "linux", fileName: "host-linux.tar.gz" },
+    { platform: "darwin", fileName: "host-macos.tar.gz" }
+  ])("accepts a $platform tarball with the packaged host layout", ({ platform, fileName }) => {
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-package-"));
     const stageDir = path.join(tempRoot, "stage");
-    const artifact = path.join(tempRoot, "host.tar.gz");
+    const artifact = path.join(tempRoot, fileName);
 
     for (const directory of [
       "app/native-host/dist",
@@ -51,7 +54,7 @@ describe("validate-native-host-package", () => {
     execFileSync("tar", ["-czf", artifact, "-C", stageDir, "."], { stdio: "pipe" });
     const output = execFileSync(
       process.execPath,
-      [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), "--platform=linux", "--format=tarball", `--artifact=${artifact}`],
+      [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), `--platform=${platform}`, "--format=tarball", `--artifact=${artifact}`],
       { encoding: "utf8" }
     );
 

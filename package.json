@@ -16,9 +16,11 @@
     "host:uninstall:mac": "bash installer/macos/uninstall.sh",
     "host:install:linux": "bash installer/linux/install.sh",
     "host:uninstall:linux": "bash installer/linux/uninstall.sh",
-    "host:package:mac": "pnpm --filter @localhost-control/native-host build && node scripts/package-native-host.mjs --platform=darwin --format=pkg",
+    "host:package:mac": "pnpm --filter @localhost-control/native-host build && node scripts/package-native-host.mjs --platform=darwin --format=tarball && node scripts/package-native-host.mjs --platform=darwin --format=pkg",
+    "host:package:mac:tarball": "pnpm --filter @localhost-control/native-host build && node scripts/package-native-host.mjs --platform=darwin --format=tarball",
     "host:package:linux": "pnpm --filter @localhost-control/native-host build && node scripts/package-native-host.mjs --platform=linux --format=tarball && node scripts/package-native-host.mjs --platform=linux --format=deb",
-    "host:verify:mac": "node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg",
+    "host:verify:mac": "node scripts/validate-native-host-package.mjs --platform=darwin --format=tarball && node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg",
+    "host:verify:mac:tarball": "node scripts/validate-native-host-package.mjs --platform=darwin --format=tarball",
     "host:verify:linux": "node scripts/validate-native-host-package.mjs --platform=linux --format=tarball && node scripts/validate-native-host-package.mjs --platform=linux --format=deb"
   },
   "devDependencies": {

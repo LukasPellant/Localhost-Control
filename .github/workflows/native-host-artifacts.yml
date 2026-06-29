@@ -84,6 +84,9 @@ jobs:
       - name: Package macOS native host
         run: pnpm host:package:mac
 
+      - name: Validate macOS tarball
+        run: node scripts/validate-native-host-package.mjs --platform=darwin --format=tarball
+
       - name: Validate macOS pkg
         run: node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg
 
