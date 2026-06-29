@@ -26,14 +26,51 @@ describe("loadSettings", () => {
         customPortRange: 3000,
         trustedProjectRoots: "/work",
         trustedProjectPaths: ["D:\\Projects\\Safe"],
-        blockedProcessNames: 123
+        blockedProcessNames: 123,
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            extraUrls: [{ label: "Admin", url: "http://127.0.0.1:5173/admin" }],
+            healthUrl: "http://127.0.0.1:5173/health",
+            preferredOpenMode: "tab",
+            notes: "Main storefront",
+            logLines: ["ready in 400ms"]
+          },
+          {
+            id: 123,
+            name: "",
+            projectPath: 456,
+            expectedPort: 70000,
+            extraUrls: [{ label: "Broken", url: 100 }]
+          }
+        ]
       })
     );
 
     await expect(loadSettings()).resolves.toEqual({
       ...defaultSettings,
       includeSystemPorts: true,
-      trustedProjectPaths: ["D:\\Projects\\Safe"]
+      trustedProjectPaths: ["D:\\Projects\\Safe"],
+      projectProfiles: [
+        {
+          id: "shop",
+          name: "Example Shop",
+          projectPath: "D:\\Projects\\ExampleShop",
+          startCommand: "pnpm dev",
+          expectedPort: 5173,
+          mainUrl: "http://127.0.0.1:5173",
+          extraUrls: [{ label: "Admin", url: "http://127.0.0.1:5173/admin" }],
+          healthUrl: "http://127.0.0.1:5173/health",
+          preferredOpenMode: "tab",
+          notes: "Main storefront",
+          logLines: ["ready in 400ms"]
+        }
+      ]
     });
   });
 

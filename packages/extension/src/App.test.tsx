@@ -145,8 +145,76 @@ describe("App", () => {
     expect(screen.getByText("22 threads")).toBeInTheDocument();
 
     fireEvent.click(within(screen.getByLabelText("Detected localhost ports")).getByRole("button", { name: /kill port 5173/i }));
+    expect(client.kill).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: /stop example shop/i });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText("node vite")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("D:\\Projects\\ExampleShop").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /force stop/i }));
+
     await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));
     expect(await screen.findByText(/Killed 100/i)).toBeInTheDocument();
+  });
+
+  it("shows saved project profiles as the primary command-center entities", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            extraUrls: [{ label: "Admin", url: "http://127.0.0.1:5173/admin" }],
+            healthUrl: "http://127.0.0.1:5173/health",
+            notes: "Storefront and checkout",
+            logLines: ["vite ready in 420ms", "GET /health 200"]
+          },
+          {
+            id: "docs",
+            name: "Docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    expect(within(profiles).getByText("Example Shop")).toBeInTheDocument();
+    expect(within(profiles).getByText("running")).toBeInTheDocument();
+    expect(within(profiles).getByText("Observed HTTP 200")).toBeInTheDocument();
+    expect(within(profiles).getByText("Docs")).toBeInTheDocument();
+    expect(within(profiles).getByText("stopped")).toBeInTheDocument();
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toHaveTextContent("Example Shop");
+    expect(screen.getByLabelText("Port 5173 details")).toHaveTextContent("Storefront and checkout");
+    expect(screen.getByLabelText("Port 5173 details")).toHaveTextContent("vite ready in 420ms");
+  });
+
+  it("saves the selected localhost app as a reusable project profile", async () => {
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByLabelText("Port 5173 details")).getByRole("button", { name: /save profile/i }));
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    expect(within(profiles).getByText("Example Shop")).toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toMatchObject({
+      projectProfiles: [
+        {
+          name: "Example Shop",
+          projectPath: "D:\\Projects\\ExampleShop",
+          expectedPort: 5173,
+          mainUrl: "http://127.0.0.1:5173"
+        }
+      ]
+    });
   });
 
   it("opens a detected localhost app directly from the port list row", async () => {
@@ -230,6 +298,8 @@ describe("App", () => {
     expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
 
     fireEvent.click(within(screen.getByLabelText("Detected localhost ports")).getByRole("button", { name: /kill port 5173/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /force stop/i }));
 
     expect(screen.queryByRole("button", { name: /select port 5173/i })).not.toBeInTheDocument();
     expect(screen.getByText(/Stopping PID 100/i)).toBeInTheDocument();
@@ -324,6 +394,32 @@ describe("App", () => {
 
     await waitFor(() => expect(terminalClient.openTerminal).toHaveBeenCalled());
     expect(await screen.findByText("No supported terminal was found.")).toBeInTheDocument();
+  });
+
+  it("cleans browser data for the selected localhost origin", async () => {
+    const remove = vi.fn(async () => undefined);
+    (globalThis as { browser?: unknown }).browser = {
+      browsingData: { remove }
+    };
+
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByLabelText("Port 5173 details")).getByRole("button", { name: /clean browser data for port 5173/i }));
+
+    await waitFor(() =>
+      expect(remove).toHaveBeenCalledWith(
+        { origin: ["http://127.0.0.1:5173"], hostnames: ["127.0.0.1"], originTypes: { unprotectedWeb: true } },
+        {
+          cacheStorage: true,
+          cookies: true,
+          indexedDB: true,
+          localStorage: true,
+          serviceWorkers: true
+        }
+      )
+    );
+    expect(await screen.findByText("Cleared browser data for http://127.0.0.1:5173.")).toBeInTheDocument();
   });
 
   it("shows install help when native host is unavailable", async () => {

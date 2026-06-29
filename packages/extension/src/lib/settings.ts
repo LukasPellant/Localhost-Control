@@ -1,4 +1,5 @@
 import { getExtensionApi } from "./extensionApi";
+import { sanitizeProjectProfiles, type ProjectProfile } from "./projectProfiles";
 
 export type ThemeMode = "system" | "light" | "dark";
 
@@ -12,6 +13,7 @@ export type Settings = {
   trustedProjectRoots: string[];
   trustedProjectPaths: string[];
   blockedProcessNames: string[];
+  projectProfiles: ProjectProfile[];
 };
 
 const key = "localhost-control-settings";
@@ -37,7 +39,8 @@ const mergeStoredSettings = (value: unknown): Settings => {
     customPortRange: typeof value.customPortRange === "string" ? value.customPortRange : defaultSettings.customPortRange,
     trustedProjectRoots: isStringArray(value.trustedProjectRoots) ? value.trustedProjectRoots : defaultSettings.trustedProjectRoots,
     trustedProjectPaths: isStringArray(value.trustedProjectPaths) ? value.trustedProjectPaths : defaultSettings.trustedProjectPaths,
-    blockedProcessNames: isStringArray(value.blockedProcessNames) ? value.blockedProcessNames : defaultSettings.blockedProcessNames
+    blockedProcessNames: isStringArray(value.blockedProcessNames) ? value.blockedProcessNames : defaultSettings.blockedProcessNames,
+    projectProfiles: sanitizeProjectProfiles(value.projectProfiles)
   };
 };
 
@@ -62,7 +65,8 @@ export const defaultSettings: Settings = {
   customPortRange: "3000-9999",
   trustedProjectRoots: [],
   trustedProjectPaths: [],
-  blockedProcessNames: ["steam.exe", "discord.exe", "battle.net.exe", "agent.exe", "nordvpn-service.exe", "ntkdaemon.exe", "qbittorrent.exe"]
+  blockedProcessNames: ["steam.exe", "discord.exe", "battle.net.exe", "agent.exe", "nordvpn-service.exe", "ntkdaemon.exe", "qbittorrent.exe"],
+  projectProfiles: []
 };
 
 export const loadSettings = async (): Promise<Settings> => {

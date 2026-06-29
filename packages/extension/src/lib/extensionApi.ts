@@ -17,12 +17,32 @@ type TabsApi = {
   create(properties: { url: string }): Promise<unknown> | void;
 };
 
+type BrowsingDataApi = {
+  remove(
+    options: {
+      origins?: string[];
+      origin?: string[];
+      hostnames?: string[];
+      originTypes?: { unprotectedWeb?: boolean };
+      since?: number;
+    },
+    dataToRemove: {
+      cacheStorage?: boolean;
+      cookies?: boolean;
+      indexedDB?: boolean;
+      localStorage?: boolean;
+      serviceWorkers?: boolean;
+    }
+  ): Promise<void> | void;
+};
+
 export type ExtensionApi = {
   runtime?: RuntimeApi;
   storage?: {
     local?: StorageAreaApi;
   };
   tabs?: TabsApi;
+  browsingData?: BrowsingDataApi;
 };
 
 export const getExtensionApi = (): ExtensionApi | undefined => {

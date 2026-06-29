@@ -26,6 +26,7 @@ The extension communicates only with its native messaging host installed on the 
 - `nativeMessaging`: required to ask the locally installed native host for process and port metadata, and to stop selected local processes.
 - `sidePanel`: required because the product UI is a persistent Chrome side panel.
 - `storage`: required to save local user preferences such as filters, trusted project paths, hidden ports, and refresh interval.
+- `browsingData`: required to clear cookies, local storage, IndexedDB, cache storage, and service workers only for the selected localhost origin when the user explicitly clicks the cleanup action.
 
 ## Privacy Practices
 
@@ -79,7 +80,7 @@ pnpm host:uninstall -- --browser chrome
 - [ ] Run `pnpm extension:package:chrome`.
 - [ ] Run `pnpm extension:package:firefox`.
 - [ ] Confirm the Chrome ZIP root `manifest.json` uses Manifest V3.
-- [ ] Confirm the Chrome ZIP root `manifest.json` permissions are only `nativeMessaging`, `sidePanel`, and `storage`.
+- [ ] Confirm the Chrome ZIP root `manifest.json` permissions are only `nativeMessaging`, `sidePanel`, `storage`, and `browsingData`.
 - [ ] Confirm the Firefox ZIP root `manifest.json` uses `sidebar_action`, not `side_panel` or `background.service_worker`.
 - [ ] Run `web-ext lint` against an extracted Firefox ZIP.
 - [ ] Confirm each ZIP contains `manifest.json` at the archive root.

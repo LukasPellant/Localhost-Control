@@ -22,7 +22,7 @@ describe("extension manifest", () => {
     expect(readManifest().version).toBe(readPackageJson().version);
   });
 
-  it("requests only the browser permissions needed for native messaging and the side panel", () => {
-    expect(readManifest().permissions).toEqual(["nativeMessaging", "sidePanel", "storage"]);
+  it("requests only the browser permissions needed for native messaging, cleanup, and the side panel", () => {
+    expect(readManifest().permissions).toEqual(["nativeMessaging", "sidePanel", "storage", "browsingData"]);
   });
 });

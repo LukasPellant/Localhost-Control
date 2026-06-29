@@ -10,7 +10,7 @@ describe("buildFirefoxManifest", () => {
   it("converts the Chrome side panel manifest to a Firefox sidebar manifest", () => {
     const manifest = buildFirefoxManifest(readChromeManifest());
 
-    expect(manifest.permissions).toEqual(["nativeMessaging", "storage"]);
+    expect(manifest.permissions).toEqual(["nativeMessaging", "storage", "browsingData"]);
     expect(manifest).not.toHaveProperty("side_panel");
     expect(manifest).not.toHaveProperty("action");
     expect(manifest).toMatchObject({

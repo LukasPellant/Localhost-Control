@@ -4,9 +4,12 @@ import { withAppScope, type KillParams, type PortEntry, type ScanResult } from "
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
 import { PortList } from "./components/PortList";
+import { SafeActionDialog } from "./components/SafeActionDialog";
+import { clearBrowserDataForUrl } from "./lib/browserCleanup";
 import { getExtensionApi } from "./lib/extensionApi";
 import { type HostClient } from "./lib/hostClient";
 import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
+import { deriveProfileStates, matchProfileForEntry, type ProjectProfile } from "./lib/projectProfiles";
 import { defaultSettings, loadSettings, saveSettings, type Settings } from "./lib/settings";
 import "./styles.css";
 
@@ -18,13 +21,19 @@ type AppProps = {
   client: HostClient;
 };
 
-const isLowConfidenceUnknown = (entry: PortEntry): boolean => entry.detectedKind === "unknown" && entry.confidence === "low";
 const isMissingNativeHostError = (message: string): boolean =>
   /native messaging host.*not found|specified native messaging host not found|no such native application/i.test(message);
 const nativeHostDownloadUrl = (): string => {
   const version = getExtensionApi()?.runtime?.getManifest?.().version;
   return version ? `${nativeHostReleasesUrl}/tag/v${version}` : nativeHostReleasesUrl;
 };
+const slugifyProfileName = (value: string): string =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "project";
 const resolveTheme = (themeMode: Settings["themeMode"]): "light" | "dark" => {
   if (themeMode === "dark") return "dark";
   if (themeMode === "light") return "light";
@@ -61,6 +70,7 @@ export const App = ({ client }: AppProps) => {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [hostError, setHostError] = useState<string | null>(null);
+  const [pendingKillEntry, setPendingKillEntry] = useState<PortEntry | null>(null);
   const openedDownloadForError = useRef(false);
 
   const openExternalUrl = useCallback((url: string) => {
@@ -155,6 +165,12 @@ export const App = ({ client }: AppProps) => {
     () => visibleEntries.find((entry) => `${entry.pid}:${entry.port}` === selectedKey) ?? visibleEntries[0],
     [selectedKey, visibleEntries]
   );
+  const profileStates = useMemo(() => deriveProfileStates(settings.projectProfiles, entries), [entries, settings.projectProfiles]);
+  const profileForEntry = useCallback(
+    (entry: PortEntry): ProjectProfile | undefined => matchProfileForEntry(entry, settings.projectProfiles)?.profile,
+    [settings.projectProfiles]
+  );
+  const selectedProfile = selectedEntry ? profileForEntry(selectedEntry) : undefined;
   const killableCount = entries.filter((entry) => entry.killable).length;
   const protectedCount = entries.length - killableCount;
 
@@ -172,13 +188,16 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
-  const killEntry = async (entry: PortEntry) => {
+  const requestKillEntry = (entry: PortEntry) => {
     if (!entry.killable) return;
-    if (isLowConfidenceUnknown(entry) && !window.confirm(`Kill unknown process ${entry.processName} on port ${entry.port}?`)) {
-      return;
-    }
+    setPendingKillEntry(entry);
+  };
+
+  const confirmKillEntry = async (entry: PortEntry) => {
+    if (!entry.killable) return;
 
     setBusy(true);
+    setPendingKillEntry(null);
     const params: KillParams = { pid: entry.pid, port: entry.port, mode: "force-tree" };
     const previousResult = scanResult;
     setScanResult((current) =>
@@ -229,6 +248,40 @@ export const App = ({ client }: AppProps) => {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     }
+  };
+
+  const cleanupBrowserDataForEntry = async (entry: PortEntry) => {
+    const url = entry.url ?? `http://127.0.0.1:${entry.port}`;
+    try {
+      const result = await clearBrowserDataForUrl(url);
+      setMessage(result.message);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const saveProfileForEntry = async (entry: PortEntry) => {
+    if (profileForEntry(entry)) return;
+    const name = entry.title ?? entry.projectHint?.split(/[\\/]/).pop() ?? `${entry.processName} ${entry.port}`;
+    const baseId = slugifyProfileName(name);
+    const existingIds = new Set(settings.projectProfiles.map((profile) => profile.id));
+    let id = baseId;
+    let suffix = 2;
+    while (existingIds.has(id)) {
+      id = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+    const profile: ProjectProfile = {
+      id,
+      name,
+      expectedPort: entry.port,
+      mainUrl: entry.url ?? `http://127.0.0.1:${entry.port}`
+    };
+    if (entry.projectHint) profile.projectPath = entry.projectHint;
+    if (entry.commandLine) profile.startCommand = entry.commandLine;
+
+    if (!(await patchSettings({ projectProfiles: [...settings.projectProfiles, profile] }))) return;
+    setMessage(`Saved profile ${name}`);
   };
 
   const trustProject = async (entry: PortEntry) => {
@@ -309,23 +362,56 @@ export const App = ({ client }: AppProps) => {
         </label>
       ) : null}
 
+      {profileStates.length ? (
+        <section className="profile-strip" aria-label="Project profiles">
+          {profileStates.map((state) => (
+            <button
+              className={`profile-chip ${state.status}`}
+              key={state.profile.id}
+              type="button"
+              onClick={() => {
+                if (state.entry) setSelectedKey(`${state.entry.pid}:${state.entry.port}`);
+                else if (state.profile.mainUrl) openExternalUrl(state.profile.mainUrl);
+              }}
+            >
+              <span className="profile-name">{state.profile.name}</span>
+              <span className="profile-status">{state.status}</span>
+              <span className="profile-health">{state.healthLabel}</span>
+            </button>
+          ))}
+        </section>
+      ) : null}
+
       <PortList
         entries={visibleEntries}
         selectedKey={selectedEntry ? `${selectedEntry.pid}:${selectedEntry.port}` : null}
+        profileNameForEntry={(entry) => profileForEntry(entry)?.name}
         onSelect={(entry) => setSelectedKey(`${entry.pid}:${entry.port}`)}
         onOpen={openEntry}
-        onKill={(entry) => void killEntry(entry)}
+        onKill={requestKillEntry}
       />
 
       <DetailPanel
         entry={selectedEntry}
-        onKill={(entry) => void killEntry(entry)}
+        profile={selectedProfile}
+        onKill={requestKillEntry}
         onOpen={openEntry}
         onCopy={(entry) => void copyEntry(entry)}
         onTerminal={(entry) => void openTerminalForEntry(entry)}
+        onCleanup={(entry) => void cleanupBrowserDataForEntry(entry)}
+        onSaveProfile={(entry) => void saveProfileForEntry(entry)}
         onTrustProject={(entry) => void trustProject(entry)}
         onHideProcess={(entry) => void hideProcess(entry)}
       />
+
+      {pendingKillEntry ? (
+        <SafeActionDialog
+          entry={pendingKillEntry}
+          profile={profileForEntry(pendingKillEntry)}
+          onCancel={() => setPendingKillEntry(null)}
+          onConfirm={(entry) => void confirmKillEntry(entry)}
+        />
+      ) : null}
 
       <footer className="settings-bar">
         <Settings2 size={15} />
