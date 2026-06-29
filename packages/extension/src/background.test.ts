@@ -19,6 +19,17 @@ describe("openExtensionPanel", () => {
 
     expect(open).not.toHaveBeenCalled();
   });
+
+  it("enables and reopens the Chrome side panel when the first open call fails", async () => {
+    const open = vi.fn().mockRejectedValueOnce(new Error("Side panel not enabled")).mockResolvedValueOnce(undefined);
+    const setOptions = vi.fn().mockResolvedValue(undefined);
+
+    await openExtensionPanel({ sidePanel: { open, setOptions } } as unknown as ExtensionApi, { id: 42 });
+
+    expect(setOptions).toHaveBeenCalledWith({ tabId: 42, path: "sidepanel.html", enabled: true });
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(open).toHaveBeenLastCalledWith({ tabId: 42 });
+  });
 });
 
 describe("registerToolbarOpenHandler", () => {

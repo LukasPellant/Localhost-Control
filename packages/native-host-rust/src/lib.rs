@@ -714,19 +714,15 @@ fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
         .output()
         .map_err(|error| error.to_string())?;
     let port_closed = wait_for_listener_closed(params.pid, params.port, Duration::from_secs(3));
-    Ok(json!({
-        "killed": output.status.success(),
-        "pid": params.pid,
-        "port": params.port,
-        "portClosed": port_closed,
-        "message": if port_closed {
-            format!("Killed PID {}; port {} is closed.", params.pid, params.port)
-        } else if output.status.success() {
-            format!("Killed PID {}; port {} is still listening.", params.pid, params.port)
-        } else {
-            String::from_utf8_lossy(&output.stderr).trim().to_string()
-        }
-    }))
+    let failed_message = (!output.status.success())
+        .then(|| String::from_utf8_lossy(&output.stderr).trim().to_string())
+        .filter(|message| !message.is_empty());
+    Ok(build_kill_result(
+        params.pid,
+        params.port,
+        port_closed,
+        failed_message,
+    ))
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -765,17 +761,31 @@ fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
         let _ = send_unix_signal(*pid, "KILL");
     }
     let port_closed = wait_for_listener_closed(params.pid, params.port, Duration::from_secs(3));
-    Ok(json!({
-        "killed": true,
-        "pid": params.pid,
-        "port": params.port,
+    Ok(build_kill_result(
+        params.pid,
+        params.port,
+        port_closed,
+        None,
+    ))
+}
+
+fn build_kill_result(
+    pid: u32,
+    port: u16,
+    port_closed: bool,
+    failed_message: Option<String>,
+) -> Value {
+    json!({
+        "killed": port_closed,
+        "pid": pid,
+        "port": port,
         "portClosed": port_closed,
         "message": if port_closed {
-            format!("Killed PID {}; port {} is closed.", params.pid, params.port)
+            format!("Killed PID {}; port {} is closed.", pid, port)
         } else {
-            format!("Killed PID {}; port {} is still listening.", params.pid, params.port)
+            failed_message.unwrap_or_else(|| format!("Kill requested for PID {}; port {} is still listening.", pid, port))
         }
-    }))
+    })
 }
 
 #[cfg(windows)]
@@ -1487,6 +1497,16 @@ next    42126 pella   10u  IPv4 0x123456789abcdec      0t0  TCP localhost:3000 (
         assert!(!super::is_target_listener_active(&listeners, 102, 5173));
         assert_eq!(super::listener_probe_key(&listeners[0]), (100, 5173));
         assert_eq!(super::listener_probe_key(&listeners[1]), (101, 5173));
+    }
+
+    #[test]
+    fn kill_result_is_not_successful_when_the_target_port_stays_open() {
+        let result =
+            super::build_kill_result(3040, 5176, false, Some("permission denied".to_string()));
+
+        assert_eq!(result["killed"], false);
+        assert_eq!(result["portClosed"], false);
+        assert_eq!(result["message"], "permission denied");
     }
 
     #[cfg(target_os = "linux")]

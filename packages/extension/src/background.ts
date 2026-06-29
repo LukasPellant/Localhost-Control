@@ -31,6 +31,7 @@ export const openExtensionPanel = async (extensionApi: ExtensionApi | undefined,
     await extensionApi?.sidePanel?.open?.({ tabId: tab.id });
   } catch {
     await extensionApi?.sidePanel?.setOptions?.({ tabId: tab.id, path: "sidepanel.html", enabled: true });
+    await extensionApi?.sidePanel?.open?.({ tabId: tab.id });
   }
 };
 
