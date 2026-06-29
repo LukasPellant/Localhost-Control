@@ -111,6 +111,8 @@ describe("App", () => {
     vi.clearAllMocks();
     delete (globalThis as { chrome?: unknown }).chrome;
     delete (globalThis as { browser?: unknown }).browser;
+    Reflect.deleteProperty(navigator, "clipboard");
+    document.execCommand = undefined as unknown as typeof document.execCommand;
     window.localStorage.clear();
     document.documentElement.removeAttribute("data-theme");
     document.documentElement.removeAttribute("data-theme-mode");
@@ -260,6 +262,19 @@ describe("App", () => {
     fireEvent.click(within(screen.getByLabelText("Port 4321 details")).getByRole("button", { name: /open port 4321/i }));
 
     expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:4321", "_blank", "noopener,noreferrer");
+  });
+
+  it("falls back to a document copy command when clipboard.writeText is unavailable", async () => {
+    const execCommand = vi.fn(() => true);
+    document.execCommand = execCommand;
+
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByLabelText("Port 5173 details")).getByRole("button", { name: /copy url for port 5173/i }));
+
+    expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(await screen.findByText("Copied http://127.0.0.1:5173")).toBeInTheDocument();
   });
 
   it("shows install help when native host is unavailable", async () => {

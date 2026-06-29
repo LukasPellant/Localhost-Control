@@ -26,6 +26,27 @@ const resolveTheme = (themeMode: Settings["themeMode"]): "light" | "dark" => {
   if (themeMode === "light") return "light";
   return typeof window !== "undefined" && window.matchMedia?.(themeQuery).matches ? "dark" : "light";
 };
+const copyText = async (text: string): Promise<void> => {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+  } catch {
+    // Fall through to the selection-based copy path for extension pages where Clipboard API is blocked.
+  }
+
+  const field = document.createElement("textarea");
+  field.value = text;
+  field.setAttribute("readonly", "");
+  field.style.position = "fixed";
+  field.style.opacity = "0";
+  document.body.appendChild(field);
+  field.select();
+  const copied = document.execCommand?.("copy") ?? false;
+  field.remove();
+  if (!copied) throw new Error("Clipboard copy is unavailable.");
+};
 
 export const App = ({ client }: AppProps) => {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
@@ -173,8 +194,12 @@ export const App = ({ client }: AppProps) => {
 
   const copyEntry = async (entry: PortEntry) => {
     const url = entry.url ?? `http://127.0.0.1:${entry.port}`;
-    await navigator.clipboard.writeText(url);
-    setMessage(`Copied ${url}`);
+    try {
+      await copyText(url);
+      setMessage(`Copied ${url}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const openTerminalForEntry = async (entry: PortEntry) => {
