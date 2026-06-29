@@ -1,29 +1,10 @@
 import os from "node:os";
 import path from "node:path";
-import { HOST_NAME } from "@localhost-control/shared";
 
+export const HOST_NAME = "com.localhost_control.host";
 export const DEFAULT_EXTENSION_ID = "oamllgeaemchejbebgamdakjloahgjdc";
 
-export type NativeHostManifest = {
-  name: typeof HOST_NAME;
-  description: string;
-  path: string;
-  type: "stdio";
-  allowed_origins: string[];
-};
-
-export type BrowserTarget = {
-  browser: "chrome" | "brave";
-  path: string;
-};
-
-export const buildNativeHostManifest = ({
-  hostPath,
-  extensionId = DEFAULT_EXTENSION_ID
-}: {
-  hostPath: string;
-  extensionId?: string;
-}): NativeHostManifest => {
+export const buildNativeHostManifest = ({ hostPath, extensionId = DEFAULT_EXTENSION_ID }) => {
   if (!path.isAbsolute(hostPath)) {
     throw new Error("Native messaging host path must be absolute.");
   }
@@ -37,11 +18,7 @@ export const buildNativeHostManifest = ({
   };
 };
 
-export const resolveNativeMessagingManifestTargets = (
-  platform: NodeJS.Platform,
-  scope: "user" | "system",
-  homeDir = os.homedir()
-): BrowserTarget[] => {
+export const resolveNativeMessagingManifestTargets = (platform, scope, homeDir = os.homedir()) => {
   if (platform === "darwin") {
     const root = scope === "system" ? "/Library" : path.posix.join(homeDir, "Library");
     return [

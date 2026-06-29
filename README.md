@@ -6,7 +6,7 @@ It has two pieces:
 
 - `packages/extension`: MV3 side panel built with React, TypeScript, Vite, and `chrome.sidePanel`.
 - `packages/native-host-rust`: Rust native messaging host for Windows, macOS, and Linux. It scans TCP listeners, probes HTTP, and stops killable dev processes without requiring Node.js on the user's machine.
-- `packages/native-host`: legacy Node-based native messaging host kept for tests and parser compatibility while the release packages move to Rust.
+- `scripts`: packaging, checksum, and native messaging manifest tooling for the Rust host artifacts.
 
 The extension talks only to the native host through Chromium native messaging. It does not expose a local HTTP server and does not send telemetry.
 
@@ -92,9 +92,9 @@ The macOS and Linux installers register Chrome and Brave. The macOS and Linux pa
 
 For a local cross-platform release bundle, run `pnpm host:package:release-local`. It writes the macOS `.tar.gz`, Linux `.tar.gz`, Linux `.deb`, validates all three, and emits `dist\native-host\SHA256SUMS`.
 
-`pnpm test:run` runs deterministic unit and packaging tests. `pnpm smoke:native-host` runs live native-host checks that inspect the host OS process table and kill a disposable localhost server.
+`pnpm test:run` runs deterministic unit and packaging tests. `pnpm smoke:native-host` runs the Rust native-host test suite.
 
-GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml`. The workflow runs deterministic tests, typecheck, the workspace build, OS-specific packaging, and artifact validation before uploading the macOS `.pkg` and Linux `.tar.gz`/`.deb` files. Live native-host smoke checks run with OS diagnostics as a non-blocking step.
+GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml`. The workflow runs deterministic tests, Rust native-host tests, typecheck, the workspace build, OS-specific packaging, and artifact validation before uploading the macOS `.pkg` and Linux `.tar.gz`/`.deb` files.
 
 ## Chrome Web Store package
 

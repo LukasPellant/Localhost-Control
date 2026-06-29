@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
-import { buildNativeHostManifest, DEFAULT_EXTENSION_ID, resolveNativeMessagingManifestTargets } from "../packages/native-host/dist/nativeHostManifest.js";
+import { buildNativeHostManifest, DEFAULT_EXTENSION_ID, resolveNativeMessagingManifestTargets } from "./lib/native-host-manifest.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(await import("node:fs/promises").then((fs) => fs.readFile(path.join(repoRoot, "package.json"), "utf8")));
@@ -23,28 +23,6 @@ const copyHostBinary = async (source, destination) => {
   await mkdir(path.dirname(destination), { recursive: true });
   await cp(source, destination);
   await chmod(destination, 0o755);
-};
-
-const stageNodeHostApp = async (stageDir) => {
-  const appRoot = path.join(stageDir, "app", "native-host");
-  await mkdir(appRoot, { recursive: true });
-  await cp(path.join(repoRoot, "packages", "native-host", "dist"), path.join(appRoot, "dist"), { recursive: true });
-  await cp(path.join(repoRoot, "packages", "native-host", "package.json"), path.join(appRoot, "package.json"));
-  await cp(path.join(repoRoot, "packages", "shared", "dist"), path.join(appRoot, "node_modules", "@localhost-control", "shared", "dist"), {
-    recursive: true
-  });
-  await cp(path.join(repoRoot, "packages", "shared", "package.json"), path.join(appRoot, "node_modules", "@localhost-control", "shared", "package.json"));
-  await writeFile(
-    path.join(stageDir, "localhost-control-host"),
-    [
-      "#!/usr/bin/env sh",
-      "set -eu",
-      'DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"',
-      'exec node "$DIR/app/native-host/dist/index.js"',
-      ""
-    ].join("\n")
-  );
-  await chmod(path.join(stageDir, "localhost-control-host"), 0o755);
 };
 
 const buildRustHost = (platform) => {
@@ -263,7 +241,7 @@ const main = async () => {
   } else if (platform === "linux" || platform === "darwin") {
     await stageRustHostApp(stageDir, platform);
   } else {
-    await stageNodeHostApp(stageDir);
+    throw new Error(`Unsupported native host packaging platform: ${platform}`);
   }
 
   let output;

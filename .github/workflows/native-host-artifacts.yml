@@ -50,7 +50,7 @@ jobs:
           ps -p $$ -o pid= -o ppid= -o comm= -o etime= -o %cpu= -o rss= -o command= || true
           ps L 2>/dev/null || ps -L 2>/dev/null || true
           echo "::endgroup::"
-          pnpm --filter @localhost-control/native-host test:smoke
+          cargo test -p localhost-control-host
 
       - name: Typecheck
         run: pnpm typecheck
@@ -116,7 +116,7 @@ jobs:
           ps -p $$ -o pid= -o ppid= -o comm= -o etime= -o %cpu= -o rss= -o command= || true
           ps L 2>/dev/null || ps -L 2>/dev/null || true
           echo "::endgroup::"
-          pnpm --filter @localhost-control/native-host test:smoke
+          cargo test -p localhost-control-host
 
       - name: Typecheck
         run: pnpm typecheck

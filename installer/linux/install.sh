@@ -4,7 +4,7 @@ set -euo pipefail
 EXTENSION_ID="${EXTENSION_ID:-oamllgeaemchejbebgamdakjloahgjdc}"
 HOST_NAME="com.localhost_control.host"
 ROOT="${HOME}/.local/lib/localhost-control"
-HOST_SOURCE="${1:-packages/native-host/dist/index.js}"
+HOST_SOURCE="${1:-target/release/localhost-control-host}"
 HOST_TARGET="${ROOT}/localhost-control-host"
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 

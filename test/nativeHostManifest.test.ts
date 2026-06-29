@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildNativeHostManifest, resolveNativeMessagingManifestTargets } from "../src/nativeHostManifest";
+import { buildNativeHostManifest, resolveNativeMessagingManifestTargets } from "../scripts/lib/native-host-manifest.mjs";
 
 describe("buildNativeHostManifest", () => {
   it("uses an absolute host path and the configured extension id", () => {
