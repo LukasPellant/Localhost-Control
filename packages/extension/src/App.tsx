@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, RefreshCw, Search, Settings2, ShieldAlert } from "lucide-react";
+import { Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert } from "lucide-react";
 import { withAppScope, type KillParams, type PortEntry, type ScanResult } from "@localhost-control/shared";
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
@@ -8,9 +8,12 @@ import { SafeActionDialog } from "./components/SafeActionDialog";
 import { clearBrowserDataForUrl } from "./lib/browserCleanup";
 import { getExtensionApi } from "./lib/extensionApi";
 import { type HostClient } from "./lib/hostClient";
+import { analyzePortDoctor } from "./lib/portDoctor";
 import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
 import { deriveProfileStates, matchProfileForEntry, type ProjectProfile } from "./lib/projectProfiles";
+import { deriveWorkspaceStates, type ProjectWorkspace } from "./lib/projectWorkspaces";
 import { defaultSettings, loadSettings, saveSettings, type Settings } from "./lib/settings";
+import { detectStaleProcess } from "./lib/staleProcesses";
 import "./styles.css";
 
 const filters: FilterId[] = ["web", "custom", "all", "node", "python", "unknown", "protected"];
@@ -171,6 +174,26 @@ export const App = ({ client }: AppProps) => {
     [settings.projectProfiles]
   );
   const selectedProfile = selectedEntry ? profileForEntry(selectedEntry) : undefined;
+  const workspaceStates = useMemo(
+    () => deriveWorkspaceStates(settings.projectWorkspaces, settings.projectProfiles, profileStates),
+    [profileStates, settings.projectProfiles, settings.projectWorkspaces]
+  );
+  const hasWorkspaceForCurrentProfiles = useMemo(() => {
+    const profileIds = settings.projectProfiles.map((profile) => profile.id);
+    if (profileIds.length < 2) return false;
+    return settings.projectWorkspaces.some(
+      (workspace) => workspace.profileIds.length === profileIds.length && workspace.profileIds.every((profileId, index) => profileId === profileIds[index])
+    );
+  }, [settings.projectProfiles, settings.projectWorkspaces]);
+  const selectedDoctorReport = useMemo(
+    () => (selectedEntry ? analyzePortDoctor(selectedEntry, entries, settings.projectProfiles, selectedProfile?.id) : undefined),
+    [entries, selectedEntry, selectedProfile?.id, settings.projectProfiles]
+  );
+  const staleSignalForEntry = useCallback(
+    (entry: PortEntry) => detectStaleProcess(entry, profileForEntry(entry)),
+    [profileForEntry]
+  );
+  const selectedStaleSignal = selectedEntry ? staleSignalForEntry(selectedEntry) : undefined;
   const killableCount = entries.filter((entry) => entry.killable).length;
   const protectedCount = entries.length - killableCount;
 
@@ -284,6 +307,31 @@ export const App = ({ client }: AppProps) => {
     setMessage(`Saved profile ${name}`);
   };
 
+  const saveWorkspaceFromProfiles = async () => {
+    const profiles = settings.projectProfiles;
+    if (profiles.length < 2) return;
+    if (hasWorkspaceForCurrentProfiles) {
+      setMessage("Workspace already saved");
+      return;
+    }
+    const name = `${profiles[0]?.name ?? "Workspace"} + ${profiles.length - 1}`;
+    const baseId = slugifyProfileName(name);
+    const existingIds = new Set(settings.projectWorkspaces.map((workspace) => workspace.id));
+    let id = baseId;
+    let suffix = 2;
+    while (existingIds.has(id)) {
+      id = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+    const workspace: ProjectWorkspace = {
+      id,
+      name,
+      profileIds: profiles.map((profile) => profile.id)
+    };
+    if (!(await patchSettings({ projectWorkspaces: [...settings.projectWorkspaces, workspace] }))) return;
+    setMessage(`Saved workspace ${name}`);
+  };
+
   const trustProject = async (entry: PortEntry) => {
     if (!entry.projectHint || settings.trustedProjectPaths.includes(entry.projectHint)) return;
     if (!(await patchSettings({ trustedProjectPaths: [...settings.trustedProjectPaths, entry.projectHint] }))) return;
@@ -362,6 +410,20 @@ export const App = ({ client }: AppProps) => {
         </label>
       ) : null}
 
+      {workspaceStates.length ? (
+        <section className="workspace-strip" aria-label="Project workspaces">
+          {workspaceStates.map((state) => (
+            <article className={`workspace-chip ${state.status}`} key={state.workspace.id}>
+              <button type="button" onClick={() => state.openUrls.forEach(openExternalUrl)} aria-label={`Open workspace ${state.workspace.name}`}>
+                <span className="workspace-name">{state.workspace.name}</span>
+                <span className="workspace-health">{state.healthLabel}</span>
+                {state.workspace.notes ? <span className="workspace-notes">{state.workspace.notes}</span> : null}
+              </button>
+            </article>
+          ))}
+        </section>
+      ) : null}
+
       {profileStates.length ? (
         <section className="profile-strip" aria-label="Project profiles">
           {profileStates.map((state) => (
@@ -379,6 +441,15 @@ export const App = ({ client }: AppProps) => {
               <span className="profile-health">{state.healthLabel}</span>
             </button>
           ))}
+          {settings.projectProfiles.length >= 2 && !hasWorkspaceForCurrentProfiles ? (
+            <button className="profile-chip action" type="button" onClick={() => void saveWorkspaceFromProfiles()}>
+              <span className="profile-name">
+                <FolderPlus size={14} />
+                Save workspace
+              </span>
+              <span className="profile-health">{settings.projectProfiles.length} profiles</span>
+            </button>
+          ) : null}
         </section>
       ) : null}
 
@@ -386,6 +457,7 @@ export const App = ({ client }: AppProps) => {
         entries={visibleEntries}
         selectedKey={selectedEntry ? `${selectedEntry.pid}:${selectedEntry.port}` : null}
         profileNameForEntry={(entry) => profileForEntry(entry)?.name}
+        staleSignalForEntry={staleSignalForEntry}
         onSelect={(entry) => setSelectedKey(`${entry.pid}:${entry.port}`)}
         onOpen={openEntry}
         onKill={requestKillEntry}
@@ -394,6 +466,8 @@ export const App = ({ client }: AppProps) => {
       <DetailPanel
         entry={selectedEntry}
         profile={selectedProfile}
+        doctorReport={selectedDoctorReport}
+        staleSignal={selectedStaleSignal}
         onKill={requestKillEntry}
         onOpen={openEntry}
         onCopy={(entry) => void copyEntry(entry)}

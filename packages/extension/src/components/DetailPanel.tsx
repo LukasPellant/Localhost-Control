@@ -1,12 +1,16 @@
 import { Copy, EyeOff, ExternalLink, FolderPlus, Power, Terminal, Trash2 } from "lucide-react";
 import { kindLabel, type PortEntry } from "@localhost-control/shared";
 import { IconButton } from "./IconButton";
+import type { PortDoctorReport } from "../lib/portDoctor";
 import type { ProjectProfile } from "../lib/projectProfiles";
 import { formatCpu, formatMemory, formatUptime } from "../lib/resources";
+import type { StaleProcessSignal } from "../lib/staleProcesses";
 
 type DetailPanelProps = {
   entry: PortEntry | undefined;
   profile?: ProjectProfile | undefined;
+  doctorReport?: PortDoctorReport | undefined;
+  staleSignal?: StaleProcessSignal | undefined;
   onKill(entry: PortEntry): void;
   onOpen(entry: PortEntry): void;
   onCopy(entry: PortEntry): void;
@@ -20,6 +24,8 @@ type DetailPanelProps = {
 export const DetailPanel = ({
   entry,
   profile,
+  doctorReport,
+  staleSignal,
   onKill,
   onOpen,
   onCopy,
@@ -135,6 +141,21 @@ export const DetailPanel = ({
           </div>
         ) : null}
       </dl>
+      {staleSignal ? (
+        <div className={`stale-signal ${staleSignal.severity}`} aria-label="Stale process signal">
+          <strong>{staleSignal.label}</strong>
+          <span>{staleSignal.reasons.join(" / ")}</span>
+        </div>
+      ) : null}
+      {doctorReport && doctorReport.status !== "ok" ? (
+        <div className={`doctor-card ${doctorReport.status}`} aria-label="Port doctor">
+          <strong>{doctorReport.summary}</strong>
+          <span>{doctorReport.nextFreePort ? `Next free: ${doctorReport.nextFreePort}` : "No free port found"}</span>
+          {doctorReport.issues.map((issue) => (
+            <span key={issue}>{issue}</span>
+          ))}
+        </div>
+      ) : null}
       {profile?.extraUrls?.length ? (
         <div className="profile-links" aria-label="Profile URLs">
           {profile.extraUrls.map((item) => (

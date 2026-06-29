@@ -1,5 +1,6 @@
 import { getExtensionApi } from "./extensionApi";
 import { sanitizeProjectProfiles, type ProjectProfile } from "./projectProfiles";
+import { sanitizeProjectWorkspaces, type ProjectWorkspace } from "./projectWorkspaces";
 
 export type ThemeMode = "system" | "light" | "dark";
 
@@ -14,6 +15,7 @@ export type Settings = {
   trustedProjectPaths: string[];
   blockedProcessNames: string[];
   projectProfiles: ProjectProfile[];
+  projectWorkspaces: ProjectWorkspace[];
 };
 
 const key = "localhost-control-settings";
@@ -30,6 +32,8 @@ const isRefreshInterval = (value: unknown): value is number => [0, 10, 30, 60].i
 const mergeStoredSettings = (value: unknown): Settings => {
   if (!isSettingsPatch(value)) return defaultSettings;
 
+  const projectProfiles = sanitizeProjectProfiles(value.projectProfiles);
+
   return {
     includeSystemPorts: typeof value.includeSystemPorts === "boolean" ? value.includeSystemPorts : defaultSettings.includeSystemPorts,
     httpProbe: typeof value.httpProbe === "boolean" ? value.httpProbe : defaultSettings.httpProbe,
@@ -40,7 +44,8 @@ const mergeStoredSettings = (value: unknown): Settings => {
     trustedProjectRoots: isStringArray(value.trustedProjectRoots) ? value.trustedProjectRoots : defaultSettings.trustedProjectRoots,
     trustedProjectPaths: isStringArray(value.trustedProjectPaths) ? value.trustedProjectPaths : defaultSettings.trustedProjectPaths,
     blockedProcessNames: isStringArray(value.blockedProcessNames) ? value.blockedProcessNames : defaultSettings.blockedProcessNames,
-    projectProfiles: sanitizeProjectProfiles(value.projectProfiles)
+    projectProfiles,
+    projectWorkspaces: sanitizeProjectWorkspaces(value.projectWorkspaces, projectProfiles)
   };
 };
 
@@ -66,7 +71,8 @@ export const defaultSettings: Settings = {
   trustedProjectRoots: [],
   trustedProjectPaths: [],
   blockedProcessNames: ["steam.exe", "discord.exe", "battle.net.exe", "agent.exe", "nordvpn-service.exe", "ntkdaemon.exe", "qbittorrent.exe"],
-  projectProfiles: []
+  projectProfiles: [],
+  projectWorkspaces: []
 };
 
 export const loadSettings = async (): Promise<Settings> => {

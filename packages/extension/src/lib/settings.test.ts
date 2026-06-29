@@ -48,6 +48,10 @@ describe("loadSettings", () => {
             expectedPort: 70000,
             extraUrls: [{ label: "Broken", url: 100 }]
           }
+        ],
+        projectWorkspaces: [
+          { id: "daily", name: "Daily stack", profileIds: ["shop", "missing"], notes: "Open together" },
+          { id: "empty", name: "Empty", profileIds: ["missing"] }
         ]
       })
     );
@@ -69,8 +73,9 @@ describe("loadSettings", () => {
           preferredOpenMode: "tab",
           notes: "Main storefront",
           logLines: ["ready in 400ms"]
-        }
-      ]
+          }
+        ],
+      projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop"], notes: "Open together" }]
     });
   });
 

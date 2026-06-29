@@ -108,6 +108,7 @@ const client: HostClient = {
 
 describe("App", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     delete (globalThis as { chrome?: unknown }).chrome;
     delete (globalThis as { browser?: unknown }).browser;
@@ -195,6 +196,75 @@ describe("App", () => {
     expect(await screen.findByRole("button", { name: /select port 5173/i })).toHaveTextContent("Example Shop");
     expect(screen.getByLabelText("Port 5173 details")).toHaveTextContent("Storefront and checkout");
     expect(screen.getByLabelText("Port 5173 details")).toHaveTextContent("vite ready in 420ms");
+  });
+
+  it("shows saved workspaces and opens all workspace URLs", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          { id: "shop", name: "Example Shop", projectPath: "D:\\Projects\\ExampleShop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
+          { id: "api", name: "Local API", expectedPort: 17321, mainUrl: "http://127.0.0.1:17321" },
+          { id: "docs", name: "Docs", expectedPort: 4321, mainUrl: "http://127.0.0.1:4321" }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api", "docs"], notes: "Morning release loop" }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    expect(within(workspaces).getByText("Daily stack")).toBeInTheDocument();
+    expect(within(workspaces).getByText("2 running, 1 needs attention")).toBeInTheDocument();
+    expect(within(workspaces).getByText("Morning release loop")).toBeInTheDocument();
+
+    fireEvent.click(within(workspaces).getByRole("button", { name: /open workspace daily stack/i }));
+
+    expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:5173", "_blank", "noopener,noreferrer");
+    expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:17321", "_blank", "noopener,noreferrer");
+    expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:4321", "_blank", "noopener,noreferrer");
+  });
+
+  it("saves a workspace from the current project profiles", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          { id: "shop", name: "Example Shop", projectPath: "D:\\Projects\\ExampleShop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
+          { id: "api", name: "Local API", expectedPort: 17321, mainUrl: "http://127.0.0.1:17321" }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    expect(await screen.findByLabelText("Project profiles")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /save workspace/i }));
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    expect(within(workspaces).getByText("Example Shop + 1")).toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toMatchObject({
+      projectWorkspaces: [{ name: "Example Shop + 1", profileIds: ["shop", "api"] }]
+    });
+  });
+
+  it("does not offer to save a duplicate workspace for the same profile set", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          { id: "shop", name: "Example Shop", projectPath: "D:\\Projects\\ExampleShop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
+          { id: "api", name: "Local API", expectedPort: 17321, mainUrl: "http://127.0.0.1:17321" }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    expect(await screen.findByLabelText("Project workspaces")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /save workspace/i })).not.toBeInTheDocument();
   });
 
   it("saves the selected localhost app as a reusable project profile", async () => {
@@ -488,5 +558,63 @@ describe("App", () => {
     expect(selectedRows).toHaveLength(1);
     expect(selectedRows[0]!).toHaveTextContent("PID 101");
     expect(screen.getByLabelText("Port 5173 details")).toHaveTextContent("101");
+  });
+
+  it("shows a port doctor conflict report for duplicate listeners", async () => {
+    const baseEntry = entries[0]!;
+    const duplicatePortEntries: PortEntry[] = [
+      { ...baseEntry, pid: 100, port: 5173, title: "Vite IPv4" },
+      { ...baseEntry, pid: 101, port: 5173, title: "Vite IPv6", address: "::1" },
+      { ...baseEntry, pid: 200, port: 5174, title: "Vite alt" }
+    ];
+    const duplicateClient: HostClient = {
+      ...client,
+      scan: vi.fn(async () => ({
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 12,
+        entries: duplicatePortEntries
+      }))
+    };
+
+    render(<App client={duplicateClient} />);
+
+    expect((await screen.findAllByRole("button", { name: /select port 5173/i }))[0]).toBeInTheDocument();
+    const doctor = screen.getByLabelText("Port doctor");
+    expect(doctor).toHaveTextContent("2 listeners share port 5173");
+    expect(doctor).toHaveTextContent("Next free: 5175");
+  });
+
+  it("surfaces stale process candidates in the list and detail panel", async () => {
+    const staleEntry: PortEntry = {
+      port: 8990,
+      address: "::",
+      pid: 900,
+      processName: "preview-service.exe",
+      commandLine: "preview-service --local --port 8990",
+      detectedKind: "unknown",
+      confidence: "low",
+      killable: true,
+      resources: {
+        cpuPercent: 0.2,
+        memoryBytes: 950_000_000,
+        uptimeMs: 8 * 60 * 60 * 1000
+      }
+    };
+    const staleClient: HostClient = {
+      ...client,
+      scan: vi.fn(async () => ({
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 12,
+        entries: [staleEntry]
+      }))
+    };
+
+    render(<App client={staleClient} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Unknown" }));
+    const row = await screen.findByRole("button", { name: /select port 8990/i });
+    expect(row).toHaveTextContent("Possible stale process");
+    expect(screen.getByLabelText("Stale process signal")).toHaveTextContent("Long uptime");
+    expect(screen.getByLabelText("Stale process signal")).toHaveTextContent("High memory");
   });
 });

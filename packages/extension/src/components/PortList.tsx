@@ -2,11 +2,13 @@ import { AlertTriangle, ExternalLink, LockKeyhole, Square, Terminal, X } from "l
 import { kindLabel, type PortEntry } from "@localhost-control/shared";
 import { IconButton } from "./IconButton";
 import { compactResourceLabels } from "../lib/resources";
+import type { StaleProcessSignal } from "../lib/staleProcesses";
 
 type PortListProps = {
   entries: PortEntry[];
   selectedKey: string | null;
   profileNameForEntry?(entry: PortEntry): string | undefined;
+  staleSignalForEntry?(entry: PortEntry): StaleProcessSignal | undefined;
   onSelect(entry: PortEntry): void;
   onOpen(entry: PortEntry): void;
   onKill(entry: PortEntry): void;
@@ -32,10 +34,11 @@ const ResourceStrip = ({ entry }: { entry: PortEntry }) => {
   );
 };
 
-export const PortList = ({ entries, selectedKey, profileNameForEntry, onSelect, onOpen, onKill }: PortListProps) => (
+export const PortList = ({ entries, selectedKey, profileNameForEntry, staleSignalForEntry, onSelect, onOpen, onKill }: PortListProps) => (
   <div className="port-list" aria-label="Detected localhost ports">
     {entries.map((entry) => {
       const profileName = profileNameForEntry?.(entry);
+      const staleSignal = staleSignalForEntry?.(entry);
       return (
         <div className={`port-row ${selectedKey === `${entry.pid}:${entry.port}` ? "selected" : ""}`} key={`${entry.pid}-${entry.port}`}>
           <button className="port-main" type="button" aria-label={`Select port ${entry.port}`} onClick={() => onSelect(entry)}>
@@ -48,6 +51,7 @@ export const PortList = ({ entries, selectedKey, profileNameForEntry, onSelect, 
                 <span>{kindLabel(entry.detectedKind)}</span>
                 <span>{entry.processName}</span>
                 <span>PID {entry.pid}</span>
+                {staleSignal ? <span className={`port-badge ${staleSignal.severity}`}>{staleSignal.label}</span> : null}
               </span>
               <ResourceStrip entry={entry} />
               <span className="port-path">{entry.projectHint ?? entry.commandLine ?? entry.address}</span>
