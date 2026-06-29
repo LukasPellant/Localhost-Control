@@ -16,6 +16,23 @@ export type Settings = {
 
 const key = "localhost-control-settings";
 
+const isSettingsPatch = (value: unknown): value is Partial<Settings> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const mergeStoredSettings = (value: unknown): Settings => (isSettingsPatch(value) ? { ...defaultSettings, ...value } : defaultSettings);
+
+const parseStoredSettings = (raw: string | null): Settings => {
+  if (!raw) {
+    return defaultSettings;
+  }
+
+  try {
+    return mergeStoredSettings(JSON.parse(raw) as unknown);
+  } catch {
+    return defaultSettings;
+  }
+};
+
 export const defaultSettings: Settings = {
   includeSystemPorts: false,
   httpProbe: true,
@@ -32,11 +49,10 @@ export const loadSettings = async (): Promise<Settings> => {
   const storage = getExtensionApi()?.storage?.local;
   if (storage) {
     const result = await storage.get(key);
-    return { ...defaultSettings, ...(result[key] as Partial<Settings> | undefined) };
+    return mergeStoredSettings(result[key]);
   }
 
-  const raw = window.localStorage.getItem(key);
-  return raw ? { ...defaultSettings, ...(JSON.parse(raw) as Partial<Settings>) } : defaultSettings;
+  return parseStoredSettings(window.localStorage.getItem(key));
 };
 
 export const saveSettings = async (settings: Settings): Promise<void> => {
