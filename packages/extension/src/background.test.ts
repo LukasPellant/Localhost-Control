@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { openExtensionPanel } from "./background";
+import { openExtensionPanel, registerToolbarOpenHandler } from "./background";
 
 type ExtensionApi = Parameters<typeof openExtensionPanel>[0];
 
@@ -18,5 +18,20 @@ describe("openExtensionPanel", () => {
     await openExtensionPanel({ sidePanel: { open } } as unknown as ExtensionApi, {});
 
     expect(open).not.toHaveBeenCalled();
+  });
+});
+
+describe("registerToolbarOpenHandler", () => {
+  it("listens for Firefox-compatible browserAction clicks when action is also present", () => {
+    const actionAddListener = vi.fn();
+    const browserActionAddListener = vi.fn();
+
+    registerToolbarOpenHandler({
+      action: { onClicked: { addListener: actionAddListener } },
+      browserAction: { onClicked: { addListener: browserActionAddListener } }
+    } as unknown as ExtensionApi);
+
+    expect(actionAddListener).toHaveBeenCalledOnce();
+    expect(browserActionAddListener).toHaveBeenCalledOnce();
   });
 });

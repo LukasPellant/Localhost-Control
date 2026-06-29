@@ -6,6 +6,7 @@ type ExtensionApi = typeof chrome & {
 };
 
 type ToolbarTab = Pick<chrome.tabs.Tab, "id">;
+type ToolbarClickEvent = NonNullable<ExtensionApi["action"]>["onClicked"];
 
 const globalExtensionApi = globalThis as typeof globalThis & {
   browser?: ExtensionApi;
@@ -13,7 +14,6 @@ const globalExtensionApi = globalThis as typeof globalThis & {
 };
 
 const extensionApi = globalExtensionApi.browser ?? globalExtensionApi.chrome;
-const actionApi = extensionApi?.action ?? extensionApi?.browserAction;
 
 extensionApi?.runtime?.onInstalled.addListener(() => {
   void extensionApi.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true });
@@ -34,6 +34,17 @@ export const openExtensionPanel = async (extensionApi: ExtensionApi | undefined,
   }
 };
 
-actionApi?.onClicked.addListener((tab) => {
-  void openExtensionPanel(extensionApi, tab);
-});
+export const registerToolbarOpenHandler = (extensionApi: ExtensionApi | undefined): void => {
+  const registeredEvents = new Set<ToolbarClickEvent>();
+
+  for (const actionApi of [extensionApi?.action, extensionApi?.browserAction]) {
+    if (!actionApi?.onClicked || registeredEvents.has(actionApi.onClicked)) continue;
+
+    registeredEvents.add(actionApi.onClicked);
+    actionApi.onClicked.addListener((tab) => {
+      void openExtensionPanel(extensionApi, tab);
+    });
+  }
+};
+
+registerToolbarOpenHandler(extensionApi);
