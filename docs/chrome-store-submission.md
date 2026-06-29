@@ -38,7 +38,7 @@ The extension communicates only with its native messaging host installed on the 
 
 ## Reviewer Instructions
 
-1. Install the extension ZIP built by `pnpm extension:package`.
+1. Install the Chrome extension ZIP built by `pnpm extension:package:chrome`.
 2. Copy the extension ID from `chrome://extensions`.
 3. Install the native host for Chrome:
 
@@ -76,9 +76,12 @@ pnpm host:uninstall -- --browser chrome
 - [ ] Run `pnpm typecheck`.
 - [ ] Run `pnpm test:run`.
 - [ ] Run `pnpm build`.
-- [ ] Run `pnpm extension:package`.
+- [ ] Run `pnpm extension:package:chrome`.
+- [ ] Run `pnpm extension:package:firefox`.
 - [ ] Confirm the Chrome ZIP root `manifest.json` uses Manifest V3.
 - [ ] Confirm the Chrome ZIP root `manifest.json` permissions are only `nativeMessaging`, `sidePanel`, and `storage`.
-- [ ] Confirm the ZIP contains `manifest.json` at the archive root.
+- [ ] Confirm the Firefox ZIP root `manifest.json` uses `sidebar_action`, not `side_panel` or `background.service_worker`.
+- [ ] Run `web-ext lint` against an extracted Firefox ZIP.
+- [ ] Confirm each ZIP contains `manifest.json` at the archive root.
 - [ ] Confirm the production bundle does not contain demo project names or paths.
 - [ ] Confirm the native host has been tested with the final extension ID.

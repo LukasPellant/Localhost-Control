@@ -107,7 +107,7 @@ GitHub Actions builds the native host artifacts on the target operating systems 
 Build the upload ZIP with:
 
 ```powershell
-pnpm extension:package
+pnpm extension:package:chrome
 ```
 
 The script rebuilds the extension and writes `dist\chrome-store\localhost-control-<version>-chrome-store.zip`. Upload that ZIP in the Chrome Web Store Developer Dashboard. The native host is installed separately through the Windows, macOS, or Linux installer; mention that in the Store test instructions.
