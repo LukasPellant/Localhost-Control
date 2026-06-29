@@ -36,4 +36,19 @@ describe("loadSettings", () => {
       trustedProjectPaths: ["D:\\Projects\\Safe"]
     });
   });
+
+  it("falls back to defaults when extension storage cannot be read", async () => {
+    (globalThis as { browser?: unknown }).browser = {
+      storage: {
+        local: {
+          get: async () => {
+            throw new Error("storage unavailable");
+          },
+          set: async () => undefined
+        }
+      }
+    };
+
+    await expect(loadSettings()).resolves.toEqual(defaultSettings);
+  });
 });

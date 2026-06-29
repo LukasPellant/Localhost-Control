@@ -68,8 +68,12 @@ export const defaultSettings: Settings = {
 export const loadSettings = async (): Promise<Settings> => {
   const storage = getExtensionApi()?.storage?.local;
   if (storage) {
-    const result = await storage.get(key);
-    return mergeStoredSettings(result[key]);
+    try {
+      const result = await storage.get(key);
+      return mergeStoredSettings(result[key]);
+    } catch {
+      return defaultSettings;
+    }
   }
 
   return parseStoredSettings(window.localStorage.getItem(key));
