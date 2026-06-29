@@ -37,6 +37,8 @@ const hasTerminalParams = (value: unknown): boolean => {
 };
 
 const isOptionalNumber = (value: unknown): boolean => value === undefined || isNumber(value);
+const isOptionalString = (value: unknown): boolean => value === undefined || isString(value);
+const isOptionalPositiveInteger = (value: unknown): boolean => value === undefined || isPositiveInteger(value);
 const isDetectedKind = (value: unknown): boolean => isString(value) && detectedKinds.has(value);
 const isConfidence = (value: unknown): boolean => isString(value) && confidenceLevels.has(value);
 
@@ -79,6 +81,14 @@ const isPortEntry = (value: unknown): value is PortEntry => {
     isDetectedKind(value.detectedKind) &&
     isConfidence(value.confidence) &&
     isBoolean(value.killable) &&
+    isOptionalString(value.executablePath) &&
+    isOptionalString(value.commandLine) &&
+    isOptionalPositiveInteger(value.parentPid) &&
+    isOptionalString(value.url) &&
+    isOptionalString(value.title) &&
+    isOptionalNumber(value.statusCode) &&
+    isOptionalString(value.projectHint) &&
+    isOptionalString(value.protectionReason) &&
     (value.resources === undefined || isProcessResources(value.resources))
   );
 };

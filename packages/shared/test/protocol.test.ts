@@ -24,6 +24,16 @@ describe("native messaging protocol", () => {
   });
 
   it("validates kill results and scan results", () => {
+    const validEntry = {
+      port: 5173,
+      address: "127.0.0.1",
+      pid: 1234,
+      processName: "node.exe",
+      detectedKind: "vite",
+      confidence: "high",
+      killable: true
+    };
+
     expect(isHostRequest({ id: "kill-1", method: "kill", params: { pid: 1234, port: 5173, mode: "force-tree" } })).toBe(true);
     expect(isHostRequest({ id: "kill-1", method: "kill", params: { pid: 1234.5, port: 5173, mode: "force-tree" } })).toBe(false);
     expect(isHostRequest({ id: "kill-1", method: "kill", params: { pid: 1234, port: 70000, mode: "force-tree" } })).toBe(false);
@@ -36,13 +46,7 @@ describe("native messaging protocol", () => {
       isScanResult({
         entries: [
           {
-            port: 5173,
-            address: "127.0.0.1",
-            pid: 1234,
-            processName: "node.exe",
-            detectedKind: "vite",
-            confidence: "high",
-            killable: true,
+            ...validEntry,
             resources: {
               cpuPercent: 8.5,
               memoryBytes: 268_435_456,
@@ -60,69 +64,56 @@ describe("native messaging protocol", () => {
     expect(isScanResult({ entries: "nope" })).toBe(false);
     expect(
       isScanResult({
-        entries: [
-          {
-            port: 5173,
-            address: "127.0.0.1",
-            pid: 1234,
-            processName: "node.exe",
-            detectedKind: "vite",
-            confidence: "high",
-            killable: true,
-            resources: { cpuPercent: "busy" }
-          }
-        ],
+        entries: [{ ...validEntry, resources: { cpuPercent: "busy" } }],
         scannedAt: "2026-06-27T10:00:00.000Z",
         durationMs: 28
       })
     ).toBe(false);
     expect(
       isScanResult({
-        entries: [
-          {
-            port: 5173,
-            address: "127.0.0.1",
-            pid: 1234,
-            processName: "node.exe",
-            detectedKind: "definitely-not-a-kind",
-            confidence: "high",
-            killable: true
-          }
-        ],
+        entries: [{ ...validEntry, detectedKind: "definitely-not-a-kind" }],
         scannedAt: "2026-06-27T10:00:00.000Z",
         durationMs: 28
       })
     ).toBe(false);
     expect(
       isScanResult({
-        entries: [
-          {
-            port: 5173,
-            address: "127.0.0.1",
-            pid: 1234,
-            processName: "node.exe",
-            detectedKind: "vite",
-            confidence: "maybe",
-            killable: true
-          }
-        ],
+        entries: [{ ...validEntry, confidence: "maybe" }],
         scannedAt: "2026-06-27T10:00:00.000Z",
         durationMs: 28
       })
     ).toBe(false);
     expect(
       isScanResult({
-        entries: [
-          {
-            port: 70000,
-            address: "127.0.0.1",
-            pid: 1234,
-            processName: "node.exe",
-            detectedKind: "vite",
-            confidence: "high",
-            killable: true
-          }
-        ],
+        entries: [{ ...validEntry, port: 70000 }],
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 28
+      })
+    ).toBe(false);
+    expect(
+      isScanResult({
+        entries: [{ ...validEntry, projectHint: 123 }],
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 28
+      })
+    ).toBe(false);
+    expect(
+      isScanResult({
+        entries: [{ ...validEntry, url: 123 }],
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 28
+      })
+    ).toBe(false);
+    expect(
+      isScanResult({
+        entries: [{ ...validEntry, statusCode: "200" }],
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 28
+      })
+    ).toBe(false);
+    expect(
+      isScanResult({
+        entries: [{ ...validEntry, parentPid: 0 }],
         scannedAt: "2026-06-27T10:00:00.000Z",
         durationMs: 28
       })
