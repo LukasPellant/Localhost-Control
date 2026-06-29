@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, Upload } from "lucide-react";
+import { Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, SlidersHorizontal, Upload } from "lucide-react";
 import { withAppScope, type KillParams, type PortEntry, type ScanResult } from "@localhost-control/shared";
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
 import { PortList } from "./components/PortList";
 import { SafeActionDialog } from "./components/SafeActionDialog";
+import { SettingsManager } from "./components/SettingsManager";
 import { clearBrowserDataForUrl } from "./lib/browserCleanup";
 import { getExtensionApi } from "./lib/extensionApi";
 import { type HostClient } from "./lib/hostClient";
@@ -13,6 +14,14 @@ import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
 import { deriveProfileStates, matchProfileForEntry, type ProjectProfile } from "./lib/projectProfiles";
 import { deriveWorkspaceStates, type ProjectWorkspace } from "./lib/projectWorkspaces";
 import { defaultSettings, loadSettings, saveSettings, type Settings } from "./lib/settings";
+import {
+  removeProjectProfile,
+  removeProjectWorkspace,
+  removeTrustedProjectRoot,
+  removeTrustedProjectPath,
+  unblockProcessName,
+  unhidePort
+} from "./lib/settingsActions";
 import { exportSettingsBundle, importSettingsBundle } from "./lib/settingsBundle";
 import { detectStaleProcess } from "./lib/staleProcesses";
 import "./styles.css";
@@ -92,6 +101,9 @@ export const App = ({ client }: AppProps) => {
   const [message, setMessage] = useState("");
   const [hostError, setHostError] = useState<string | null>(null);
   const [pendingKillEntry, setPendingKillEntry] = useState<PortEntry | null>(null);
+  const [settingsManagerOpen, setSettingsManagerOpen] = useState(false);
+  const [settingsActionSaving, setSettingsActionSaving] = useState(false);
+  const settingsActionSavingRef = useRef(false);
   const openedDownloadForError = useRef(false);
   const importFileRef = useRef<HTMLInputElement | null>(null);
 
@@ -158,6 +170,11 @@ export const App = ({ client }: AppProps) => {
   useEffect(() => {
     void scan();
   }, [scan]);
+
+  useEffect(() => {
+    if (!settingsManagerOpen) return;
+    window.setTimeout(() => document.getElementById("settings-manager")?.focus(), 0);
+  }, [settingsManagerOpen]);
 
   useEffect(() => {
     if (!hostError || openedDownloadForError.current || !isMissingNativeHostError(hostError)) return;
@@ -240,6 +257,20 @@ export const App = ({ client }: AppProps) => {
       setSettings(previous);
       setMessage(error instanceof Error ? error.message : String(error));
       return false;
+    }
+  };
+
+  const applySettingsAction = async (next: Settings, successMessage: string) => {
+    if (settingsActionSavingRef.current) return;
+    settingsActionSavingRef.current = true;
+    setSettingsActionSaving(true);
+    try {
+      if (!(await replaceSettings(next))) return;
+      setMessage(successMessage);
+      window.setTimeout(() => document.getElementById("settings-manager")?.focus(), 0);
+    } finally {
+      settingsActionSavingRef.current = false;
+      setSettingsActionSaving(false);
     }
   };
 
@@ -435,7 +466,7 @@ export const App = ({ client }: AppProps) => {
       <header className="topbar">
         <div>
           <h1>Localhost Control</h1>
-          <p>{message || "Ready to scan local development ports"}</p>
+          <p aria-live="polite">{message || "Ready to scan local development ports"}</p>
         </div>
         <IconButton label="Refresh ports" tone="primary" onClick={() => void scan()} disabled={busy}>
           <RefreshCw size={17} className={busy ? "spin" : ""} />
@@ -550,6 +581,21 @@ export const App = ({ client }: AppProps) => {
         />
       ) : null}
 
+      {settingsManagerOpen ? (
+        <SettingsManager
+          settings={settings}
+          saving={settingsActionSaving}
+          onRemoveProfile={(profileId, name) => void applySettingsAction(removeProjectProfile(settings, profileId), `Removed profile ${name}`)}
+          onRemoveWorkspace={(workspaceId, name) => void applySettingsAction(removeProjectWorkspace(settings, workspaceId), `Removed workspace ${name}`)}
+          onRemoveTrustedRoot={(path) =>
+            void applySettingsAction(removeTrustedProjectRoot(settings, path), `Removed trusted path ${path}`)
+          }
+          onRemoveTrustedPath={(path) => void applySettingsAction(removeTrustedProjectPath(settings, path), `Removed trusted path ${path}`)}
+          onUnhidePort={(port) => void applySettingsAction(unhidePort(settings, port), `Unhid port ${port}`)}
+          onUnblockProcess={(processName) => void applySettingsAction(unblockProcessName(settings, processName), `Unblocked process ${processName}`)}
+        />
+      ) : null}
+
       <footer className="settings-bar">
         <Settings2 size={15} />
         <select
@@ -592,6 +638,18 @@ export const App = ({ client }: AppProps) => {
         <button className="settings-command" type="button" aria-label="Import settings" title="Import settings" onClick={() => importFileRef.current?.click()}>
           <Upload size={13} />
           Import
+        </button>
+        <button
+          className="settings-command"
+          type="button"
+          aria-expanded={settingsManagerOpen}
+          aria-controls="settings-manager"
+          aria-label="Manage settings"
+          title="Manage settings"
+          onClick={() => setSettingsManagerOpen((current) => !current)}
+        >
+          <SlidersHorizontal size={13} />
+          Manage
         </button>
         <input
           ref={importFileRef}

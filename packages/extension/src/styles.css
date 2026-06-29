@@ -797,6 +797,111 @@ button:disabled {
   font-size: 11px;
 }
 
+.settings-manager {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  max-height: clamp(180px, 32vh, 320px);
+  overflow-y: auto;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.settings-manager-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.settings-manager-heading strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.settings-manager-heading span {
+  color: var(--faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.settings-manager-grid {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-manager-group {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.settings-manager-label {
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.settings-manager-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--control);
+}
+
+.settings-manager-row span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.settings-manager-row strong,
+.settings-manager-row small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-manager-row strong {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.settings-manager-row small,
+.settings-manager-empty {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.settings-manager-row button {
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid var(--danger-border);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.settings-manager-row button:hover:not(:disabled) {
+  border-color: var(--danger-border-hover);
+  background: var(--danger-soft);
+}
+
 .settings-bar label {
   display: inline-flex;
   align-items: center;

@@ -27,5 +27,7 @@ describe("port row styles", () => {
   it("allows the settings footer controls to wrap instead of widening the side panel", () => {
     expect(ruleBody(".settings-bar")).toContain("flex-wrap: wrap");
     expect(ruleBody(".settings-command")).toContain("min-width: 0");
+    expect(ruleBody(".settings-manager")).toContain("min-width: 0");
+    expect(ruleBody(".settings-manager")).toContain("overflow-y: auto");
   });
 });

@@ -468,6 +468,126 @@ describe("App", () => {
     });
   });
 
+  it("manages saved profiles, workspaces, trusted paths, hidden ports, and process rules", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        hiddenPorts: [6463],
+        trustedProjectRoots: ["D:\\DevelopmentD"],
+        trustedProjectPaths: ["C:\\Workspaces\\LocalApi"],
+        blockedProcessNames: ["steam.exe", "preview-service.exe"],
+        projectProfiles: [
+          { id: "shop", name: "Example Shop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
+          { id: "api", name: "Local API", expectedPort: 17321, mainUrl: "http://127.0.0.1:17321" }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    expect(await screen.findByLabelText("Project workspaces")).toHaveTextContent("Daily stack");
+    fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
+
+    const manager = await screen.findByLabelText("Settings manager");
+    await waitFor(() => expect(manager).toHaveFocus());
+    expect(manager).toHaveTextContent("Example Shop");
+    expect(manager).toHaveTextContent("Daily stack");
+    expect(manager).toHaveTextContent("D:\\DevelopmentD");
+    expect(manager).toHaveTextContent("C:\\Workspaces\\LocalApi");
+    expect(manager).toHaveTextContent("6463");
+    expect(manager).toHaveTextContent("preview-service.exe");
+
+    const clickSettingsAction = async (name: RegExp, successText?: string) => {
+      const button = within(screen.getByLabelText("Settings manager")).getByRole("button", { name });
+      await waitFor(() => expect(button).not.toBeDisabled());
+      fireEvent.click(button);
+      if (successText) expect(await screen.findByText(successText)).toBeInTheDocument();
+      await waitFor(() => expect(within(screen.getByLabelText("Settings manager")).queryByRole("button", { name })).not.toBeInTheDocument());
+    };
+
+    await clickSettingsAction(/remove profile local api/i, "Removed profile Local API");
+    await waitFor(() => expect(screen.getByLabelText("Settings manager")).toHaveFocus());
+    expect(screen.getByLabelText("Project workspaces")).toHaveTextContent("Daily stack");
+
+    await clickSettingsAction(/remove workspace daily stack/i);
+    await clickSettingsAction(/remove trusted path d:\\developmentd/i);
+    await clickSettingsAction(/remove trusted path c:\\workspaces\\localapi/i);
+    await clickSettingsAction(/unhide port 6463/i);
+    await clickSettingsAction(/unblock process preview-service.exe/i);
+
+    const saved = JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}");
+    expect(saved).toMatchObject({
+      hiddenPorts: [],
+      trustedProjectRoots: [],
+      trustedProjectPaths: [],
+      blockedProcessNames: ["steam.exe"],
+      projectProfiles: [{ id: "shop", name: "Example Shop" }],
+      projectWorkspaces: []
+    });
+  });
+
+  it("rolls back a settings manager removal when storage saving fails", async () => {
+    (globalThis as { browser?: unknown }).browser = {
+      storage: {
+        local: {
+          get: vi.fn(async () => ({
+            "localhost-control-settings": {
+              projectProfiles: [{ id: "shop", name: "Example Shop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" }]
+            }
+          })),
+          set: vi.fn(async () => Promise.reject(new Error("storage quota exceeded")))
+        }
+      }
+    };
+
+    render(<App client={client} />);
+
+    expect(await screen.findByLabelText("Project profiles")).toHaveTextContent("Example Shop");
+    fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
+    const manager = await screen.findByLabelText("Settings manager");
+    fireEvent.click(within(manager).getByRole("button", { name: /remove profile example shop/i }));
+
+    expect(await screen.findByText("storage quota exceeded")).toBeInTheDocument();
+    expect(screen.getByLabelText("Project profiles")).toHaveTextContent("Example Shop");
+    expect(screen.getByLabelText("Settings manager")).toHaveTextContent("Example Shop");
+  });
+
+  it("disables settings manager actions while a removal is saving", async () => {
+    let finishSave!: () => void;
+    (globalThis as { browser?: unknown }).browser = {
+      storage: {
+        local: {
+          get: vi.fn(async () => ({
+            "localhost-control-settings": {
+              projectProfiles: [
+                { id: "shop", name: "Example Shop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
+                { id: "api", name: "Local API", expectedPort: 17321, mainUrl: "http://127.0.0.1:17321" }
+              ]
+            }
+          })),
+          set: vi.fn(
+            () =>
+              new Promise<void>((resolve) => {
+                finishSave = resolve;
+              })
+          )
+        }
+      }
+    };
+
+    render(<App client={client} />);
+
+    expect(await screen.findByLabelText("Project profiles")).toHaveTextContent("Example Shop");
+    fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
+    const manager = await screen.findByLabelText("Settings manager");
+    fireEvent.click(within(manager).getByRole("button", { name: /remove profile local api/i }));
+
+    expect(within(manager).getByRole("button", { name: /remove profile example shop/i })).toBeDisabled();
+    finishSave();
+    await waitFor(() => expect(within(screen.getByLabelText("Settings manager")).getByRole("button", { name: /remove profile example shop/i })).not.toBeDisabled());
+  });
+
   it("removes a killed row immediately while the host is still stopping the process", async () => {
     let finishKill!: () => void;
     const slowClient: HostClient = {
