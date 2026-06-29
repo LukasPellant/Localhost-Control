@@ -21,7 +21,7 @@ describe("release-native-host workflow", () => {
     expect(workflow).toContain("pnpm host:package:windows");
     expect(workflow).toContain("pnpm host:verify:windows");
     expect(workflow).toContain("dist/native-host/localhost-control-native-host-windows-*.zip");
-    expect(workflow).toMatch(/needs:\s*\n\s+- windows\n\s+- linux\n\s+- macos/);
+    expect(workflow).toMatch(/needs:\s*\r?\n\s+- windows\r?\n\s+- linux\r?\n\s+- macos/);
   });
 
   it("includes Windows artifacts in local release verification", () => {
