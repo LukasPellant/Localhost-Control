@@ -17,7 +17,7 @@ const parseArgs = () => {
 const args = parseArgs();
 const outputDir = path.resolve(args.get("out-dir") ?? path.join(repoRoot, "dist", "native-host"));
 const files = (await readdir(outputDir))
-  .filter((file) => /\.(deb|pkg|tar\.gz)$/.test(file))
+  .filter((file) => /\.(deb|pkg|tar\.gz|zip)$/.test(file))
   .sort((a, b) => a.localeCompare(b));
 
 if (files.length === 0) {

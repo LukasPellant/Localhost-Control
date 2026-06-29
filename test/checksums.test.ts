@@ -14,6 +14,7 @@ describe("write-native-host-checksums", () => {
     const artifactDir = path.join(tempRoot, "dist", "native-host");
     mkdirSync(artifactDir, { recursive: true });
     writeFileSync(path.join(artifactDir, "sample.tar.gz"), "sample artifact\n");
+    writeFileSync(path.join(artifactDir, "sample-windows.zip"), "windows artifact\n");
     writeFileSync(path.join(artifactDir, "ignored.txt"), "not an artifact\n");
 
     execFileSync(process.execPath, [path.join(repoRoot, "scripts", "write-native-host-checksums.mjs"), `--out-dir=${artifactDir}`], {
@@ -22,6 +23,9 @@ describe("write-native-host-checksums", () => {
     });
 
     const expectedHash = createHash("sha256").update("sample artifact\n").digest("hex");
-    expect(readFileSync(path.join(artifactDir, "SHA256SUMS"), "utf8")).toBe(`${expectedHash}  sample.tar.gz\n`);
+    const expectedWindowsHash = createHash("sha256").update("windows artifact\n").digest("hex");
+    expect(readFileSync(path.join(artifactDir, "SHA256SUMS"), "utf8")).toBe(
+      `${expectedWindowsHash}  sample-windows.zip\n${expectedHash}  sample.tar.gz\n`
+    );
   });
 });
