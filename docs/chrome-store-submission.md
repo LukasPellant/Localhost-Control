@@ -51,6 +51,8 @@ EXTENSION_ID=<extension-id> pnpm host:install:mac
 EXTENSION_ID=<extension-id> pnpm host:install:linux
 ```
 
+For Firefox review builds, package with `pnpm extension:package:firefox` and install the native host with `FIREFOX_EXTENSION_ID=localhost-control@lukaspellant.dev` if testing a signed build with that add-on ID.
+
 4. Start a disposable local server:
 
 ```powershell

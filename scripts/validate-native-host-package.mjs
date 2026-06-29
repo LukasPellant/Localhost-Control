@@ -132,6 +132,7 @@ const validateDeb = async () => {
     }
     requireEntry(dataEntries, `etc/opt/chrome/native-messaging-hosts/${hostName}.json`);
     requireEntry(dataEntries, `etc/brave/native-messaging-hosts/${hostName}.json`);
+    requireEntry(dataEntries, `usr/lib/mozilla/native-messaging-hosts/${hostName}.json`);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -145,6 +146,7 @@ const validatePkg = () => {
   }
   requireEntry(entries, `Library/Application Support/Google/Chrome/NativeMessagingHosts/${hostName}.json`);
   requireEntry(entries, `Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/${hostName}.json`);
+  requireEntry(entries, `Library/Application Support/Mozilla/NativeMessagingHosts/${hostName}.json`);
 };
 
 if ((platform === "linux" || platform === "darwin") && format === "tarball") validateTarball();

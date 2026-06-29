@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
-import { buildNativeHostManifest, DEFAULT_EXTENSION_ID, resolveNativeMessagingManifestTargets } from "./lib/native-host-manifest.mjs";
+import { buildNativeHostManifest, DEFAULT_EXTENSION_ID, DEFAULT_FIREFOX_EXTENSION_ID, resolveNativeMessagingManifestTargets } from "./lib/native-host-manifest.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(await import("node:fs/promises").then((fs) => fs.readFile(path.join(repoRoot, "package.json"), "utf8")));
@@ -43,10 +43,14 @@ const stageRustHostApp = async (stageDir, platform) => {
 
 const stagePath = (rootDir, targetPath) => (rootDir ? path.join(rootDir, targetPath.replace(/^[/\\]+/, "")) : targetPath);
 
-const writeManifestTargets = async ({ platform, scope, rootDir, hostPath, extensionId }) => {
-  const manifest = buildNativeHostManifest({ hostPath, extensionId });
+const writeManifestTargets = async ({ platform, scope, rootDir, hostPath, extensionId, firefoxExtensionId }) => {
   const targets = resolveNativeMessagingManifestTargets(platform, scope);
   for (const target of targets) {
+    const manifest = buildNativeHostManifest({
+      browser: target.browser,
+      hostPath,
+      extensionId: target.browser === "firefox" ? firefoxExtensionId : extensionId
+    });
     const outputPath = stagePath(rootDir, target.path);
     await mkdir(path.dirname(outputPath), { recursive: true });
     await writeFile(outputPath, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -147,7 +151,7 @@ const packageTarball = async ({ platform, stageDir, outputDir, version }) => {
   return output;
 };
 
-const packageDeb = async ({ stageDir, outputDir, version, arch }) => {
+const packageDeb = async ({ stageDir, outputDir, version, arch, extensionId, firefoxExtensionId }) => {
   const dataRoot = path.join(stageDir, "deb-data");
   const controlRoot = path.join(stageDir, "deb-control");
   const installRoot = path.join(dataRoot, "usr", "lib", "localhost-control");
@@ -160,7 +164,8 @@ const packageDeb = async ({ stageDir, outputDir, version, arch }) => {
     scope: "system",
     rootDir: dataRoot,
     hostPath: "/usr/lib/localhost-control/localhost-control-host",
-    extensionId: DEFAULT_EXTENSION_ID
+    extensionId,
+    firefoxExtensionId
   });
   await writeFile(
     path.join(controlRoot, "control"),
@@ -198,7 +203,7 @@ const packageDeb = async ({ stageDir, outputDir, version, arch }) => {
   return output;
 };
 
-const packagePkg = async ({ stageDir, outputDir, version }) => {
+const packagePkg = async ({ stageDir, outputDir, version, extensionId, firefoxExtensionId }) => {
   const pkgRoot = path.join(stageDir, "pkg-root");
   const installRoot = path.join(pkgRoot, "Library", "Application Support", "Localhost Control");
   await mkdir(installRoot, { recursive: true });
@@ -212,7 +217,8 @@ const packagePkg = async ({ stageDir, outputDir, version }) => {
     scope: "system",
     rootDir: pkgRoot,
     hostPath: "/Library/Application Support/Localhost Control/localhost-control-host",
-    extensionId: DEFAULT_EXTENSION_ID
+    extensionId,
+    firefoxExtensionId
   });
 
   const output = path.join(outputDir, `localhost-control-native-host-${version}.pkg`);
@@ -227,6 +233,7 @@ const main = async () => {
   const format = args.get("format") ?? (platform === "darwin" ? "pkg" : "tarball");
   const arch = args.get("arch") ?? (process.arch === "arm64" ? "arm64" : "amd64");
   const extensionId = args.get("extension-id") ?? DEFAULT_EXTENSION_ID;
+  const firefoxExtensionId = args.get("firefox-extension-id") ?? DEFAULT_FIREFOX_EXTENSION_ID;
   const hostBinary = args.get("host-binary") ? path.resolve(args.get("host-binary")) : undefined;
   const outputDir = path.resolve(args.get("out-dir") ?? path.join(repoRoot, "dist", "native-host"));
   const stageDir = path.join(os.tmpdir(), `localhost-control-native-host-${platform}-${Date.now()}`);
@@ -245,9 +252,9 @@ const main = async () => {
   }
 
   let output;
-  if (platform === "darwin" && format === "pkg") output = await packagePkg({ stageDir, outputDir, version: packageJson.version });
+  if (platform === "darwin" && format === "pkg") output = await packagePkg({ stageDir, outputDir, version: packageJson.version, extensionId, firefoxExtensionId });
   else if (platform === "darwin" && format === "tarball") output = await packageTarball({ platform, stageDir, outputDir, version: packageJson.version });
-  else if (platform === "linux" && format === "deb") output = await packageDeb({ stageDir, outputDir, version: packageJson.version, arch });
+  else if (platform === "linux" && format === "deb") output = await packageDeb({ stageDir, outputDir, version: packageJson.version, arch, extensionId, firefoxExtensionId });
   else if (platform === "linux" && format === "tarball") output = await packageTarball({ platform, stageDir, outputDir, version: packageJson.version });
   else throw new Error(`Unsupported package target: ${platform}/${format}`);
 

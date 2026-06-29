@@ -63,7 +63,8 @@ describe("validate-native-host-package", () => {
       controlDir,
       path.join(dataDir, "usr/lib/localhost-control"),
       path.join(dataDir, "etc/opt/chrome/native-messaging-hosts"),
-      path.join(dataDir, "etc/brave/native-messaging-hosts")
+      path.join(dataDir, "etc/brave/native-messaging-hosts"),
+      path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts")
     ]) {
       mkdirSync(directory, { recursive: true });
     }
@@ -73,6 +74,7 @@ describe("validate-native-host-package", () => {
     writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
     writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
     writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
+    writeFileSync(path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
 
     execFileSync("tar", ["-czf", controlTar, "-C", controlDir, "."], { stdio: "pipe" });
     execFileSync("tar", ["-czf", dataTar, "-C", dataDir, "."], { stdio: "pipe" });
@@ -103,7 +105,8 @@ describe("validate-native-host-package", () => {
       controlDir,
       path.join(dataDir, "usr/lib/localhost-control"),
       path.join(dataDir, "etc/opt/chrome/native-messaging-hosts"),
-      path.join(dataDir, "etc/brave/native-messaging-hosts")
+      path.join(dataDir, "etc/brave/native-messaging-hosts"),
+      path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts")
     ]) {
       mkdirSync(directory, { recursive: true });
     }
@@ -112,6 +115,7 @@ describe("validate-native-host-package", () => {
     writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
     writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
     writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
+    writeFileSync(path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
 
     execFileSync("tar", ["-czf", controlTar, "-C", controlDir, "."], { stdio: "pipe" });
     execFileSync("tar", ["-czf", dataTar, "-C", dataDir, "."], { stdio: "pipe" });

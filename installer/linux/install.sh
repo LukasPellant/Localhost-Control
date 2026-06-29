@@ -2,6 +2,7 @@
 set -euo pipefail
 
 EXTENSION_ID="${EXTENSION_ID:-oamllgeaemchejbebgamdakjloahgjdc}"
+FIREFOX_EXTENSION_ID="${FIREFOX_EXTENSION_ID:-localhost-control@lukaspellant.dev}"
 HOST_NAME="com.localhost_control.host"
 ROOT="${HOME}/.local/lib/localhost-control"
 HOST_SOURCE="${1:-target/release/localhost-control-host}"
@@ -22,19 +23,27 @@ chmod +x "${HOST_TARGET}"
 
 write_manifest() {
   local target_dir="$1"
+  local browser="${2:-chromium}"
   mkdir -p "${target_dir}"
+  local allowed
+  if [ "${browser}" = "firefox" ]; then
+    allowed="\"allowed_extensions\": [\"${FIREFOX_EXTENSION_ID}\"]"
+  else
+    allowed="\"allowed_origins\": [\"chrome-extension://${EXTENSION_ID}/\"]"
+  fi
   cat > "${target_dir}/${HOST_NAME}.json" <<JSON
 {
   "name": "${HOST_NAME}",
   "description": "Localhost Control native messaging host",
   "path": "${HOST_TARGET}",
   "type": "stdio",
-  "allowed_origins": ["chrome-extension://${EXTENSION_ID}/"]
+  ${allowed}
 }
 JSON
 }
 
 write_manifest "${HOME}/.config/google-chrome/NativeMessagingHosts"
 write_manifest "${HOME}/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts"
+write_manifest "${HOME}/.mozilla/native-messaging-hosts" "firefox"
 
-echo "Installed Localhost Control native host for Chrome and Brave."
+echo "Installed Localhost Control native host for Chrome, Brave, and Firefox."

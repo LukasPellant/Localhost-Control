@@ -1,14 +1,15 @@
 $ErrorActionPreference = "Stop"
 
 $HostName = "com.localhost_control.host"
+$DefaultFirefoxExtensionId = "localhost-control@lukaspellant.dev"
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $OutDir = Join-Path $PSScriptRoot "out"
 $RustTargetExe = Join-Path $Root "target\release\localhost-control-host.exe"
 $HostExe = Join-Path $OutDir "localhost-control-host.exe"
-$ManifestPath = Join-Path $OutDir "$HostName.json"
 
 $Browser = "brave"
 $ExtensionId = $null
+$FirefoxExtensionId = $DefaultFirefoxExtensionId
 $SkipBuild = $false
 
 function Read-OptionValue {
@@ -45,6 +46,11 @@ function Read-InstallArgs {
         $i++
         continue
       }
+      "^-{1,2}firefox-extension-id$" {
+        $script:FirefoxExtensionId = Read-OptionValue -Values $values -Index $i -Name $values[$i]
+        $i++
+        continue
+      }
       "^-{1,2}skip-build$" {
         $script:SkipBuild = $true
         continue
@@ -59,12 +65,20 @@ function Read-InstallArgs {
     }
   }
 
-  if (@("brave", "chrome", "chromium", "edge", "all") -notcontains $Browser) {
-    throw "Unsupported browser '$Browser'. Use brave, chrome, chromium, edge, or all."
+  if (@("brave", "chrome", "chromium", "edge", "firefox", "all") -notcontains $Browser) {
+    throw "Unsupported browser '$Browser'. Use brave, chrome, chromium, edge, firefox, or all."
   }
 
-  if (!$ExtensionId -or $ExtensionId -notmatch "^[a-p]{32}$") {
+  if ($Browser -ne "firefox" -and (!$ExtensionId -or $ExtensionId -notmatch "^[a-p]{32}$")) {
     throw "Missing or invalid extension id. Expected 32 characters using letters a-p."
+  }
+
+  if ($Browser -eq "firefox" -and !$ExtensionId) {
+    $script:ExtensionId = $FirefoxExtensionId
+  }
+
+  if ($Browser -eq "firefox" -and $ExtensionId) {
+    $script:FirefoxExtensionId = $ExtensionId
   }
 }
 
@@ -111,20 +125,23 @@ function Write-Utf8NoBom {
 function Get-RegistryTargets {
   $targets = @{
     brave = @(
-      "HKCU:\Software\WOW6432Node\BraveSoftware\Brave-Browser\NativeMessagingHosts\$HostName",
-      "HKCU:\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\$HostName"
+      @{ Browser = "chromium"; Path = "HKCU:\Software\WOW6432Node\BraveSoftware\Brave-Browser\NativeMessagingHosts\$HostName" },
+      @{ Browser = "chromium"; Path = "HKCU:\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\$HostName" }
     )
     chrome = @(
-      "HKCU:\Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\$HostName",
-      "HKCU:\Software\Google\Chrome\NativeMessagingHosts\$HostName"
+      @{ Browser = "chromium"; Path = "HKCU:\Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\$HostName" },
+      @{ Browser = "chromium"; Path = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\$HostName" }
     )
     chromium = @(
-      "HKCU:\Software\WOW6432Node\Chromium\NativeMessagingHosts\$HostName",
-      "HKCU:\Software\Chromium\NativeMessagingHosts\$HostName"
+      @{ Browser = "chromium"; Path = "HKCU:\Software\WOW6432Node\Chromium\NativeMessagingHosts\$HostName" },
+      @{ Browser = "chromium"; Path = "HKCU:\Software\Chromium\NativeMessagingHosts\$HostName" }
     )
     edge = @(
-      "HKCU:\Software\WOW6432Node\Microsoft\Edge\NativeMessagingHosts\$HostName",
-      "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\$HostName"
+      @{ Browser = "chromium"; Path = "HKCU:\Software\WOW6432Node\Microsoft\Edge\NativeMessagingHosts\$HostName" },
+      @{ Browser = "chromium"; Path = "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\$HostName" }
+    )
+    firefox = @(
+      @{ Browser = "firefox"; Path = "HKCU:\Software\Mozilla\NativeMessagingHosts\$HostName" }
     )
   }
 
@@ -136,32 +153,47 @@ function Get-RegistryTargets {
 }
 
 function Write-NativeManifest {
+  param([string]$TargetBrowser)
+
+  $manifestPath = Join-Path $OutDir "$HostName.json"
   $manifest = [ordered]@{
     name = $HostName
     description = "Localhost Control native host"
     path = $HostExe
     type = "stdio"
-    allowed_origins = @("chrome-extension://$ExtensionId/")
   }
 
-  Write-Utf8NoBom -Path $ManifestPath -Value ($manifest | ConvertTo-Json -Depth 4)
+  if ($TargetBrowser -eq "firefox") {
+    $manifestPath = Join-Path $OutDir "$HostName.firefox.json"
+    $manifest.allowed_extensions = @($FirefoxExtensionId)
+  } else {
+    $manifest.allowed_origins = @("chrome-extension://$ExtensionId/")
+  }
+
+  Write-Utf8NoBom -Path $manifestPath -Value ($manifest | ConvertTo-Json -Depth 4)
+  return $manifestPath
 }
 
 function Register-Manifest {
-  foreach ($keyPath in Get-RegistryTargets) {
-    New-Item -Path $keyPath -Force | Out-Null
-    Set-Item -Path $keyPath -Value $ManifestPath
-    Write-Host "Registered $HostName at $keyPath"
+  foreach ($target in Get-RegistryTargets) {
+    $manifestPath = Write-NativeManifest -TargetBrowser $target.Browser
+    New-Item -Path $target.Path -Force | Out-Null
+    Set-Item -Path $target.Path -Value $manifestPath
+    Write-Host "Registered $HostName at $($target.Path)"
   }
 }
 
 Read-InstallArgs @args
 Build-RustHost
-Write-NativeManifest
 Register-Manifest
 
 Write-Host ""
 Write-Host "Localhost Control native host installed."
-Write-Host "Manifest: $ManifestPath"
+Write-Host "Manifest directory: $OutDir"
 Write-Host "Host: $HostExe"
-Write-Host "Allowed origin: chrome-extension://$ExtensionId/"
+if ($Browser -eq "firefox") {
+  Write-Host "Allowed Firefox extension: $FirefoxExtensionId"
+} else {
+  Write-Host "Allowed origin: chrome-extension://$ExtensionId/"
+  Write-Host "Allowed Firefox extension: $FirefoxExtensionId"
+}

@@ -1,10 +1,10 @@
 # Localhost Control
 
-Localhost Control is a Chrome/Brave extension for finding stale local dev servers and stopping them without digging through terminals. The native host supports Windows, macOS, and Linux.
+Localhost Control is a Chrome, Brave, and Firefox extension for finding stale local dev servers and stopping them without digging through terminals. The native host supports Windows, macOS, and Linux.
 
 It has two pieces:
 
-- `packages/extension`: MV3 side panel built with React, TypeScript, Vite, and `chrome.sidePanel`.
+- `packages/extension`: MV3 browser extension built with React, TypeScript, and Vite. Chrome/Brave use `sidePanel`; Firefox uses the same UI through `sidebar_action`.
 - `packages/native-host-rust`: Rust native messaging host for Windows, macOS, and Linux. It scans TCP listeners, probes HTTP, and stops killable dev processes without requiring Node.js on the user's machine.
 - `scripts`: packaging, checksum, and native messaging manifest tooling for the Rust host artifacts.
 
@@ -25,6 +25,8 @@ https://github.com/LukasPellant/Localhost-Control/releases
 ```
 
 Use the macOS `.pkg` when available, the Linux `.deb` on Debian/Ubuntu systems, or the `.tar.gz` packages for portable installs. The native host packages are built for the published Chrome Web Store extension ID `oamllgeaemchejbebgamdakjloahgjdc`.
+
+Firefox builds are packaged separately as `dist\firefox-addons\localhost-control-<version>-firefox.zip` and use the add-on ID `localhost-control@lukaspellant.dev` for native messaging.
 
 ## Setup
 
@@ -59,7 +61,7 @@ Install the native host for Chrome and Brave on Linux:
 EXTENSION_ID=<extension-id> pnpm host:install:linux
 ```
 
-Then click the Localhost Control toolbar icon. Brave opens the persistent side panel.
+Then click the Localhost Control toolbar icon. Chrome/Brave open the persistent side panel; Firefox opens the extension sidebar.
 
 ## Scripts
 
@@ -70,6 +72,8 @@ pnpm smoke:native-host
 pnpm typecheck
 pnpm build
 pnpm extension:package
+pnpm extension:package:chrome
+pnpm extension:package:firefox
 pnpm host:install -- --browser brave --extension-id <extension-id>
 pnpm host:uninstall -- --browser brave
 EXTENSION_ID=<extension-id> pnpm host:install:mac
@@ -84,9 +88,9 @@ pnpm host:verify:linux
 pnpm host:verify:release-local
 ```
 
-Use `--browser all` to register the native host for Brave, Chrome, Chromium, and Edge under HKCU. The Windows installer builds and registers the Rust native host binary at `installer\windows\out\localhost-control-host.exe`; the installed Windows host does not require Node.js.
+Use `--browser all` to register the native host for Brave, Chrome, Chromium, Edge, and Firefox under HKCU. The Windows installer builds and registers the Rust native host binary at `installer\windows\out\localhost-control-host.exe`; the installed Windows host does not require Node.js.
 
-The macOS and Linux installers register Chrome and Brave. The macOS and Linux packages install the Rust native host binary directly, so end users do not need Node.js. The default extension ID for packaged v2 artifacts is the published Chrome Web Store ID `oamllgeaemchejbebgamdakjloahgjdc`; use `EXTENSION_ID=<id>` for unpacked local development.
+The macOS and Linux installers register Chrome, Brave, and Firefox. The macOS and Linux packages install the Rust native host binary directly, so end users do not need Node.js. The default Chromium extension ID for packaged artifacts is the published Chrome Web Store ID `oamllgeaemchejbebgamdakjloahgjdc`; Firefox uses `localhost-control@lukaspellant.dev`. Use `EXTENSION_ID=<id>` and `FIREFOX_EXTENSION_ID=<id>` for unpacked local development.
 
 `pnpm host:package:mac:tarball` creates a self-contained macOS `.tar.gz` with the Rust macOS native host; run it on macOS or pass `--host-binary` to `scripts/package-native-host.mjs` with a macOS-built `localhost-control-host` binary. `pnpm host:package:mac` also creates a native `.pkg` and must run on macOS with `pkgbuild` available. `pnpm host:package:linux` builds the Rust Linux native host and creates a tarball plus `.deb`; run it on Linux or pass `--host-binary` with a Linux-built `localhost-control-host` binary.
 
@@ -105,6 +109,14 @@ pnpm extension:package
 ```
 
 The script rebuilds the extension and writes `dist\chrome-store\localhost-control-<version>-chrome-store.zip`. Upload that ZIP in the Chrome Web Store Developer Dashboard. The native host is installed separately through the Windows, macOS, or Linux installer; mention that in the Store test instructions.
+
+Build the Firefox ZIP with:
+
+```powershell
+pnpm extension:package:firefox
+```
+
+It writes `dist\firefox-addons\localhost-control-<version>-firefox.zip`.
 
 Store listing notes, permission justifications, privacy answers, and reviewer instructions live in `docs\chrome-store-submission.md`.
 
@@ -132,3 +144,5 @@ http://127.0.0.1:5173/sidepanel.html?mock=1
 
 - [Chrome native messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)
 - [Chrome Side Panel API](https://developer.chrome.com/docs/extensions/reference/api/sidePanel)
+- [Firefox native messaging](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging)
+- [Firefox sidebar_action](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/sidebar_action)

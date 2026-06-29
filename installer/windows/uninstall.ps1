@@ -44,8 +44,8 @@ function Read-UninstallArgs {
     }
   }
 
-  if (@("brave", "chrome", "chromium", "edge", "all") -notcontains $Browser) {
-    throw "Unsupported browser '$Browser'. Use brave, chrome, chromium, edge, or all."
+  if (@("brave", "chrome", "chromium", "edge", "firefox", "all") -notcontains $Browser) {
+    throw "Unsupported browser '$Browser'. Use brave, chrome, chromium, edge, firefox, or all."
   }
 }
 
@@ -66,6 +66,9 @@ function Get-RegistryTargets {
     edge = @(
       "HKCU:\Software\WOW6432Node\Microsoft\Edge\NativeMessagingHosts\$HostName",
       "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\$HostName"
+    )
+    firefox = @(
+      "HKCU:\Software\Mozilla\NativeMessagingHosts\$HostName"
     )
   }
 
