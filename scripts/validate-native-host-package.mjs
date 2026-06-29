@@ -97,13 +97,8 @@ const requireEntry = (entries, expectedSuffix) => {
 const validateTarball = () => {
   const entries = run("tar", ["-tzf", artifact]).split(/\r?\n/).filter(Boolean);
   requireEntry(entries, "localhost-control-host");
-  if (platform === "darwin") {
-    requireEntry(entries, "app/native-host/dist/index.js");
-    requireEntry(entries, "app/native-host/package.json");
-    requireEntry(entries, "app/native-host/node_modules/@localhost-control/shared/dist/index.js");
-  }
-  if (platform === "linux" && entries.some((entry) => normalizeEntry(entry).includes("app/native-host"))) {
-    throw new Error("Linux tarball must package the Rust native host without the Node app payload.");
+  if ((platform === "linux" || platform === "darwin") && entries.some((entry) => normalizeEntry(entry).includes("app/native-host"))) {
+    throw new Error(`${platform} tarball must package the Rust native host without the Node app payload.`);
   }
   requireEntry(entries, "install.sh");
   requireEntry(entries, "uninstall.sh");
@@ -145,7 +140,9 @@ const validateDeb = async () => {
 const validatePkg = () => {
   const entries = run("pkgutil", ["--payload-files", artifact]).split(/\r?\n/).filter(Boolean);
   requireEntry(entries, "Library/Application Support/Localhost Control/localhost-control-host");
-  requireEntry(entries, "Library/Application Support/Localhost Control/app/native-host/dist/index.js");
+  if (entries.some((entry) => normalizeEntry(entry).includes("Library/Application Support/Localhost Control/app/native-host"))) {
+    throw new Error("macOS pkg must package the Rust native host without the Node app payload.");
+  }
   requireEntry(entries, `Library/Application Support/Google/Chrome/NativeMessagingHosts/${hostName}.json`);
   requireEntry(entries, `Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/${hostName}.json`);
 };

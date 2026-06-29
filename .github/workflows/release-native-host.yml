@@ -39,6 +39,9 @@ jobs:
       - name: Run tests
         run: pnpm test:run
 
+      - name: Run Rust native host tests
+        run: cargo test -p localhost-control-host
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -72,6 +75,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Enable pnpm
         run: corepack enable
 
@@ -80,6 +86,9 @@ jobs:
 
       - name: Run tests
         run: pnpm test:run
+
+      - name: Run Rust native host tests
+        run: cargo test -p localhost-control-host
 
       - name: Typecheck
         run: pnpm typecheck

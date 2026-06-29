@@ -49,24 +49,15 @@ describe("validate-native-host-package", () => {
     expect(output).toContain("Validated");
   });
 
-  it("accepts a macOS tarball with the Node host layout", () => {
+  it("accepts a macOS tarball with the Rust host layout", () => {
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-package-"));
     const stageDir = path.join(tempRoot, "stage");
     const artifact = path.join(tempRoot, "host-macos.tar.gz");
 
-    for (const directory of [
-      "app/native-host/dist",
-      "app/native-host/node_modules/@localhost-control/shared/dist"
-    ]) {
-      mkdirSync(path.join(stageDir, directory), { recursive: true });
-    }
-
+    mkdirSync(stageDir, { recursive: true });
     writeFileSync(path.join(stageDir, "localhost-control-host"), "#!/usr/bin/env sh\n");
     writeFileSync(path.join(stageDir, "install.sh"), "#!/usr/bin/env sh\n");
     writeFileSync(path.join(stageDir, "uninstall.sh"), "#!/usr/bin/env sh\n");
-    writeFileSync(path.join(stageDir, "app/native-host/dist/index.js"), "#!/usr/bin/env node\n");
-    writeFileSync(path.join(stageDir, "app/native-host/package.json"), "{}\n");
-    writeFileSync(path.join(stageDir, "app/native-host/node_modules/@localhost-control/shared/dist/index.js"), "export {};\n");
 
     execFileSync("tar", ["-czf", artifact, "-C", stageDir, "."], { stdio: "pipe" });
     const output = execFileSync(

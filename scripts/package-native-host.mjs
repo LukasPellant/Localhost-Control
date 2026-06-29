@@ -51,6 +51,9 @@ const buildRustHost = (platform) => {
   if (platform === "linux" && process.platform !== "linux") {
     throw new Error("Linux Rust native host packages must be built on Linux, or pass --host-binary=/path/to/linux/localhost-control-host.");
   }
+  if (platform === "darwin" && process.platform !== "darwin") {
+    throw new Error("macOS Rust native host packages must be built on macOS, or pass --host-binary=/path/to/macos/localhost-control-host.");
+  }
   const result = spawnSync("cargo", ["build", "--release", "-p", "localhost-control-host"], { cwd: repoRoot, stdio: "inherit" });
   if (result.status !== 0) throw new Error("cargo build failed for localhost-control-host");
   return path.join(repoRoot, "target", "release", process.platform === "win32" ? "localhost-control-host.exe" : "localhost-control-host");
@@ -173,9 +176,6 @@ const packageDeb = async ({ stageDir, outputDir, version, arch }) => {
   await mkdir(controlRoot, { recursive: true });
   await mkdir(installRoot, { recursive: true });
   await cp(path.join(stageDir, "localhost-control-host"), path.join(installRoot, "localhost-control-host"));
-  if (await pathExists(path.join(stageDir, "app"))) {
-    await cp(path.join(stageDir, "app"), path.join(installRoot, "app"), { recursive: true });
-  }
   await chmod(path.join(installRoot, "localhost-control-host"), 0o755);
   await writeManifestTargets({
     platform: "linux",
@@ -260,7 +260,7 @@ const main = async () => {
   const hostName = platform === "win32" ? "localhost-control-host.exe" : "localhost-control-host";
   if (hostBinary) {
     await copyHostBinary(hostBinary, path.join(stageDir, hostName));
-  } else if (platform === "linux") {
+  } else if (platform === "linux" || platform === "darwin") {
     await stageRustHostApp(stageDir, platform);
   } else {
     await stageNodeHostApp(stageDir);

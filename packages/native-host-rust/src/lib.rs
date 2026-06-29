@@ -54,6 +54,8 @@ struct TerminalParams {
 #[serde(rename_all = "camelCase")]
 struct ProcessResources {
     #[serde(skip_serializing_if = "Option::is_none")]
+    cpu_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     memory_bytes: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     private_memory_bytes: Option<u64>,
@@ -61,6 +63,8 @@ struct ProcessResources {
     thread_count: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     handle_count: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    uptime_ms: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -297,6 +301,20 @@ fn read_tcp_listeners() -> Result<Vec<Listener>, String> {
     Ok(parse_ss_listeners(&String::from_utf8_lossy(&output.stdout)))
 }
 
+#[cfg(target_os = "macos")]
+fn read_tcp_listeners() -> Result<Vec<Listener>, String> {
+    let output = Command::new("lsof")
+        .args(["-nP", "-iTCP", "-sTCP:LISTEN"])
+        .output()
+        .map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    }
+    Ok(parse_lsof_listeners(&String::from_utf8_lossy(
+        &output.stdout,
+    )))
+}
+
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn parse_ss_listeners(output: &str) -> Vec<Listener> {
     output
@@ -321,6 +339,28 @@ fn extract_ss_pid(line: &str) -> Option<u32> {
         .take_while(|value| value.is_ascii_digit())
         .collect();
     digits.parse().ok()
+}
+
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn parse_lsof_listeners(output: &str) -> Vec<Listener> {
+    output
+        .lines()
+        .filter_map(|raw_line| {
+            let line = raw_line.trim();
+            if line.is_empty() || line.starts_with("COMMAND") {
+                return None;
+            }
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            let pid = parts.get(1)?.parse().ok()?;
+            let tcp_index = parts.iter().position(|part| *part == "TCP")?;
+            let address_port = parts.get(tcp_index + 1)?;
+            if !line.ends_with("(LISTEN)") {
+                return None;
+            }
+            let (address, port) = parse_address_port(address_port)?;
+            Some(Listener { address, port, pid })
+        })
+        .collect()
 }
 
 fn parse_address_port(value: &str) -> Option<(String, u16)> {
@@ -394,10 +434,12 @@ fn read_process_metadata(
                 ),
             };
             let resources = ProcessResources {
+                cpu_percent: None,
                 memory_bytes: value_to_u64(row.working_set_size),
                 private_memory_bytes: value_to_u64(row.private_page_count),
                 thread_count: value_to_u64(row.thread_count),
                 handle_count: value_to_u64(row.handle_count),
+                uptime_ms: None,
             };
             (metadata.pid, (metadata, Some(resources)))
         })
@@ -451,6 +493,99 @@ fn read_process_metadata(
         result.insert(pid, (metadata, resources));
     }
     Ok(result)
+}
+
+#[cfg(target_os = "macos")]
+fn read_process_metadata(
+    pids: &[u32],
+) -> Result<HashMap<u32, (ProcessMetadata, Option<ProcessResources>)>, String> {
+    let unique: Vec<String> = pids
+        .iter()
+        .copied()
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .filter(|pid| *pid > 0)
+        .map(|pid| pid.to_string())
+        .collect();
+    if unique.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let output = Command::new("ps")
+        .args([
+            "-p",
+            &unique.join(","),
+            "-o",
+            "pid=",
+            "-o",
+            "ppid=",
+            "-o",
+            "comm=",
+            "-o",
+            "etime=",
+            "-o",
+            "%cpu=",
+            "-o",
+            "rss=",
+            "-o",
+            "command=",
+        ])
+        .output()
+        .map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Ok(HashMap::new());
+    }
+    Ok(parse_darwin_ps_output(&String::from_utf8_lossy(
+        &output.stdout,
+    )))
+}
+
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn parse_darwin_ps_output(
+    output: &str,
+) -> HashMap<u32, (ProcessMetadata, Option<ProcessResources>)> {
+    let mut entries = HashMap::new();
+    for raw_line in output.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() || line.starts_with("PID") {
+            continue;
+        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 7 {
+            continue;
+        }
+        let Ok(pid) = parts[0].parse::<u32>() else {
+            continue;
+        };
+        let parent_pid = parts[1].parse::<u32>().ok();
+        let process_name = parts[2].to_string();
+        let elapsed = parts[3];
+        let cpu_percent = parts[4]
+            .parse::<f64>()
+            .ok()
+            .map(|value| (value * 10.0).round() / 10.0);
+        let memory_bytes = parts[5].parse::<u64>().ok().map(|value| value * 1024);
+        let command_line = parts[6..].join(" ");
+        let executable_path = Some(process_name.clone());
+        let project_hint = derive_project_hint(Some(&command_line), executable_path.as_deref());
+        let metadata = ProcessMetadata {
+            pid,
+            parent_pid,
+            process_name,
+            executable_path,
+            command_line: Some(command_line),
+            project_hint,
+        };
+        let resources = ProcessResources {
+            cpu_percent,
+            memory_bytes,
+            private_memory_bytes: None,
+            thread_count: None,
+            handle_count: None,
+            uptime_ms: parse_elapsed_ms(elapsed),
+        };
+        entries.insert(pid, (metadata, Some(resources)));
+    }
+    entries
 }
 
 fn build_port_entry(
@@ -586,7 +721,7 @@ fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
     }))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
     if params.mode != "force-tree" {
         return Ok(json!({
@@ -613,7 +748,7 @@ fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
         }));
     }
 
-    let pids = collect_linux_process_tree(params.pid);
+    let pids = collect_unix_process_tree(params.pid);
     for pid in &pids {
         let _ = send_unix_signal(*pid, "TERM");
     }
@@ -728,6 +863,37 @@ fn open_terminal(params: &TerminalParams) -> Value {
         }
     }
     json!({ "opened": false, "message": "No supported Linux terminal was found." })
+}
+
+#[cfg(target_os = "macos")]
+fn open_terminal(params: &TerminalParams) -> Value {
+    let command_hint = params
+        .command_line
+        .as_deref()
+        .and_then(|command_line| derive_project_hint(Some(command_line), None));
+    let cwd = params
+        .project_hint
+        .as_deref()
+        .filter(|value| Path::new(value).exists())
+        .map(str::to_string)
+        .or_else(|| command_hint.filter(|value| Path::new(value).exists()))
+        .or_else(|| std::env::var("HOME").ok())
+        .or_else(|| {
+            std::env::current_dir()
+                .ok()
+                .map(|path| path.display().to_string())
+        })
+        .unwrap_or_else(|| "/".to_string());
+    match Command::new("open")
+        .args(["-a", "Terminal", &cwd])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(_) => json!({ "opened": true, "message": format!("Opened Terminal in {cwd}") }),
+        Err(error) => json!({ "opened": false, "message": error.to_string() }),
+    }
 }
 
 fn wait_for_port_closed(port: u16, timeout: Duration) -> bool {
@@ -977,10 +1143,12 @@ fn read_linux_resources(proc_root: &Path) -> Option<ProcessResources> {
         .ok()
         .map(|entries| entries.filter_map(Result::ok).count() as u64);
     Some(ProcessResources {
+        cpu_percent: None,
         memory_bytes,
         private_memory_bytes,
         thread_count,
         handle_count,
+        uptime_ms: None,
     })
 }
 
@@ -1019,6 +1187,18 @@ fn is_likely_project_path(value: &str) -> bool {
         || value.starts_with("/bin")
         || value.starts_with("/sbin")
         || value.starts_with("/lib"))
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn collect_unix_process_tree(root_pid: u32) -> Vec<u32> {
+    #[cfg(target_os = "macos")]
+    {
+        collect_pgrep_process_tree(root_pid)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        collect_linux_process_tree(root_pid)
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -1062,7 +1242,37 @@ fn collect_linux_process_tree(root_pid: u32) -> Vec<u32> {
     output
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(target_os = "macos")]
+fn collect_pgrep_process_tree(root_pid: u32) -> Vec<u32> {
+    fn collect(pid: u32, seen: &mut HashSet<u32>, output: &mut Vec<u32>) {
+        if !seen.insert(pid) {
+            return;
+        }
+        let children = Command::new("pgrep")
+            .args(["-P", &pid.to_string()])
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .map(|output| {
+                String::from_utf8_lossy(&output.stdout)
+                    .split_whitespace()
+                    .filter_map(|value| value.parse::<u32>().ok())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        for child in children {
+            collect(child, seen, output);
+        }
+        output.push(pid);
+    }
+
+    let mut seen = HashSet::new();
+    let mut output = Vec::new();
+    collect(root_pid, &mut seen, &mut output);
+    output
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn send_unix_signal(pid: u32, signal: &str) -> Result<(), String> {
     let status = Command::new("kill")
         .args([format!("-{signal}"), pid.to_string()])
@@ -1073,6 +1283,26 @@ fn send_unix_signal(pid: u32, signal: &str) -> Result<(), String> {
     } else {
         Err(format!("kill -{signal} {pid} failed"))
     }
+}
+
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn parse_elapsed_ms(value: &str) -> Option<u64> {
+    let day_split: Vec<&str> = value.split('-').collect();
+    let (days, time) = if day_split.len() == 2 {
+        (day_split[0].parse::<u64>().ok()?, day_split[1])
+    } else {
+        (0, value)
+    };
+    let parts: Vec<u64> = time
+        .split(':')
+        .filter_map(|part| part.parse::<u64>().ok())
+        .collect();
+    let seconds = match parts.as_slice() {
+        [minutes, seconds] => days * 86_400 + minutes * 60 + seconds,
+        [hours, minutes, seconds] => days * 86_400 + hours * 3_600 + minutes * 60 + seconds,
+        _ => return None,
+    };
+    Some(seconds * 1000)
 }
 
 fn derive_project_hint(
@@ -1140,7 +1370,9 @@ fn iso_now() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{derive_project_hint, parse_ss_listeners};
+    use super::{
+        derive_project_hint, parse_darwin_ps_output, parse_lsof_listeners, parse_ss_listeners,
+    };
 
     #[test]
     fn derives_project_hint_from_node_modules_path_inside_quoted_command() {
@@ -1164,6 +1396,44 @@ LISTEN 0      5          127.0.0.1:5176      0.0.0.0:*    users:(("python3",pid=
         assert_eq!(listeners[0].address, "127.0.0.1");
         assert_eq!(listeners[0].port, 5176);
         assert_eq!(listeners[0].pid, 3040);
+    }
+
+    #[test]
+    fn parses_macos_lsof_listener_with_process_pid() {
+        let output = r#"COMMAND   PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+node    42123 pella   23u  IPv4 0x123456789abcdef      0t0  TCP 127.0.0.1:5173 (LISTEN)
+Python  42124 pella    4u  IPv6 0x123456789abcdea      0t0  TCP [::1]:8000 (LISTEN)
+"#;
+
+        let listeners = parse_lsof_listeners(output);
+
+        assert_eq!(listeners.len(), 2);
+        assert_eq!(listeners[0].address, "127.0.0.1");
+        assert_eq!(listeners[0].port, 5173);
+        assert_eq!(listeners[0].pid, 42123);
+        assert_eq!(listeners[1].address, "::1");
+        assert_eq!(listeners[1].port, 8000);
+        assert_eq!(listeners[1].pid, 42124);
+    }
+
+    #[test]
+    fn parses_macos_ps_metadata_with_resources() {
+        let output =
+            "42123 1 /usr/local/bin/node 01:02:03 3.4 2048 node /Users/pella/project/server.js\n";
+
+        let entries = parse_darwin_ps_output(output);
+        let (metadata, resources) = entries.get(&42123).expect("metadata should be parsed");
+
+        assert_eq!(metadata.parent_pid, Some(1));
+        assert_eq!(metadata.process_name, "/usr/local/bin/node");
+        assert_eq!(
+            metadata.command_line.as_deref(),
+            Some("node /Users/pella/project/server.js")
+        );
+        let resources = resources.as_ref().expect("resources should be parsed");
+        assert_eq!(resources.cpu_percent, Some(3.4));
+        assert_eq!(resources.memory_bytes, Some(2_097_152));
+        assert_eq!(resources.uptime_ms, Some(3_723_000));
     }
 
     #[cfg(target_os = "linux")]
