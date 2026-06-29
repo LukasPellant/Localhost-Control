@@ -58,9 +58,11 @@ EXTENSION_ID=<extension-id> pnpm host:install:linux
 pnpm host:package:mac
 pnpm host:package:mac:tarball
 pnpm host:package:linux
+pnpm host:package:release-local
 pnpm host:verify:mac
 pnpm host:verify:mac:tarball
 pnpm host:verify:linux
+pnpm host:verify:release-local
 ```
 
 Use `--browser all` to register the native host for Brave, Chrome, Chromium, and Edge under HKCU.
@@ -68,6 +70,8 @@ Use `--browser all` to register the native host for Brave, Chrome, Chromium, and
 The macOS and Linux installers register Chrome and Brave. The default extension ID for packaged v2 artifacts is the published Chrome Web Store ID `oamllgeaemchejbebgamdakjloahgjdc`; use `EXTENSION_ID=<id>` for unpacked local development.
 
 `pnpm host:package:mac:tarball` creates a self-contained macOS `.tar.gz` on Windows, macOS, or Linux. `pnpm host:package:mac` also creates a native `.pkg` and must run on macOS with `pkgbuild` available. `pnpm host:package:linux` creates a tarball and a `.deb` using Node and `tar`, so the Linux artifacts can be assembled on Windows, macOS, or Linux and are still verified on Ubuntu in CI.
+
+For a local cross-platform release bundle, run `pnpm host:package:release-local`. It writes the macOS `.tar.gz`, Linux `.tar.gz`, Linux `.deb`, validates all three, and emits `dist\native-host\SHA256SUMS`.
 
 GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml`. The workflow runs tests, typecheck, the workspace build, OS-specific packaging, and artifact validation before uploading the macOS `.pkg` and Linux `.tar.gz`/`.deb` files.
 

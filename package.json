@@ -19,9 +19,11 @@
     "host:package:mac": "pnpm --filter @localhost-control/native-host build && node scripts/package-native-host.mjs --platform=darwin --format=tarball && node scripts/package-native-host.mjs --platform=darwin --format=pkg",
     "host:package:mac:tarball": "pnpm --filter @localhost-control/native-host build && node scripts/package-native-host.mjs --platform=darwin --format=tarball",
     "host:package:linux": "pnpm --filter @localhost-control/native-host build && node scripts/package-native-host.mjs --platform=linux --format=tarball && node scripts/package-native-host.mjs --platform=linux --format=deb",
+    "host:package:release-local": "pnpm host:package:mac:tarball && pnpm host:package:linux && pnpm host:verify:release-local && node scripts/write-native-host-checksums.mjs",
     "host:verify:mac": "node scripts/validate-native-host-package.mjs --platform=darwin --format=tarball && node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg",
     "host:verify:mac:tarball": "node scripts/validate-native-host-package.mjs --platform=darwin --format=tarball",
-    "host:verify:linux": "node scripts/validate-native-host-package.mjs --platform=linux --format=tarball && node scripts/validate-native-host-package.mjs --platform=linux --format=deb"
+    "host:verify:linux": "node scripts/validate-native-host-package.mjs --platform=linux --format=tarball && node scripts/validate-native-host-package.mjs --platform=linux --format=deb",
+    "host:verify:release-local": "pnpm host:verify:mac:tarball && pnpm host:verify:linux"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

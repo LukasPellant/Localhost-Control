@@ -47,6 +47,9 @@ jobs:
       - name: Validate Linux deb
         run: node scripts/validate-native-host-package.mjs --platform=linux --format=deb
 
+      - name: Write Linux checksums
+        run: node scripts/write-native-host-checksums.mjs
+
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -89,6 +92,9 @@ jobs:
 
       - name: Validate macOS pkg
         run: node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg
+
+      - name: Write macOS checksums
+        run: node scripts/write-native-host-checksums.mjs
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
