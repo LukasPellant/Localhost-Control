@@ -37,9 +37,8 @@ if (!$version) {
 New-Item -ItemType Directory -Path $PackageDir -Force | Out-Null
 $zipSuffix = if ($Target -eq "chrome") { "chrome-store" } else { "firefox" }
 $zipPath = Join-Path $PackageDir "localhost-control-$version-$zipSuffix.zip"
-if (Test-Path $zipPath) {
-  Remove-Item -LiteralPath $zipPath
-}
+Get-ChildItem -Path $PackageDir -Filter "localhost-control-*.zip" -File -ErrorAction SilentlyContinue |
+  Remove-Item -Force
 
 Compress-Archive -Path (Join-Path $DistDir "*") -DestinationPath $zipPath -CompressionLevel Optimal
 
