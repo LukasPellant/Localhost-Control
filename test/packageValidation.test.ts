@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const validatorScript = readFileSync(path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), "utf8");
 const hostName = "com.localhost_control.host";
 const linuxHostPath = "/usr/lib/localhost-control/localhost-control-host";
 const chromeExtensionId = "oamllgeaemchejbebgamdakjloahgjdc";
@@ -151,6 +152,15 @@ describe("validate-native-host-package", () => {
     );
 
     expect(output).toContain("Validated");
+  });
+
+  it("validates macOS pkg native messaging manifest contents after expanding the payload", () => {
+    const validatePkg = validatorScript.match(/const validatePkg = async \(\) => \{[\s\S]*?\n\};/)
+      ?? validatorScript.match(/const validatePkg = \(\) => \{[\s\S]*?\n\};/);
+    expect(validatePkg?.[0]).toContain("--expand-full");
+    expect(validatePkg?.[0]).toContain("validateNativeManifestBySuffix");
+    expect(validatePkg?.[0]).toContain("macosHostPath");
+    expect(validatorScript).toContain('const macosHostPath = "/Library/Application Support/Localhost Control/localhost-control-host"');
   });
 
   it("rejects a Debian package that cannot restore the host executable permission", () => {

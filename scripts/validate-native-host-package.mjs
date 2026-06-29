@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,7 @@ const hostName = "com.localhost_control.host";
 const defaultExtensionId = "oamllgeaemchejbebgamdakjloahgjdc";
 const defaultFirefoxExtensionId = "localhost-control@lukaspellant.dev";
 const linuxHostPath = "/usr/lib/localhost-control/localhost-control-host";
+const macosHostPath = "/Library/Application Support/Localhost Control/localhost-control-host";
 
 const parseArgs = () => {
   const args = new Map();
@@ -108,8 +109,33 @@ const assertArrayEquals = (actual, expected, message) => {
   }
 };
 
-const validateNativeManifestFile = async (root, relativePath, browser) => {
+const findFileBySuffix = async (root, expectedSuffix, relative = "") => {
+  const entries = await readdir(path.join(root, relative), { withFileTypes: true });
+  for (const entry of entries) {
+    const entryPath = path.posix.join(relative.replace(/\\/g, "/"), entry.name);
+    const fullPath = path.join(root, ...entryPath.split("/"));
+    if (entry.isDirectory()) {
+      const match = await findFileBySuffix(root, expectedSuffix, entryPath);
+      if (match) return match;
+    } else if (entry.isFile() && normalizeEntry(entryPath).endsWith(expectedSuffix)) {
+      return fullPath;
+    }
+  }
+  return null;
+};
+
+const validateNativeManifestFile = async (root, relativePath, browser, expectedHostPath = linuxHostPath) => {
   const fullPath = path.join(root, ...relativePath.split("/"));
+  await validateNativeManifestPath(fullPath, relativePath, browser, expectedHostPath);
+};
+
+const validateNativeManifestBySuffix = async (root, relativePath, browser, expectedHostPath) => {
+  const fullPath = await findFileBySuffix(root, relativePath);
+  if (!fullPath) throw new Error(`Invalid native messaging manifest: ${relativePath}`);
+  await validateNativeManifestPath(fullPath, relativePath, browser, expectedHostPath);
+};
+
+const validateNativeManifestPath = async (fullPath, relativePath, browser, expectedHostPath) => {
   let manifest;
   try {
     manifest = JSON.parse(await readFile(fullPath, "utf8"));
@@ -117,7 +143,7 @@ const validateNativeManifestFile = async (root, relativePath, browser) => {
     throw new Error(`Invalid native messaging manifest: ${relativePath}`);
   }
 
-  if (manifest.name !== hostName || manifest.description !== "Localhost Control native messaging host" || manifest.path !== linuxHostPath || manifest.type !== "stdio") {
+  if (manifest.name !== hostName || manifest.description !== "Localhost Control native messaging host" || manifest.path !== expectedHostPath || manifest.type !== "stdio") {
     throw new Error(`Invalid native messaging manifest: ${relativePath}`);
   }
 
@@ -189,15 +215,30 @@ const validateDeb = async () => {
   }
 };
 
-const validatePkg = () => {
+const validatePkg = async () => {
   const entries = run("pkgutil", ["--payload-files", artifact]).split(/\r?\n/).filter(Boolean);
-  requireEntry(entries, "Library/Application Support/Localhost Control/localhost-control-host");
+  const hostEntry = "Library/Application Support/Localhost Control/localhost-control-host";
+  const chromeManifest = `Library/Application Support/Google/Chrome/NativeMessagingHosts/${hostName}.json`;
+  const braveManifest = `Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/${hostName}.json`;
+  const firefoxManifest = `Library/Application Support/Mozilla/NativeMessagingHosts/${hostName}.json`;
+  requireEntry(entries, hostEntry);
   if (entries.some((entry) => normalizeEntry(entry).includes("Library/Application Support/Localhost Control/app/native-host"))) {
     throw new Error("macOS pkg must package the Rust native host without the Node app payload.");
   }
-  requireEntry(entries, `Library/Application Support/Google/Chrome/NativeMessagingHosts/${hostName}.json`);
-  requireEntry(entries, `Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/${hostName}.json`);
-  requireEntry(entries, `Library/Application Support/Mozilla/NativeMessagingHosts/${hostName}.json`);
+  requireEntry(entries, chromeManifest);
+  requireEntry(entries, braveManifest);
+  requireEntry(entries, firefoxManifest);
+
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "localhost-control-pkg-"));
+  try {
+    const expandedRoot = path.join(tempRoot, "expanded");
+    run("pkgutil", ["--expand-full", artifact, expandedRoot]);
+    await validateNativeManifestBySuffix(expandedRoot, chromeManifest, "chrome", macosHostPath);
+    await validateNativeManifestBySuffix(expandedRoot, braveManifest, "brave", macosHostPath);
+    await validateNativeManifestBySuffix(expandedRoot, firefoxManifest, "firefox", macosHostPath);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
 };
 
 const validateWindowsZip = async () => {
@@ -240,7 +281,7 @@ const validateWindowsZip = async () => {
 
 if ((platform === "linux" || platform === "darwin") && format === "tarball") validateTarball();
 else if (platform === "linux" && format === "deb") await validateDeb();
-else if (platform === "darwin" && format === "pkg") validatePkg();
+else if (platform === "darwin" && format === "pkg") await validatePkg();
 else if (platform === "win32" && format === "zip") await validateWindowsZip();
 else throw new Error(`Unsupported package target: ${platform}/${format}`);
 
