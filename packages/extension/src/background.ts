@@ -43,7 +43,7 @@ export const registerToolbarOpenHandler = (extensionApi: ExtensionApi | undefine
 
     registeredEvents.add(actionApi.onClicked);
     actionApi.onClicked.addListener((tab) => {
-      void openExtensionPanel(extensionApi, tab);
+      void openExtensionPanel(extensionApi, tab).catch(() => undefined);
     });
   }
 };

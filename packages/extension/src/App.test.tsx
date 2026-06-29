@@ -180,6 +180,25 @@ describe("App", () => {
     expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toMatchObject({ themeMode: "dark" });
   });
 
+  it("shows storage errors when settings cannot be saved", async () => {
+    (globalThis as { browser?: unknown }).browser = {
+      storage: {
+        local: {
+          get: vi.fn(async () => ({})),
+          set: vi.fn(async () => Promise.reject(new Error("storage quota exceeded")))
+        }
+      }
+    };
+
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
+
+    expect(await screen.findByText("storage quota exceeded")).toBeInTheDocument();
+    expect(screen.getByLabelText("Theme")).toHaveValue("system");
+  });
+
   it("removes a killed row immediately while the host is still stopping the process", async () => {
     let finishKill!: () => void;
     const slowClient: HostClient = {

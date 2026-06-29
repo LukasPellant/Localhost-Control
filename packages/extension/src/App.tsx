@@ -144,10 +144,18 @@ export const App = ({ client }: AppProps) => {
   const killableCount = entries.filter((entry) => entry.killable).length;
   const protectedCount = entries.length - killableCount;
 
-  const patchSettings = async (patch: Partial<Settings>) => {
+  const patchSettings = async (patch: Partial<Settings>): Promise<boolean> => {
+    const previous = settings;
     const next = { ...settings, ...patch };
     setSettings(next);
-    await saveSettings(next);
+    try {
+      await saveSettings(next);
+      return true;
+    } catch (error) {
+      setSettings(previous);
+      setMessage(error instanceof Error ? error.message : String(error));
+      return false;
+    }
   };
 
   const killEntry = async (entry: PortEntry) => {
@@ -216,7 +224,7 @@ export const App = ({ client }: AppProps) => {
 
   const trustProject = async (entry: PortEntry) => {
     if (!entry.projectHint || settings.trustedProjectPaths.includes(entry.projectHint)) return;
-    await patchSettings({ trustedProjectPaths: [...settings.trustedProjectPaths, entry.projectHint] });
+    if (!(await patchSettings({ trustedProjectPaths: [...settings.trustedProjectPaths, entry.projectHint] }))) return;
     setFilter("web");
     setMessage(`Trusted ${entry.projectHint}`);
   };
@@ -224,7 +232,7 @@ export const App = ({ client }: AppProps) => {
   const hideProcess = async (entry: PortEntry) => {
     const processName = entry.processName.toLowerCase();
     if (settings.blockedProcessNames.map((name) => name.toLowerCase()).includes(processName)) return;
-    await patchSettings({ blockedProcessNames: [...settings.blockedProcessNames, processName] });
+    if (!(await patchSettings({ blockedProcessNames: [...settings.blockedProcessNames, processName] }))) return;
     setSelectedKey(null);
     setMessage(`Hidden ${entry.processName} from Dev apps`);
   };

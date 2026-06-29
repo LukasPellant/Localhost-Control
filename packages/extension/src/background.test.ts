@@ -45,4 +45,23 @@ describe("registerToolbarOpenHandler", () => {
     expect(actionAddListener).toHaveBeenCalledOnce();
     expect(browserActionAddListener).toHaveBeenCalledOnce();
   });
+
+  it("does not leak failed toolbar opens as unhandled rejections", async () => {
+    const addListener = vi.fn();
+    const open = vi.fn().mockRejectedValue(new Error("side panel blocked"));
+    const setOptions = vi.fn().mockRejectedValue(new Error("side panel still blocked"));
+
+    registerToolbarOpenHandler({
+      action: { onClicked: { addListener } },
+      sidePanel: { open, setOptions }
+    } as unknown as ExtensionApi);
+
+    const handler = addListener.mock.calls[0]?.[0] as ((tab: { id: number }) => void) | undefined;
+    expect(handler).toBeDefined();
+    handler?.({ id: 42 });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(open).toHaveBeenCalledWith({ tabId: 42 });
+    expect(setOptions).toHaveBeenCalledWith({ tabId: 42, path: "sidepanel.html", enabled: true });
+  });
 });
