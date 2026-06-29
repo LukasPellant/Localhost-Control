@@ -157,6 +157,29 @@ describe("App", () => {
     expect(await screen.findByText(/Killed 100/i)).toBeInTheDocument();
   });
 
+  it("keeps keyboard focus inside the destructive stop confirmation", async () => {
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    const killButton = within(screen.getByLabelText("Detected localhost ports")).getByRole("button", { name: /kill port 5173/i });
+    killButton.focus();
+    fireEvent.click(killButton);
+
+    const dialog = screen.getByRole("dialog", { name: /stop example shop/i });
+    const cancelButton = within(dialog).getByRole("button", { name: /cancel/i });
+    const forceStopButton = within(dialog).getByRole("button", { name: /force stop/i });
+    expect(cancelButton).toHaveFocus();
+
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(forceStopButton).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(cancelButton).toHaveFocus();
+
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: /stop example shop/i })).not.toBeInTheDocument();
+    expect(killButton).toHaveFocus();
+  });
+
   it("shows saved project profiles as the primary command-center entities", async () => {
     window.localStorage.setItem(
       "localhost-control-settings",
@@ -350,6 +373,99 @@ describe("App", () => {
 
     expect(await screen.findByText("storage quota exceeded")).toBeInTheDocument();
     expect(screen.getByLabelText("Theme")).toHaveValue("system");
+  });
+
+  it("exports the current settings as a portable JSON file", async () => {
+    const createObjectUrl = vi.fn(() => "blob:localhost-control-settings");
+    const revokeObjectUrl = vi.fn();
+    const anchorClick = vi.fn();
+    const originalCreateObjectUrl = URL.createObjectURL;
+    const originalRevokeObjectUrl = URL.revokeObjectURL;
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectUrl });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectUrl });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(anchorClick);
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [{ id: "shop", name: "Example Shop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    expect(await screen.findByLabelText("Project profiles")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /export settings/i }));
+
+    expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Blob));
+    expect(anchorClick).toHaveBeenCalledOnce();
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:localhost-control-settings");
+    expect(await screen.findByText("Exported settings with 1 profile and 0 workspaces")).toBeInTheDocument();
+
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: originalCreateObjectUrl });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: originalRevokeObjectUrl });
+  });
+
+  it("imports a portable settings JSON file through the settings bar", async () => {
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    const file = new File(
+      [
+        JSON.stringify({
+          schema: "localhost-control-settings",
+          version: 1,
+          exportedAt: "2026-06-30T08:00:00.000Z",
+          settings: {
+            themeMode: "dark",
+            projectProfiles: [
+              { id: "shop", name: "Example Shop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
+              { id: "api", name: "Local API", expectedPort: 17321, mainUrl: "http://127.0.0.1:17321" }
+            ],
+            projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api"] }]
+          }
+        })
+      ],
+      "settings.json",
+      { type: "application/json" }
+    );
+
+    fireEvent.change(screen.getByLabelText("Import settings file"), { target: { files: [file] } });
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    expect(within(profiles).getByText("Example Shop")).toBeInTheDocument();
+    expect(within(profiles).getByText("Local API")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Project workspaces")).toHaveTextContent("Daily stack");
+    expect(await screen.findByText("Imported 2 profiles and 1 workspace")).toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toMatchObject({
+      themeMode: "dark",
+      projectProfiles: [
+        { id: "shop", name: "Example Shop" },
+        { id: "api", name: "Local API" }
+      ],
+      projectWorkspaces: [{ id: "daily", profileIds: ["shop", "api"] }]
+    });
+  });
+
+  it("does not overwrite settings when an imported config file is invalid", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [{ id: "shop", name: "Example Shop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    expect(await screen.findByLabelText("Project profiles")).toHaveTextContent("Example Shop");
+    const file = new File(["{not-json"], "settings.json", { type: "application/json" });
+
+    fireEvent.change(screen.getByLabelText("Import settings file"), { target: { files: [file] } });
+
+    expect(await screen.findByText("Config import failed: invalid JSON")).toBeInTheDocument();
+    expect(screen.getByLabelText("Project profiles")).toHaveTextContent("Example Shop");
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toMatchObject({
+      projectProfiles: [{ id: "shop", name: "Example Shop" }]
+    });
   });
 
   it("removes a killed row immediately while the host is still stopping the process", async () => {

@@ -29,7 +29,7 @@ const isHiddenPorts = (value: unknown): value is number[] =>
   Array.isArray(value) && value.every((item) => Number.isInteger(item) && item > 0 && item <= 65535);
 const isRefreshInterval = (value: unknown): value is number => [0, 10, 30, 60].includes(Number(value)) && typeof value === "number";
 
-const mergeStoredSettings = (value: unknown): Settings => {
+export const sanitizeSettings = (value: unknown): Settings => {
   if (!isSettingsPatch(value)) return defaultSettings;
 
   const projectProfiles = sanitizeProjectProfiles(value.projectProfiles);
@@ -55,7 +55,7 @@ const parseStoredSettings = (raw: string | null): Settings => {
   }
 
   try {
-    return mergeStoredSettings(JSON.parse(raw) as unknown);
+    return sanitizeSettings(JSON.parse(raw) as unknown);
   } catch {
     return defaultSettings;
   }
@@ -80,7 +80,7 @@ export const loadSettings = async (): Promise<Settings> => {
   if (storage) {
     try {
       const result = await storage.get(key);
-      return mergeStoredSettings(result[key]);
+      return sanitizeSettings(result[key]);
     } catch {
       return defaultSettings;
     }
@@ -90,11 +90,12 @@ export const loadSettings = async (): Promise<Settings> => {
 };
 
 export const saveSettings = async (settings: Settings): Promise<void> => {
+  const safeSettings = sanitizeSettings(settings);
   const storage = getExtensionApi()?.storage?.local;
   if (storage) {
-    await storage.set({ [key]: settings });
+    await storage.set({ [key]: safeSettings });
     return;
   }
 
-  window.localStorage.setItem(key, JSON.stringify(settings));
+  window.localStorage.setItem(key, JSON.stringify(safeSettings));
 };

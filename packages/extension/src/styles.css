@@ -820,6 +820,37 @@ button:disabled {
   font-size: 11px;
 }
 
+.settings-command {
+  display: inline-flex;
+  min-width: 0;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.settings-command:hover:not(:disabled) {
+  border-color: var(--control-border-hover);
+  background: var(--control-hover);
+  color: var(--text);
+}
+
+.settings-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .theme-select {
   min-width: 78px;
 }

@@ -40,6 +40,7 @@ describe("project workspaces", () => {
     const workspaces = sanitizeProjectWorkspaces(
       [
         { id: "daily", name: "Daily stack", profileIds: ["shop", "missing", "api", "shop"], notes: "Main dev loop" },
+        { id: "daily", name: "Duplicate daily", profileIds: ["docs"] },
         { id: "empty", name: "Empty", profileIds: ["missing"] },
         { id: 123, name: "Broken", profileIds: ["shop"] }
       ],

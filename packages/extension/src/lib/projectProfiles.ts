@@ -36,6 +36,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const isString = (value: unknown): value is string => typeof value === "string";
 const isNonEmptyString = (value: unknown): value is string => isString(value) && value.trim().length > 0;
 const isTcpPort = (value: unknown): value is number => Number.isInteger(value) && Number(value) > 0 && Number(value) <= 65535;
+const isSafeWebUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
 const normalizePath = (value: string): string =>
   value
     .trim()
@@ -67,7 +75,9 @@ const sanitizeUrlList = (value: unknown): ProjectProfileUrl[] | undefined => {
   if (!Array.isArray(value)) return undefined;
   const urls = value.flatMap((item): ProjectProfileUrl[] => {
     if (!isRecord(item) || !isNonEmptyString(item.label) || !isNonEmptyString(item.url)) return [];
-    return [{ label: item.label.trim(), url: item.url.trim() }];
+    const url = item.url.trim();
+    if (!isSafeWebUrl(url)) return [];
+    return [{ label: item.label.trim(), url }];
   });
   return urls.length ? urls : undefined;
 };
@@ -79,22 +89,30 @@ const sanitizeStringList = (value: unknown): string[] | undefined => {
 };
 
 const optionalString = (value: unknown): string | undefined => (isNonEmptyString(value) ? value.trim() : undefined);
+const optionalWebUrl = (value: unknown): string | undefined => {
+  const url = optionalString(value);
+  return url && isSafeWebUrl(url) ? url : undefined;
+};
 
 export const sanitizeProjectProfiles = (value: unknown): ProjectProfile[] => {
   if (!Array.isArray(value)) return [];
+  const seenIds = new Set<string>();
 
   return value.flatMap((item): ProjectProfile[] => {
     if (!isRecord(item) || !isNonEmptyString(item.id) || !isNonEmptyString(item.name)) return [];
+    const id = item.id.trim();
+    if (seenIds.has(id)) return [];
+    seenIds.add(id);
 
     const profile: ProjectProfile = {
-      id: item.id.trim(),
+      id,
       name: item.name.trim()
     };
     const icon = optionalString(item.icon);
     const projectPath = optionalString(item.projectPath);
     const startCommand = optionalString(item.startCommand);
-    const mainUrl = optionalString(item.mainUrl);
-    const healthUrl = optionalString(item.healthUrl);
+    const mainUrl = optionalWebUrl(item.mainUrl);
+    const healthUrl = optionalWebUrl(item.healthUrl);
     const notes = optionalString(item.notes);
     const extraUrls = sanitizeUrlList(item.extraUrls);
     const logLines = sanitizeStringList(item.logLines);

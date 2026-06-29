@@ -24,9 +24,13 @@ const isNonEmptyString = (value: unknown): value is string => typeof value === "
 export const sanitizeProjectWorkspaces = (value: unknown, profiles: ProjectProfile[]): ProjectWorkspace[] => {
   if (!Array.isArray(value)) return [];
   const profileIds = new Set(profiles.map((profile) => profile.id));
+  const workspaceIds = new Set<string>();
 
   return value.flatMap((item): ProjectWorkspace[] => {
     if (!isRecord(item) || !isNonEmptyString(item.id) || !isNonEmptyString(item.name) || !Array.isArray(item.profileIds)) return [];
+    const id = item.id.trim();
+    if (workspaceIds.has(id)) return [];
+    workspaceIds.add(id);
 
     const uniqueIds = item.profileIds.reduce<string[]>((ids, profileId) => {
       if (!isNonEmptyString(profileId) || !profileIds.has(profileId.trim()) || ids.includes(profileId.trim())) return ids;
@@ -35,7 +39,7 @@ export const sanitizeProjectWorkspaces = (value: unknown, profiles: ProjectProfi
     if (!uniqueIds.length) return [];
 
     const workspace: ProjectWorkspace = {
-      id: item.id.trim(),
+      id,
       name: item.name.trim(),
       profileIds: uniqueIds
     };

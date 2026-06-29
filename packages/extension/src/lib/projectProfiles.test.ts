@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PortEntry } from "@localhost-control/shared";
-import { deriveProfileStates, matchProfileForEntry, type ProjectProfile } from "./projectProfiles";
+import { deriveProfileStates, matchProfileForEntry, sanitizeProjectProfiles, type ProjectProfile } from "./projectProfiles";
 
 const viteEntry: PortEntry = {
   port: 5173,
@@ -57,5 +57,33 @@ describe("project profile matching", () => {
     expect(states[0]?.entry?.pid).toBe(100);
     expect(states[0]?.healthLabel).toBe("Observed HTTP 200");
     expect(states[2]?.healthLabel).toBe("No running port");
+  });
+
+  it("drops duplicate profile IDs and unsafe URL schemes while importing profiles", () => {
+    expect(
+      sanitizeProjectProfiles([
+        {
+          id: "shop",
+          name: "Example Shop",
+          mainUrl: "javascript:alert(1)",
+          healthUrl: "file:///secret",
+          extraUrls: [
+            { label: "Admin", url: "http://127.0.0.1:5173/admin" },
+            { label: "Unsafe", url: "data:text/html,hi" }
+          ]
+        },
+        {
+          id: "shop",
+          name: "Duplicate Shop",
+          mainUrl: "http://127.0.0.1:9999"
+        }
+      ])
+    ).toEqual([
+      {
+        id: "shop",
+        name: "Example Shop",
+        extraUrls: [{ label: "Admin", url: "http://127.0.0.1:5173/admin" }]
+      }
+    ]);
   });
 });

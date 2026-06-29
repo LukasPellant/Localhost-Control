@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { defaultSettings, loadSettings } from "./settings";
+import { defaultSettings, loadSettings, saveSettings } from "./settings";
 
 afterEach(() => {
   window.localStorage.clear();
@@ -92,5 +92,21 @@ describe("loadSettings", () => {
     };
 
     await expect(loadSettings()).resolves.toEqual(defaultSettings);
+  });
+
+  it("sanitizes settings before writing them to localStorage", async () => {
+    await saveSettings({
+      ...defaultSettings,
+      projectProfiles: [
+        { id: "shop", name: "Example Shop", mainUrl: "http://127.0.0.1:5173" },
+        { id: "shop", name: "Duplicate Shop", mainUrl: "http://127.0.0.1:9999" }
+      ],
+      projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "missing"] }]
+    });
+
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toMatchObject({
+      projectProfiles: [{ id: "shop", name: "Example Shop" }],
+      projectWorkspaces: [{ id: "daily", profileIds: ["shop"] }]
+    });
   });
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert } from "lucide-react";
+import { Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, Upload } from "lucide-react";
 import { withAppScope, type KillParams, type PortEntry, type ScanResult } from "@localhost-control/shared";
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
@@ -13,6 +13,7 @@ import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
 import { deriveProfileStates, matchProfileForEntry, type ProjectProfile } from "./lib/projectProfiles";
 import { deriveWorkspaceStates, type ProjectWorkspace } from "./lib/projectWorkspaces";
 import { defaultSettings, loadSettings, saveSettings, type Settings } from "./lib/settings";
+import { exportSettingsBundle, importSettingsBundle } from "./lib/settingsBundle";
 import { detectStaleProcess } from "./lib/staleProcesses";
 import "./styles.css";
 
@@ -63,6 +64,23 @@ const copyText = async (text: string): Promise<void> => {
   field.remove();
   if (!copied) throw new Error("Clipboard copy is unavailable.");
 };
+const readFileText = async (file: File): Promise<string> => {
+  if (typeof file.text === "function") {
+    return file.text();
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result ?? "")));
+    reader.addEventListener("error", () => reject(reader.error ?? new Error("Unable to read file.")));
+    reader.readAsText(file);
+  });
+};
+
+const settingsExportSummary = (settings: Settings): string =>
+  `Exported settings with ${settings.projectProfiles.length} ${settings.projectProfiles.length === 1 ? "profile" : "profiles"} and ${
+    settings.projectWorkspaces.length
+  } ${settings.projectWorkspaces.length === 1 ? "workspace" : "workspaces"}`;
 
 export const App = ({ client }: AppProps) => {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
@@ -75,6 +93,7 @@ export const App = ({ client }: AppProps) => {
   const [hostError, setHostError] = useState<string | null>(null);
   const [pendingKillEntry, setPendingKillEntry] = useState<PortEntry | null>(null);
   const openedDownloadForError = useRef(false);
+  const importFileRef = useRef<HTMLInputElement | null>(null);
 
   const openExternalUrl = useCallback((url: string) => {
     const tabs = getExtensionApi()?.tabs;
@@ -211,6 +230,19 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const replaceSettings = async (next: Settings): Promise<boolean> => {
+    const previous = settings;
+    setSettings(next);
+    try {
+      await saveSettings(next);
+      return true;
+    } catch (error) {
+      setSettings(previous);
+      setMessage(error instanceof Error ? error.message : String(error));
+      return false;
+    }
+  };
+
   const requestKillEntry = (entry: PortEntry) => {
     if (!entry.killable) return;
     setPendingKillEntry(entry);
@@ -258,6 +290,37 @@ export const App = ({ client }: AppProps) => {
       setMessage(`Copied ${url}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const exportSettings = () => {
+    const blob = new Blob([exportSettingsBundle(settings)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "localhost-control-settings.json";
+    link.click();
+    URL.revokeObjectURL(url);
+    setMessage(settingsExportSummary(settings));
+  };
+
+  const importSettingsFile = async (file: File | undefined) => {
+    if (!file) return;
+
+    try {
+      const result = importSettingsBundle(await readFileText(file));
+      if (!result.ok) {
+        setMessage(result.error);
+        return;
+      }
+
+      if (await replaceSettings(result.settings)) {
+        setMessage(result.summary);
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (importFileRef.current) importFileRef.current.value = "";
     }
   };
 
@@ -522,6 +585,23 @@ export const App = ({ client }: AppProps) => {
           <option value={30}>30s</option>
           <option value={60}>60s</option>
         </select>
+        <button className="settings-command" type="button" aria-label="Export settings" title="Export settings" onClick={exportSettings}>
+          <Download size={13} />
+          Export
+        </button>
+        <button className="settings-command" type="button" aria-label="Import settings" title="Import settings" onClick={() => importFileRef.current?.click()}>
+          <Upload size={13} />
+          Import
+        </button>
+        <input
+          ref={importFileRef}
+          className="settings-file-input"
+          type="file"
+          accept="application/json,.json"
+          aria-label="Import settings file"
+          tabIndex={-1}
+          onChange={(event) => void importSettingsFile(event.currentTarget.files?.[0])}
+        />
       </footer>
     </main>
   );
