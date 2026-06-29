@@ -45,6 +45,20 @@ describe("port classifier", () => {
     ).toMatchObject({ killable: true });
   });
 
+  it("protects common Linux browser process names", () => {
+    for (const processName of ["google-chrome", "chromium", "chromium-browser", "msedge"]) {
+      expect(
+        protectPortEntry({
+          port: 9222,
+          pid: 1000,
+          processName,
+          detectedKind: "unknown",
+          confidence: "low"
+        })
+      ).toMatchObject({ killable: false, protectionReason: "Protected browser process" });
+    }
+  });
+
   it("scopes trusted project listeners separately from local app services", () => {
     const policy = {
       trustedProjectRoots: ["D:\\DevelopmentD"],

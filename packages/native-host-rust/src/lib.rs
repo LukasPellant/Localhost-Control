@@ -1078,7 +1078,17 @@ fn protection(
         Some("Protected Windows service process")
     } else if matches!(
         lower_name.as_str(),
-        "chrome.exe" | "brave.exe" | "msedge.exe" | "firefox.exe" | "chrome" | "brave" | "firefox"
+        "chrome.exe"
+            | "brave.exe"
+            | "msedge.exe"
+            | "firefox.exe"
+            | "chrome"
+            | "google-chrome"
+            | "chromium"
+            | "chromium-browser"
+            | "brave"
+            | "msedge"
+            | "firefox"
     ) {
         Some("Protected browser process")
     } else if lower_path.starts_with("c:\\windows\\") {

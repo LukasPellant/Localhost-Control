@@ -16,7 +16,19 @@ const SYSTEM_PROCESS_NAMES = new Set([
   "wudfhost.exe"
 ]);
 
-const BROWSER_PROCESS_NAMES = new Set(["chrome.exe", "brave.exe", "msedge.exe", "firefox.exe", "chrome", "brave", "firefox"]);
+const BROWSER_PROCESS_NAMES = new Set([
+  "chrome.exe",
+  "brave.exe",
+  "msedge.exe",
+  "firefox.exe",
+  "chrome",
+  "google-chrome",
+  "chromium",
+  "chromium-browser",
+  "brave",
+  "msedge",
+  "firefox"
+]);
 const DEV_APP_KINDS = new Set<DetectedKind>(["vite", "next", "convex", "python", "node", "static"]);
 const DEV_SERVER_PROCESS_NAMES = new Set(["node.exe", "node", "python.exe", "python", "python3.exe", "python3", "bun.exe", "bun", "deno.exe", "deno"]);
 

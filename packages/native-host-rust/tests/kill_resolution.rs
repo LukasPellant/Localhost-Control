@@ -62,6 +62,24 @@ fn refuses_to_kill_browser_processes_even_when_they_own_the_port() {
 }
 
 #[test]
+fn refuses_to_kill_common_linux_browser_process_names() {
+    for process_name in ["google-chrome", "chromium", "chromium-browser", "msedge"] {
+        let result = resolve_kill_target(
+            &kill_params(1234, 9222),
+            &[listener(1234, 9222)],
+            &[process(1234, process_name, None)],
+        );
+
+        assert_eq!(
+            result,
+            TargetResolution::Denied(
+                "Refused to kill PID 1234 on port 9222: Protected browser process.".to_string()
+            )
+        );
+    }
+}
+
+#[test]
 fn refuses_to_kill_windows_system_paths_even_when_they_own_the_port() {
     let result = resolve_kill_target(
         &kill_params(1234, 5357),
