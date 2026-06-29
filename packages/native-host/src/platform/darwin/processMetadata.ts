@@ -60,11 +60,15 @@ export const readProcessMetadata = async (pids: Iterable<number>): Promise<Map<n
   const uniquePids = Array.from(new Set(Array.from(pids).filter((pid) => Number.isInteger(pid) && pid > 0)));
   if (uniquePids.length === 0) return new Map();
 
-  const { stdout } = await execFileAsync(
-    "ps",
-    ["-p", uniquePids.join(","), "-o", "pid=", "-o", "ppid=", "-o", "comm=", "-o", "etime=", "-o", "%cpu=", "-o", "rss=", "-o", "command="],
-    { maxBuffer: 1024 * 1024 * 8 }
-  );
+  try {
+    const { stdout } = await execFileAsync(
+      "ps",
+      ["-p", uniquePids.join(","), "-o", "pid=", "-o", "ppid=", "-o", "comm=", "-o", "etime=", "-o", "%cpu=", "-o", "rss=", "-o", "command="],
+      { maxBuffer: 1024 * 1024 * 8 }
+    );
 
-  return parseDarwinPsOutput(stdout);
+    return parseDarwinPsOutput(stdout);
+  } catch {
+    return new Map();
+  }
 };

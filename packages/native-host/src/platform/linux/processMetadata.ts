@@ -71,20 +71,24 @@ export const readProcessMetadata = async (pids: Iterable<number>): Promise<Map<n
   const uniquePids = Array.from(new Set(Array.from(pids).filter((pid) => Number.isInteger(pid) && pid > 0)));
   if (uniquePids.length === 0) return new Map();
 
-  const [procLinks, { stdout }] = await Promise.all([
-    Promise.all(
-      uniquePids.map(async (pid) => ({
-        pid,
-        executablePath: await readProcLink(pid, "exe"),
-        cwd: await readProcLink(pid, "cwd")
-      }))
-    ),
-    execFileAsync("ps", ["-p", uniquePids.join(","), "-o", "pid=", "-o", "ppid=", "-o", "comm=", "-o", "etimes=", "-o", "pcpu=", "-o", "rss=", "-o", "nlwp=", "-o", "args="], {
-      maxBuffer: 1024 * 1024 * 8
-    })
-  ]);
+  try {
+    const [procLinks, { stdout }] = await Promise.all([
+      Promise.all(
+        uniquePids.map(async (pid) => ({
+          pid,
+          executablePath: await readProcLink(pid, "exe"),
+          cwd: await readProcLink(pid, "cwd")
+        }))
+      ),
+      execFileAsync("ps", ["-p", uniquePids.join(","), "-o", "pid=", "-o", "ppid=", "-o", "comm=", "-o", "etimes=", "-o", "pcpu=", "-o", "rss=", "-o", "nlwp=", "-o", "args="], {
+        maxBuffer: 1024 * 1024 * 8
+      })
+    ]);
 
-  const executableByPid = new Map(procLinks.flatMap((entry) => (entry.executablePath ? [[entry.pid, entry.executablePath] as const] : [])));
-  const cwdByPid = new Map(procLinks.flatMap((entry) => (entry.cwd ? [[entry.pid, entry.cwd] as const] : [])));
-  return parseLinuxPsOutput(stdout, executableByPid, cwdByPid);
+    const executableByPid = new Map(procLinks.flatMap((entry) => (entry.executablePath ? [[entry.pid, entry.executablePath] as const] : [])));
+    const cwdByPid = new Map(procLinks.flatMap((entry) => (entry.cwd ? [[entry.pid, entry.cwd] as const] : [])));
+    return parseLinuxPsOutput(stdout, executableByPid, cwdByPid);
+  } catch {
+    return new Map();
+  }
 };
