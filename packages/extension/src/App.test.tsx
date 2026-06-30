@@ -1207,6 +1207,214 @@ describe("App", () => {
     });
   });
 
+  it("creates a stopped project profile from the settings manager", async () => {
+    render(<App client={client} />);
+
+    expect(await screen.findByLabelText("Detected localhost ports")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
+
+    const manager = await screen.findByLabelText("Settings manager");
+    fireEvent.click(within(manager).getByRole("button", { name: /add profile/i }));
+
+    fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "Docs Portal" } });
+    fireEvent.change(screen.getByLabelText("Project path"), { target: { value: "D:\\Projects\\DocsPortal" } });
+    fireEvent.change(screen.getByLabelText("Start command"), { target: { value: "pnpm docs" } });
+    fireEvent.change(screen.getByLabelText("Expected port"), { target: { value: "4321" } });
+    fireEvent.change(screen.getByLabelText("Main URL"), { target: { value: "http://127.0.0.1:4321" } });
+    fireEvent.change(screen.getByLabelText("Health URL"), { target: { value: "http://127.0.0.1:4321/health" } });
+    fireEvent.change(screen.getByLabelText("Extra URL label"), { target: { value: "Admin" } });
+    fireEvent.change(screen.getByLabelText("Extra URL"), { target: { value: "http://127.0.0.1:4321/admin" } });
+    fireEvent.change(screen.getByLabelText("Profile notes"), { target: { value: "Docs app with admin panel" } });
+
+    fireEvent.click(within(screen.getByLabelText("New profile")).getByRole("button", { name: /save profile/i }));
+
+    expect(await screen.findByText("Saved profile Docs Portal")).toBeInTheDocument();
+    expect(screen.getByLabelText("Project profiles")).toHaveTextContent("Docs Portal");
+    expect(screen.getByLabelText("Project profiles")).toHaveTextContent("No running port");
+
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toMatchObject({
+      projectProfiles: [
+        {
+          id: "docs-portal",
+          name: "Docs Portal",
+          projectPath: "D:\\Projects\\DocsPortal",
+          startCommand: "pnpm docs",
+          expectedPort: 4321,
+          mainUrl: "http://127.0.0.1:4321",
+          healthUrl: "http://127.0.0.1:4321/health",
+          extraUrls: [{ label: "Admin", url: "http://127.0.0.1:4321/admin" }],
+          notes: "Docs app with admin panel"
+        }
+      ]
+    });
+  });
+
+  it("edits an existing project profile without changing its id", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "docs",
+            name: "Docs",
+            projectPath: "D:\\Projects\\Docs",
+            startCommand: "pnpm dev",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    expect(await screen.findByLabelText("Project profiles")).toHaveTextContent("Docs");
+    fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
+
+    const manager = await screen.findByLabelText("Settings manager");
+    fireEvent.click(within(manager).getByRole("button", { name: /edit profile docs/i }));
+
+    fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "Docs Portal" } });
+    fireEvent.change(screen.getByLabelText("Start command"), { target: { value: "pnpm preview" } });
+    fireEvent.change(screen.getByLabelText("Open mode"), { target: { value: "window" } });
+    fireEvent.click(within(screen.getByRole("form", { name: "Edit profile Docs" })).getByRole("button", { name: /save profile/i }));
+
+    expect(await screen.findByText("Saved profile Docs Portal")).toBeInTheDocument();
+    expect(screen.getByLabelText("Project profiles")).toHaveTextContent("Docs Portal");
+
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toMatchObject({
+      projectProfiles: [
+        {
+          id: "docs",
+          name: "Docs Portal",
+          startCommand: "pnpm preview",
+          preferredOpenMode: "window"
+        }
+      ]
+    });
+  });
+
+  it("preserves profile fields that are not shown in the editor", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "docs",
+            name: "Docs",
+            icon: "book",
+            projectPath: "D:\\Projects\\Docs",
+            startCommand: "pnpm dev",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321",
+            extraUrls: [
+              { label: "Admin", url: "http://127.0.0.1:4321/admin" },
+              { label: "Metrics", url: "http://127.0.0.1:4321/metrics" }
+            ],
+            logLines: ["ready", "listening"]
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    expect(await screen.findByLabelText("Project profiles")).toHaveTextContent("Docs");
+    fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
+    const manager = await screen.findByLabelText("Settings manager");
+    fireEvent.click(within(manager).getByRole("button", { name: /edit profile docs/i }));
+
+    fireEvent.change(screen.getByLabelText("Start command"), { target: { value: "pnpm preview" } });
+    fireEvent.click(within(screen.getByRole("form", { name: "Edit profile Docs" })).getByRole("button", { name: /save profile/i }));
+
+    expect(await screen.findByText("Saved profile Docs")).toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toMatchObject({
+      projectProfiles: [
+        {
+          id: "docs",
+          name: "Docs",
+          icon: "book",
+          startCommand: "pnpm preview",
+          extraUrls: [
+            { label: "Admin", url: "http://127.0.0.1:4321/admin" },
+            { label: "Metrics", url: "http://127.0.0.1:4321/metrics" }
+          ],
+          logLines: ["ready", "listening"]
+        }
+      ]
+    });
+  });
+
+  it("keeps a new profile draft open when saving settings fails", async () => {
+    (globalThis as { browser?: unknown }).browser = {
+      storage: {
+        local: {
+          get: vi.fn(async () => ({
+            "localhost-control-settings": {}
+          })),
+          set: vi.fn(async () => Promise.reject(new Error("storage quota exceeded")))
+        }
+      }
+    };
+
+    render(<App client={client} />);
+
+    expect(await screen.findByLabelText("Detected localhost ports")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
+    const manager = await screen.findByLabelText("Settings manager");
+    fireEvent.click(within(manager).getByRole("button", { name: /add profile/i }));
+
+    fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "Docs Portal" } });
+    fireEvent.change(screen.getByLabelText("Start command"), { target: { value: "pnpm docs" } });
+    fireEvent.click(within(screen.getByRole("form", { name: "New profile" })).getByRole("button", { name: /save profile/i }));
+
+    expect(await screen.findByText("storage quota exceeded")).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "New profile" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Profile name")).toHaveValue("Docs Portal");
+    expect(screen.getByLabelText("Start command")).toHaveValue("pnpm docs");
+  });
+
+  it("keeps an edited profile draft open when saving settings fails", async () => {
+    (globalThis as { browser?: unknown }).browser = {
+      storage: {
+        local: {
+          get: vi.fn(async () => ({
+            "localhost-control-settings": {
+              projectProfiles: [
+                {
+                  id: "docs",
+                  name: "Docs",
+                  projectPath: "D:\\Projects\\Docs",
+                  startCommand: "pnpm dev",
+                  expectedPort: 4321,
+                  mainUrl: "http://127.0.0.1:4321"
+                }
+              ]
+            }
+          })),
+          set: vi.fn(async () => Promise.reject(new Error("storage quota exceeded")))
+        }
+      }
+    };
+
+    render(<App client={client} />);
+
+    expect(await screen.findByLabelText("Project profiles")).toHaveTextContent("Docs");
+    fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
+    const manager = await screen.findByLabelText("Settings manager");
+    fireEvent.click(within(manager).getByRole("button", { name: /edit profile docs/i }));
+
+    fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "Docs Portal" } });
+    fireEvent.change(screen.getByLabelText("Start command"), { target: { value: "pnpm preview" } });
+    fireEvent.click(within(screen.getByRole("form", { name: "Edit profile Docs" })).getByRole("button", { name: /save profile/i }));
+
+    expect(await screen.findByText("storage quota exceeded")).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "Edit profile Docs" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Profile name")).toHaveValue("Docs Portal");
+    expect(screen.getByLabelText("Start command")).toHaveValue("pnpm preview");
+    expect(screen.getByLabelText("Project profiles")).toHaveTextContent("Docs");
+  });
+
   it("rolls back a settings manager removal when storage saving fails", async () => {
     (globalThis as { browser?: unknown }).browser = {
       storage: {

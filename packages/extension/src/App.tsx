@@ -17,6 +17,7 @@ import { checkProfileHealth, preflightProfileHealthCheck, type ProfileHealthResu
 import { deriveProfileStates, matchProfileForEntry, type ProfileState, type ProjectProfile } from "./lib/projectProfiles";
 import { formatProfileLogs } from "./lib/profileLogs";
 import { deriveWorkspaceStates, type ProjectWorkspace } from "./lib/projectWorkspaces";
+import { slugifyLocalId } from "./lib/localIds";
 import { defaultSettings, loadSettings, saveActionAudit, saveSettings, type Settings } from "./lib/settings";
 import {
   removeProjectProfile,
@@ -25,7 +26,8 @@ import {
   removeTrustedProjectPath,
   clearActionAudit,
   unblockProcessName,
-  unhidePort
+  unhidePort,
+  upsertProjectProfile
 } from "./lib/settingsActions";
 import { exportSettingsBundle, importSettingsBundle } from "./lib/settingsBundle";
 import { detectStaleProcess } from "./lib/staleProcesses";
@@ -48,13 +50,6 @@ const nativeHostDownloadUrl = (): string => {
   const version = getExtensionApi()?.runtime?.getManifest?.().version;
   return version ? `${nativeHostReleasesUrl}/tag/v${version}` : nativeHostReleasesUrl;
 };
-const slugifyProfileName = (value: string): string =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48) || "project";
 const resolveTheme = (themeMode: Settings["themeMode"]): "light" | "dark" => {
   if (themeMode === "dark") return "dark";
   if (themeMode === "light") return "light";
@@ -334,14 +329,15 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
-  const applySettingsAction = async (next: Settings, successMessage: string) => {
-    if (settingsActionSavingRef.current) return;
+  const applySettingsAction = async (next: Settings, successMessage: string): Promise<boolean> => {
+    if (settingsActionSavingRef.current) return false;
     settingsActionSavingRef.current = true;
     setSettingsActionSaving(true);
     try {
-      if (!(await replaceSettings(next))) return;
+      if (!(await replaceSettings(next))) return false;
       setMessage(successMessage);
       window.setTimeout(() => document.getElementById("settings-manager")?.focus(), 0);
+      return true;
     } finally {
       settingsActionSavingRef.current = false;
       setSettingsActionSaving(false);
@@ -631,7 +627,7 @@ export const App = ({ client }: AppProps) => {
   const saveProfileForEntry = async (entry: PortEntry) => {
     if (profileForEntry(entry)) return;
     const name = entry.title ?? entry.projectHint?.split(/[\\/]/).pop() ?? `${entry.processName} ${entry.port}`;
-    const baseId = slugifyProfileName(name);
+    const baseId = slugifyLocalId(name);
     const existingIds = new Set(settings.projectProfiles.map((profile) => profile.id));
     let id = baseId;
     let suffix = 2;
@@ -660,7 +656,7 @@ export const App = ({ client }: AppProps) => {
       return;
     }
     const name = `${profiles[0]?.name ?? "Workspace"} + ${profiles.length - 1}`;
-    const baseId = slugifyProfileName(name);
+    const baseId = slugifyLocalId(name);
     const existingIds = new Set(settings.projectWorkspaces.map((workspace) => workspace.id));
     let id = baseId;
     let suffix = 2;
@@ -909,6 +905,7 @@ export const App = ({ client }: AppProps) => {
         <SettingsManager
           settings={settings}
           saving={settingsActionSaving}
+          onSaveProfile={(profile) => applySettingsAction(upsertProjectProfile(settings, profile), `Saved profile ${profile.name}`)}
           onRemoveProfile={(profileId, name) => void applySettingsAction(removeProjectProfile(settings, profileId), `Removed profile ${name}`)}
           onRemoveWorkspace={(workspaceId, name) => void applySettingsAction(removeProjectWorkspace(settings, workspaceId), `Removed workspace ${name}`)}
           onRemoveTrustedRoot={(path) =>

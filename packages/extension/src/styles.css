@@ -69,7 +69,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -1006,11 +1007,35 @@ button:disabled {
   gap: 5px;
 }
 
+.settings-manager-section-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .settings-manager-label {
   color: var(--faint);
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.settings-manager-section-heading button {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.settings-manager-section-heading button:hover:not(:disabled) {
+  border-color: var(--selected-border);
+  background: var(--accent-soft);
 }
 
 .settings-manager-row {
@@ -1029,6 +1054,12 @@ button:disabled {
   display: grid;
   min-width: 0;
   gap: 1px;
+}
+
+.settings-manager-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .settings-manager-row strong,
@@ -1065,6 +1096,103 @@ button:disabled {
 .settings-manager-row button:hover:not(:disabled) {
   border-color: var(--danger-border-hover);
   background: var(--danger-soft);
+}
+
+.settings-manager-row button.settings-manager-neutral {
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.settings-manager-row button.settings-manager-neutral:hover:not(:disabled) {
+  border-color: var(--control-border-hover);
+  background: var(--control-hover);
+}
+
+.settings-manager-profile-form {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--accent-border);
+  border-radius: 7px;
+  background: var(--surface-strong);
+}
+
+.settings-manager-profile-form label {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.settings-manager-profile-form label span {
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.settings-manager-profile-form input,
+.settings-manager-profile-form select,
+.settings-manager-profile-form textarea {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+  font-size: 11px;
+}
+
+.settings-manager-profile-form input,
+.settings-manager-profile-form select {
+  height: 28px;
+  padding: 0 7px;
+}
+
+.settings-manager-profile-form textarea {
+  min-height: 54px;
+  resize: vertical;
+  padding: 6px 7px;
+}
+
+.settings-manager-form-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 7px;
+}
+
+.settings-manager-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.settings-manager-form-actions button {
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.settings-manager-form-actions button[type="submit"] {
+  border-color: var(--accent-border);
+  background: var(--accent);
+  color: var(--primary-button-text);
+}
+
+.settings-manager-form-actions button:hover:not(:disabled) {
+  border-color: var(--control-border-hover);
+  background: var(--control-hover);
+}
+
+.settings-manager-form-actions button[type="submit"]:hover:not(:disabled) {
+  border-color: var(--selected-border);
+  background: var(--accent);
 }
 
 .settings-bar label {

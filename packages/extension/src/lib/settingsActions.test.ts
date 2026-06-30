@@ -7,7 +7,8 @@ import {
   removeTrustedProjectPath,
   clearActionAudit,
   unblockProcessName,
-  unhidePort
+  unhidePort,
+  upsertProjectProfile
 } from "./settingsActions";
 
 const settings: Settings = {
@@ -29,6 +30,66 @@ const settings: Settings = {
 };
 
 describe("settings actions", () => {
+  it("upserts a sanitized project profile without disturbing workspaces", () => {
+    expect(
+      upsertProjectProfile(settings, {
+        id: "api",
+        name: "Local API Updated",
+        projectPath: "C:\\Workspaces\\LocalApi",
+        startCommand: "pnpm dev",
+        expectedPort: 17322,
+        mainUrl: "http://127.0.0.1:17322/",
+        healthUrl: "http://127.0.0.1:17322/health",
+        preferredOpenMode: "window",
+        extraUrls: [
+          { label: "Metrics", url: "http://127.0.0.1:17322/metrics" },
+          { label: "Production", url: "https://example.com" }
+        ],
+        notes: "Runs the local API"
+      })
+    ).toMatchObject({
+      projectProfiles: [
+        { id: "shop", name: "Example Shop" },
+        {
+          id: "api",
+          name: "Local API Updated",
+          projectPath: "C:\\Workspaces\\LocalApi",
+          startCommand: "pnpm dev",
+          expectedPort: 17322,
+          mainUrl: "http://127.0.0.1:17322/",
+          healthUrl: "http://127.0.0.1:17322/health",
+          preferredOpenMode: "window",
+          extraUrls: [{ label: "Metrics", url: "http://127.0.0.1:17322/metrics" }],
+          notes: "Runs the local API"
+        },
+        { id: "docs", name: "Docs" }
+      ],
+      projectWorkspaces: [
+        { id: "daily", profileIds: ["shop", "api"] },
+        { id: "docs-only", profileIds: ["docs"] }
+      ]
+    });
+  });
+
+  it("adds a new sanitized project profile", () => {
+    expect(
+      upsertProjectProfile(settings, {
+        id: "tools",
+        name: "Tools",
+        expectedPort: 7331,
+        mainUrl: "http://tools.localhost:7331"
+      }).projectProfiles
+    ).toEqual([
+      ...settings.projectProfiles,
+      {
+        id: "tools",
+        name: "Tools",
+        expectedPort: 7331,
+        mainUrl: "http://tools.localhost:7331"
+      }
+    ]);
+  });
+
   it("removes a project profile and prunes dependent workspaces", () => {
     expect(removeProjectProfile(settings, "api")).toMatchObject({
       projectProfiles: [

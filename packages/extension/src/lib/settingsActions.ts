@@ -1,4 +1,5 @@
 import type { Settings } from "./settings";
+import { sanitizeProjectProfiles, type ProjectProfile } from "./projectProfiles";
 
 const normalizePath = (value: string): string =>
   value
@@ -15,6 +16,24 @@ export const removeProjectProfile = (settings: Settings, profileId: string): Set
     return profileIds.length ? [{ ...workspace, profileIds }] : [];
   })
 });
+
+export const upsertProjectProfile = (settings: Settings, profile: ProjectProfile): Settings => {
+  const [safeProfile] = sanitizeProjectProfiles([profile]);
+  if (!safeProfile) return settings;
+
+  const existingIndex = settings.projectProfiles.findIndex((item) => item.id === safeProfile.id);
+  if (existingIndex === -1) {
+    return {
+      ...settings,
+      projectProfiles: [...settings.projectProfiles, safeProfile]
+    };
+  }
+
+  return {
+    ...settings,
+    projectProfiles: settings.projectProfiles.map((item, index) => (index === existingIndex ? safeProfile : item))
+  };
+};
 
 export const removeProjectWorkspace = (settings: Settings, workspaceId: string): Settings => ({
   ...settings,
