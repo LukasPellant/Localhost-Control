@@ -1292,6 +1292,11 @@ describe("App", () => {
   });
 
   it("shows a port doctor conflict report for duplicate listeners", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
     const baseEntry = entries[0]!;
     const duplicatePortEntries: PortEntry[] = [
       { ...baseEntry, pid: 100, port: 5173, title: "Vite IPv4" },
@@ -1313,6 +1318,13 @@ describe("App", () => {
     const doctor = screen.getByLabelText("Dev health for port 5173");
     expect(doctor).toHaveTextContent("2 listeners share port 5173");
     expect(doctor).toHaveTextContent("Next free: 5175");
+    expect(doctor).toHaveTextContent("Fallback command: node vite");
+
+    fireEvent.click(within(doctor).getByRole("button", { name: /copy doctor advice for port 5173/i }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    expect(String(writeText.mock.calls[0]?.[0] ?? "")).toContain("Stop PID 101 or move one app to port 5175.");
+    expect(await screen.findByText("Copied doctor advice for port 5173")).toBeInTheDocument();
   });
 
   it("surfaces stale process candidates in the list and detail panel", async () => {

@@ -11,7 +11,7 @@ import { appendActionAuditEntry, createActionAuditEntry, type ActionAuditInput }
 import { formatDevContext } from "./lib/devContext";
 import { getExtensionApi } from "./lib/extensionApi";
 import { type HostClient } from "./lib/hostClient";
-import { analyzePortDoctor } from "./lib/portDoctor";
+import { analyzePortDoctor, formatPortDoctorAdvice, type PortDoctorReport } from "./lib/portDoctor";
 import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
 import { checkProfileHealth, type ProfileHealthResult } from "./lib/profileHealth";
 import { deriveProfileStates, matchProfileForEntry, type ProfileState, type ProjectProfile } from "./lib/projectProfiles";
@@ -448,6 +448,15 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const copyDoctorAdvice = async (entry: PortEntry, report: PortDoctorReport) => {
+    try {
+      await copyText(formatPortDoctorAdvice(report));
+      setMessage(`Copied doctor advice for port ${entry.port}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const exportSettings = () => {
     const blob = new Blob([exportSettingsBundle(settings)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -844,6 +853,7 @@ export const App = ({ client }: AppProps) => {
         onCopyProfileCommand={(profile) => void copyProfileCommand(profile)}
         onOpenProfileTerminal={(profile) => void openTerminalForProfile(profile)}
         onCheckProfileHealth={(profile) => void checkHealthForProfile(profile)}
+        onCopyDoctorAdvice={(entry, report) => void copyDoctorAdvice(entry, report)}
         onSaveProfile={(entry) => void saveProfileForEntry(entry)}
         onTrustProject={(entry) => void trustProject(entry)}
         onHideProcess={(entry) => void hideProcess(entry)}

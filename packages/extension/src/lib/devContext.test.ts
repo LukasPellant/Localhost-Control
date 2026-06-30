@@ -47,6 +47,7 @@ const doctorReport: PortDoctorReport = {
   status: "conflict",
   summary: "2 listeners share port 5173",
   issues: ["PID 101 also listens on port 5173"],
+  advice: ["Stop PID 101 or move one app to port 5175."],
   conflictingEntries: [],
   nextFreePort: 5175
 };
@@ -105,13 +106,13 @@ describe("formatDevContext", () => {
         ...entry,
         commandLine: "node vite --token hunter2 OPENAI_API_KEY=sk-local DATABASE_URL=postgres://user:pass@host/db",
         projectHint: "C:\\Users\\pella\\Projects\\ExampleShop",
-        url: "http://127.0.0.1:5173/app?token=hunter2#debug"
+        url: "http://127.0.0.1:5173/app?token=hunter2&mode=dev#debug"
       },
       profile: {
         ...profile,
         projectPath: "C:\\Users\\pella\\Projects\\ExampleShop",
         startCommand: "pnpm dev --api-key sk-local",
-        healthUrl: "http://127.0.0.1:5173/health?access_token=hunter2",
+        healthUrl: "http://127.0.0.1:5173/health?access_token=hunter2&mode=ready",
         logLines: ["\u001b[31mAuthorization: Bearer abc123\u001b[0m", "ready"]
       }
     });
@@ -121,7 +122,8 @@ describe("formatDevContext", () => {
     expect(text).toContain("OPENAI_API_KEY=[redacted]");
     expect(text).toContain("DATABASE_URL=[redacted]");
     expect(text).toContain("--api-key [redacted]");
-    expect(text).toContain("access_token=[redacted]");
+    expect(text).toContain("token=[redacted]&mode=dev");
+    expect(text).toContain("access_token=[redacted]&mode=ready");
     expect(text).toContain("Authorization: Bearer [redacted]");
     expect(text).not.toContain("hunter2");
     expect(text).not.toContain("sk-local");

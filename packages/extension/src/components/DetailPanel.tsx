@@ -23,6 +23,7 @@ type DetailPanelProps = {
   onCopyProfileCommand(profile: ProjectProfile): void;
   onOpenProfileTerminal(profile: ProjectProfile): void;
   onCheckProfileHealth(profile: ProjectProfile): void;
+  onCopyDoctorAdvice(entry: PortEntry, report: PortDoctorReport): void;
   onSaveProfile(entry: PortEntry): void;
   onTrustProject(entry: PortEntry): void;
   onHideProcess(entry: PortEntry): void;
@@ -43,6 +44,7 @@ export const DetailPanel = ({
   onCopyProfileCommand,
   onOpenProfileTerminal,
   onCheckProfileHealth,
+  onCopyDoctorAdvice,
   onSaveProfile,
   onTrustProject,
   onHideProcess
@@ -196,6 +198,13 @@ export const DetailPanel = ({
                   {" / "}
                   {doctorReport.nextFreePort ? `Next free: ${doctorReport.nextFreePort}` : "No free port found"}
                   {doctorReport.issues.length ? ` / ${doctorReport.issues.join(" / ")}` : ""}
+                  {doctorReport.advice.length ? (
+                    <span className="doctor-advice">
+                      {doctorReport.advice.map((item) => (
+                        <span key={item}>{item}</span>
+                      ))}
+                    </span>
+                  ) : null}
                 </dd>
               </div>
             ) : null}
@@ -233,6 +242,12 @@ export const DetailPanel = ({
               <Copy size={14} />
               Copy dev context
             </button>
+            {doctorReport && doctorReport.status !== "ok" && doctorReport.advice.length ? (
+              <button type="button" onClick={() => onCopyDoctorAdvice(entry, doctorReport)} aria-label={`Copy doctor advice for port ${entry.port}`}>
+                <Copy size={14} />
+                Copy doctor advice
+              </button>
+            ) : null}
             {profile?.startCommand ? (
               <>
                 <button type="button" onClick={() => onCopyProfileCommand(profile)} aria-label={`Copy command for ${profile.name}`}>

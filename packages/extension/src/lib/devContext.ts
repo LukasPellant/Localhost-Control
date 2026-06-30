@@ -4,6 +4,7 @@ import type { PortDoctorReport } from "./portDoctor";
 import type { ProfileHealthResult } from "./profileHealth";
 import type { ProjectProfile } from "./projectProfiles";
 import { formatCpu, formatMemory, formatUptime } from "./resources";
+import { redactSensitiveText, sanitizeLocalUrl } from "./sensitiveText";
 import type { StaleProcessSignal } from "./staleProcesses";
 
 export type DevContextInput = {
@@ -18,53 +19,21 @@ const MAX_OUTPUT_LENGTH = 16_000;
 const MAX_FIELD_LENGTH = 240;
 const MAX_LOG_LINES = 4;
 const MAX_LOG_LINE_LENGTH = 180;
-const SECRET_VALUE_PATTERN = /(OPENAI_API_KEY|ANTHROPIC_API_KEY|GITHUB_TOKEN|DATABASE_URL|PASSWORD|SECRET|TOKEN|API_KEY)=("[^"]*"|'[^']*'|\S+)/gi;
-const SECRET_FLAG_PATTERN = /(--(?:token|api-key|password|secret)\s+)("[^"]*"|'[^']*'|\S+)/gi;
-const AUTH_HEADER_PATTERN = /(Authorization:\s*Bearer\s+)\S+/gi;
-const SECRET_QUERY_KEYS = /^(access_token|api_key|apikey|auth|code|key|password|secret|token)$/i;
-
-const stripControlCharacters = (value: string): string =>
-  value
-    .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "")
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
-    .trim();
-
-const redactSecrets = (value: string): string =>
-  stripControlCharacters(value)
-    .replace(/[A-Za-z]:\\Users\\[^\\\s]+/g, (match) => `${match.slice(0, 9)}[user]`)
-    .replace(/\/Users\/[^/\s]+/g, "/Users/[user]")
-    .replace(/\/home\/[^/\s]+/g, "/home/[user]")
-    .replace(SECRET_VALUE_PATTERN, "$1=[redacted]")
-    .replace(SECRET_FLAG_PATTERN, "$1[redacted]")
-    .replace(AUTH_HEADER_PATTERN, "$1[redacted]");
 
 const truncate = (value: string, maxLength = MAX_FIELD_LENGTH): string =>
   value.length > maxLength ? `${value.slice(0, maxLength - 1)}...` : value;
 
 const sanitizeText = (value: string | number | undefined, maxLength = MAX_FIELD_LENGTH): string | undefined => {
   if (value === undefined) return undefined;
-  const sanitized = redactSecrets(String(value));
+  const sanitized = redactSensitiveText(String(value));
   return sanitized ? truncate(sanitized, maxLength) : undefined;
-};
-
-const sanitizeLocalUrl = (value: string | undefined): string | undefined => {
-  if (!value) return undefined;
-  try {
-    const url = new URL(value);
-    url.hash = "";
-    url.searchParams.forEach((_paramValue, key) => {
-      if (SECRET_QUERY_KEYS.test(key)) {
-        url.searchParams.set(key, "redacted");
-      }
-    });
-    return sanitizeText(url.toString().replace(/\/$/, ""));
-  } catch {
-    return sanitizeText(value);
-  }
 };
 
 const optionalLine = (label: string, value: string | number | undefined): string | undefined =>
   value === undefined || value === "" ? undefined : `- ${label}: ${sanitizeText(value)}`;
+
+const optionalSanitizedLine = (label: string, value: string | undefined): string | undefined =>
+  value === undefined || value === "" ? undefined : `- ${label}: ${truncate(value)}`;
 
 const joinParts = (parts: Array<string | undefined>): string | undefined => {
   const present = parts.filter((part): part is string => Boolean(part));
@@ -110,7 +79,7 @@ export const formatDevContext = ({ entry, profile, profileHealth, doctorReport, 
     "# Localhost Control dev context",
     "",
     optionalLine("Project", profile?.name ?? entry.title),
-    optionalLine("URL", sanitizeLocalUrl(entryUrl(entry))),
+    optionalSanitizedLine("URL", sanitizeLocalUrl(entryUrl(entry))),
     optionalLine("Origin", entryOrigin(entry)),
     optionalLine("Port", entry.port),
     optionalLine("PID", entry.pid),
@@ -123,7 +92,7 @@ export const formatDevContext = ({ entry, profile, profileHealth, doctorReport, 
     optionalLine("Saved start command", profile?.startCommand),
     optionalLine("Resources", formatResources(entry)),
     optionalLine("Health", profileHealth?.label),
-    optionalLine("Health URL", sanitizeLocalUrl(profile?.healthUrl)),
+    optionalSanitizedLine("Health URL", sanitizeLocalUrl(profile?.healthUrl)),
     optionalLine("Doctor", formatDoctor(doctorReport)),
     optionalLine("Stale signal", formatStaleSignal(staleSignal)),
     ...formatRecentLogs(profile)
