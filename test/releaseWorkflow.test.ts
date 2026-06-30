@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const workflow = readFileSync(resolve(__dirname, "../.github/workflows/release-native-host.yml"), "utf8");
+const artifactWorkflow = readFileSync(resolve(__dirname, "../.github/workflows/native-host-artifacts.yml"), "utf8");
 const packageJson = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8")) as {
   scripts: Record<string, string>;
 };
@@ -31,5 +32,17 @@ describe("release-native-host workflow", () => {
   it("writes release checksums with the artifact-aware checksum script", () => {
     expect(workflow).toContain("node scripts/write-native-host-checksums.mjs");
     expect(workflow).not.toContain("sha256sum dist/native-host/* > dist/native-host/SHA256SUMS");
+  });
+
+  it("packages and validates extension store zips in the artifact workflow", () => {
+    expect(artifactWorkflow).toContain("Package Chrome extension");
+    expect(artifactWorkflow).toContain("pnpm extension:package:chrome");
+    expect(artifactWorkflow).toContain("Package Firefox extension");
+    expect(artifactWorkflow).toContain("pnpm extension:package:firefox");
+    expect(artifactWorkflow).toContain("Verify extension packages");
+    expect(artifactWorkflow).toContain("pnpm extension:verify");
+    expect(artifactWorkflow).toContain("localhost-control-extension-store-packages");
+    expect(artifactWorkflow).toContain("dist/chrome-store/*.zip");
+    expect(artifactWorkflow).toContain("dist/firefox-addons/*.zip");
   });
 });

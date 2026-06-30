@@ -44,6 +44,24 @@ jobs:
       - name: Build workspace
         run: pnpm build
 
+      - name: Package Chrome extension
+        run: pnpm extension:package:chrome
+
+      - name: Package Firefox extension
+        run: pnpm extension:package:firefox
+
+      - name: Verify extension packages
+        run: pnpm extension:verify
+
+      - name: Upload extension store packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: localhost-control-extension-store-packages
+          path: |
+            dist/chrome-store/*.zip
+            dist/firefox-addons/*.zip
+          if-no-files-found: error
+
       - name: Package Windows native host
         run: pnpm host:package:windows
 
