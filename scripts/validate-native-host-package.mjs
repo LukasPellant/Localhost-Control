@@ -217,7 +217,12 @@ const validateNativeManifestPath = async (fullPath, relativePath, browser, expec
     throw new Error(`Invalid native messaging manifest: ${relativePath}`);
   }
 
-  if (manifest.name !== hostName || manifest.description !== "Localhost Control native messaging host" || manifest.path !== expectedHostPath || manifest.type !== "stdio") {
+  const manifestHostPathMatches =
+    process.platform === "win32"
+      ? path.resolve(manifest.path ?? "").toLowerCase() === path.resolve(expectedHostPath).toLowerCase()
+      : manifest.path === expectedHostPath;
+
+  if (manifest.name !== hostName || manifest.description !== "Localhost Control native messaging host" || !manifestHostPathMatches || manifest.type !== "stdio") {
     throw new Error(`Invalid native messaging manifest: ${relativePath}`);
   }
 
