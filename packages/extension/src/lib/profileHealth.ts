@@ -1,7 +1,7 @@
 import type { ProjectProfile } from "./projectProfiles";
 import { getExtensionApi, hasPromiseExtensionApi } from "./extensionApi";
 
-export type ProfileHealthState = "healthy" | "unhealthy" | "blocked" | "error";
+export type ProfileHealthState = "healthy" | "unhealthy" | "blocked" | "error" | "checking";
 
 export type ProfileHealthResult = {
   profileId: string;

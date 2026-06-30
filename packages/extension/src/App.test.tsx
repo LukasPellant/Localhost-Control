@@ -257,6 +257,53 @@ describe("App", () => {
     expect(await screen.findByText("Started profile Docs")).toBeInTheDocument();
   });
 
+  it("waits for started profile health and reports when it becomes ready", async () => {
+    let failFirstCheck: ((error: Error) => void) | undefined;
+    const fetchHealth = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            failFirstCheck = reject;
+          })
+      )
+      .mockResolvedValueOnce({ ok: true, status: 204, statusText: "No Content" });
+    vi.stubGlobal("fetch", fetchHealth);
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "docs",
+            name: "Docs",
+            projectPath: "D:\\Projects\\ManualDocs",
+            startCommand: "pnpm docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321",
+            healthUrl: "http://127.0.0.1:4321/health"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /start profile docs/i }));
+
+    expect(await screen.findByText("Waiting for Docs health check...")).toBeInTheDocument();
+    expect(profiles).toHaveTextContent("starting");
+    expect(profiles).toHaveTextContent("Waiting for health");
+    await waitFor(() => expect(fetchHealth).toHaveBeenCalledTimes(1));
+    failFirstCheck?.(new Error("not ready"));
+
+    await waitFor(() => expect(fetchHealth).toHaveBeenCalledTimes(2), { timeout: 3000 });
+    expect(await screen.findByText("Docs is ready (204)")).toBeInTheDocument();
+    expect(profiles).toHaveTextContent("running");
+    expect(profiles).toHaveTextContent("Healthy 204");
+  });
+
   it("does not offer profile start when the saved command is not safe to run", async () => {
     window.localStorage.setItem(
       "localhost-control-settings",

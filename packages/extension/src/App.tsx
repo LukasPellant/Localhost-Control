@@ -97,6 +97,8 @@ const settingsExportSummary = (settings: Settings): string =>
   `Exported settings with ${settings.projectProfiles.length} ${settings.projectProfiles.length === 1 ? "profile" : "profiles"} and ${
     settings.projectWorkspaces.length
   } ${settings.projectWorkspaces.length === 1 ? "workspace" : "workspaces"}`;
+const profileReadyPollAttempts = 6;
+const profileReadyPollDelayMs = 500;
 const isStartableProjectProfile = (profile: ProjectProfile): profile is StartableProjectProfile =>
   Boolean(profile.projectPath && profile.startCommand);
 const normalizeProjectPath = (value: string): string =>
@@ -117,6 +119,14 @@ const isTrustedProjectPath = (settings: Settings, projectPath: string): boolean 
 };
 const isTrustedStartableProjectProfile = (settings: Settings, profile: ProjectProfile): profile is StartableProjectProfile =>
   isStartableProjectProfile(profile) && isTrustedProjectPath(settings, profile.projectPath);
+const delay = (ms: number): Promise<void> => new Promise((resolve) => window.setTimeout(resolve, ms));
+const checkingProfileHealthResult = (profile: ProjectProfile): ProfileHealthResult => ({
+  profileId: profile.id,
+  state: "checking",
+  label: "Waiting for health",
+  checkedAt: new Date().toISOString(),
+  message: `Waiting for ${profile.name} health check...`
+});
 
 export const App = ({ client }: AppProps) => {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
@@ -239,7 +249,15 @@ export const App = ({ client }: AppProps) => {
         const healthResult = profileHealthResults[state.profile.id];
         if (!healthResult) return state;
         const status: ProfileState["status"] =
-          healthResult.state === "healthy" ? (state.entry ? "running" : state.status) : healthResult.state === "unhealthy" ? "unhealthy" : state.status;
+          healthResult.state === "healthy"
+            ? "running"
+            : healthResult.state === "unhealthy"
+              ? "unhealthy"
+              : healthResult.state === "error"
+                ? "unhealthy"
+              : healthResult.state === "checking"
+                ? "starting"
+                : state.status;
         return {
           ...state,
           status,
@@ -463,7 +481,15 @@ export const App = ({ client }: AppProps) => {
         commandLine: profile.startCommand,
         executeCommand: true
       });
-      setMessage(result.opened ? `Started profile ${profile.name}` : result.message);
+      if (!result.opened) {
+        setMessage(result.message);
+        return;
+      }
+      if (profile.healthUrl) {
+        void waitForProfileReady(profile);
+        return;
+      }
+      setMessage(`Started profile ${profile.name}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     }
@@ -486,6 +512,33 @@ export const App = ({ client }: AppProps) => {
     if (profileHealthRequestSeqRef.current[profile.id] !== requestSeq) return;
     setProfileHealthResults((current) => ({ ...current, [profile.id]: result }));
     setMessage(result.message);
+  };
+
+  const waitForProfileReady = async (profile: ProjectProfile) => {
+    const requestSeq = (profileHealthRequestSeqRef.current[profile.id] ?? 0) + 1;
+    profileHealthRequestSeqRef.current[profile.id] = requestSeq;
+    const checkingResult = checkingProfileHealthResult(profile);
+    setProfileHealthResults((current) => ({ ...current, [profile.id]: checkingResult }));
+    setMessage(checkingResult.message);
+
+    let lastResult: ProfileHealthResult | undefined;
+    for (let attempt = 0; attempt < profileReadyPollAttempts; attempt += 1) {
+      if (attempt > 0) await delay(profileReadyPollDelayMs);
+      const result = await checkProfileHealth(profile, fetch, { timeoutMs: 1500 });
+      if (profileHealthRequestSeqRef.current[profile.id] !== requestSeq) return;
+      lastResult = result;
+      setProfileHealthResults((current) => ({ ...current, [profile.id]: result }));
+      if (result.state === "healthy") {
+        setMessage(`${profile.name} is ready (${result.statusCode ?? "ok"})`);
+        return;
+      }
+      if (result.state === "blocked") {
+        setMessage(result.message);
+        return;
+      }
+    }
+
+    setMessage(lastResult ? `${profile.name} did not become healthy: ${lastResult.message}` : `${profile.name} did not become healthy.`);
   };
 
   const saveProfileForEntry = async (entry: PortEntry) => {
@@ -558,7 +611,13 @@ export const App = ({ client }: AppProps) => {
           return;
         }
       }
-      setMessage(`Started workspace ${state.workspace.name}: ${startableProfiles.length} ${startableProfiles.length === 1 ? "command" : "commands"}`);
+      const healthProfiles = startableProfiles.filter((profile) => profile.healthUrl);
+      healthProfiles.forEach((profile) => void waitForProfileReady(profile));
+      setMessage(
+        `Started workspace ${state.workspace.name}: ${startableProfiles.length} ${
+          startableProfiles.length === 1 ? "command" : "commands"
+        }${healthProfiles.length ? `; waiting on ${healthProfiles.length} health ${healthProfiles.length === 1 ? "check" : "checks"}` : ""}`
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     }
