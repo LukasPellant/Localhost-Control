@@ -6,7 +6,7 @@ import { IconButton } from "./components/IconButton";
 import { PortList } from "./components/PortList";
 import { SafeActionDialog } from "./components/SafeActionDialog";
 import { SettingsManager } from "./components/SettingsManager";
-import { clearBrowserDataForUrl } from "./lib/browserCleanup";
+import { clearBrowserDataForUrl, type BrowserCleanupMode } from "./lib/browserCleanup";
 import { formatDevContext } from "./lib/devContext";
 import { getExtensionApi } from "./lib/extensionApi";
 import { type HostClient } from "./lib/hostClient";
@@ -426,10 +426,10 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
-  const cleanupBrowserDataForEntry = async (entry: PortEntry) => {
+  const cleanupBrowserDataForEntry = async (entry: PortEntry, mode: BrowserCleanupMode = "all") => {
     const url = entry.url ?? `http://127.0.0.1:${entry.port}`;
     try {
-      const result = await clearBrowserDataForUrl(url);
+      const result = await clearBrowserDataForUrl(url, mode);
       setMessage(result.message);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
@@ -636,7 +636,7 @@ export const App = ({ client }: AppProps) => {
         onCopy={(entry) => void copyEntry(entry)}
         onCopyDevContext={(entry) => void copyDevContextForEntry(entry)}
         onTerminal={(entry) => void openTerminalForEntry(entry)}
-        onCleanup={(entry) => void cleanupBrowserDataForEntry(entry)}
+        onCleanup={(entry, mode) => void cleanupBrowserDataForEntry(entry, mode)}
         onCopyProfileCommand={(profile) => void copyProfileCommand(profile)}
         onOpenProfileTerminal={(profile) => void openTerminalForProfile(profile)}
         onCheckProfileHealth={(profile) => void checkHealthForProfile(profile)}

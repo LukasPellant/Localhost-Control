@@ -72,4 +72,32 @@ describe("clearBrowserDataForUrl", () => {
       }
     );
   });
+
+  it("can clear only runtime cache and service workers for a localhost origin", async () => {
+    const remove = vi.fn(async () => undefined);
+    (globalThis as { browser?: unknown }).browser = {
+      browsingData: { remove }
+    };
+
+    await expect(clearBrowserDataForUrl("http://127.0.0.1:5173/dashboard", "cache")).resolves.toEqual({
+      cleared: true,
+      message: "Cleared cache storage and service workers for http://127.0.0.1:5173.",
+      origin: "http://127.0.0.1:5173"
+    });
+    expect(remove).toHaveBeenCalledWith(
+      {
+        origin: ["http://127.0.0.1:5173"],
+        hostnames: ["127.0.0.1"],
+        originTypes: { unprotectedWeb: true }
+      },
+      {
+        cacheStorage: true,
+        serviceWorkers: true
+      }
+    );
+  });
+
+  it("keeps cache-only cleanup limited to localhost origins", async () => {
+    await expect(clearBrowserDataForUrl("https://example.com/app", "cache")).rejects.toThrow("Only localhost browser data can be cleared.");
+  });
 });

@@ -1016,6 +1016,29 @@ describe("App", () => {
     expect(await screen.findByText("Cleared browser data for http://127.0.0.1:5173.")).toBeInTheDocument();
   });
 
+  it("resets cache storage and service workers for the selected localhost origin", async () => {
+    const remove = vi.fn(async () => undefined);
+    (globalThis as { browser?: unknown }).browser = {
+      browsingData: { remove }
+    };
+
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByLabelText("Port 5173 details")).getByRole("button", { name: /reset app cache http:\/\/127\.0\.0\.1:5173/i }));
+
+    await waitFor(() =>
+      expect(remove).toHaveBeenCalledWith(
+        { origin: ["http://127.0.0.1:5173"], hostnames: ["127.0.0.1"], originTypes: { unprotectedWeb: true } },
+        {
+          cacheStorage: true,
+          serviceWorkers: true
+        }
+      )
+    );
+    expect(await screen.findByText("Cleared cache storage and service workers for http://127.0.0.1:5173.")).toBeInTheDocument();
+  });
+
   it("shows install help when native host is unavailable", async () => {
     render(<App client={{ ...client, scan: vi.fn(async () => Promise.reject(new Error("Specified native messaging host not found."))) }} />);
 

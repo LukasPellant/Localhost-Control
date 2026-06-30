@@ -6,7 +6,28 @@ export type BrowserCleanupResult = {
   origin: string;
 };
 
+export type BrowserCleanupMode = "all" | "cache";
+
 const localhostNames = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1"]);
+const cleanupModes = {
+  all: {
+    label: "browser data",
+    dataToRemove: {
+      cacheStorage: true,
+      cookies: true,
+      indexedDB: true,
+      localStorage: true,
+      serviceWorkers: true
+    }
+  },
+  cache: {
+    label: "cache storage and service workers",
+    dataToRemove: {
+      cacheStorage: true,
+      serviceWorkers: true
+    }
+  }
+} as const satisfies Record<BrowserCleanupMode, { label: string; dataToRemove: Record<string, true> }>;
 
 export const originFromLocalhostUrl = (value: string): string => {
   const url = new URL(value);
@@ -17,10 +38,11 @@ export const originFromLocalhostUrl = (value: string): string => {
   return url.origin;
 };
 
-export const clearBrowserDataForUrl = async (value: string): Promise<BrowserCleanupResult> => {
+export const clearBrowserDataForUrl = async (value: string, mode: BrowserCleanupMode = "all"): Promise<BrowserCleanupResult> => {
   const origin = originFromLocalhostUrl(value);
   const hostname = new URL(origin).hostname;
   const browsingData = getExtensionApi()?.browsingData;
+  const cleanupMode = cleanupModes[mode];
   if (!browsingData?.remove) {
     return {
       cleared: false,
@@ -40,20 +62,11 @@ export const clearBrowserDataForUrl = async (value: string): Promise<BrowserClea
         originTypes: { unprotectedWeb: true }
       };
 
-  await browsingData.remove(
-    options,
-    {
-      cacheStorage: true,
-      cookies: true,
-      indexedDB: true,
-      localStorage: true,
-      serviceWorkers: true
-    }
-  );
+  await browsingData.remove(options, cleanupMode.dataToRemove);
 
   return {
     cleared: true,
-    message: `Cleared browser data for ${origin}.`,
+    message: `Cleared ${cleanupMode.label} for ${origin}.`,
     origin
   };
 };

@@ -1,7 +1,7 @@
-import { Activity, Copy, EyeOff, ExternalLink, FolderPlus, Power, Terminal, Trash2 } from "lucide-react";
+import { Activity, Copy, EyeOff, ExternalLink, FolderPlus, Power, RefreshCw, Terminal, Trash2 } from "lucide-react";
 import { kindLabel, type PortEntry } from "@localhost-control/shared";
 import { IconButton } from "./IconButton";
-import { originFromLocalhostUrl } from "../lib/browserCleanup";
+import { originFromLocalhostUrl, type BrowserCleanupMode } from "../lib/browserCleanup";
 import type { PortDoctorReport } from "../lib/portDoctor";
 import type { ProfileHealthResult } from "../lib/profileHealth";
 import type { ProjectProfile } from "../lib/projectProfiles";
@@ -19,7 +19,7 @@ type DetailPanelProps = {
   onCopy(entry: PortEntry): void;
   onCopyDevContext(entry: PortEntry): void;
   onTerminal(entry: PortEntry): void;
-  onCleanup(entry: PortEntry): void;
+  onCleanup(entry: PortEntry, mode?: BrowserCleanupMode): void;
   onCopyProfileCommand(profile: ProjectProfile): void;
   onOpenProfileTerminal(profile: ProjectProfile): void;
   onCheckProfileHealth(profile: ProjectProfile): void;
@@ -218,10 +218,16 @@ export const DetailPanel = ({
               </button>
             ) : null}
             {cleanupOrigin ? (
-              <button type="button" onClick={() => onCleanup(entry)} aria-label={`Clean app origin ${cleanupOrigin}`}>
-                <Trash2 size={14} />
-                Clean app origin
-              </button>
+              <>
+                <button type="button" onClick={() => onCleanup(entry)} aria-label={`Clean app origin ${cleanupOrigin}`}>
+                  <Trash2 size={14} />
+                  Clean app origin
+                </button>
+                <button type="button" onClick={() => onCleanup(entry, "cache")} aria-label={`Reset app cache ${cleanupOrigin}`}>
+                  <RefreshCw size={14} />
+                  Reset cache
+                </button>
+              </>
             ) : null}
             <button type="button" onClick={() => onCopyDevContext(entry)} aria-label={`Copy dev context for ${profile?.name ?? `port ${entry.port}`}`}>
               <Copy size={14} />
