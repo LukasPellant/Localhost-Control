@@ -12,6 +12,7 @@ $Browser = "all"
 $ExtensionId = $DefaultExtensionId
 $ExtensionIdExplicit = $false
 $FirefoxExtensionId = $DefaultFirefoxExtensionId
+$RegistryRoot = "HKCU:\Software"
 $SkipBuild = $false
 
 function Read-OptionValue {
@@ -52,6 +53,16 @@ function Read-InstallArgs {
       }
       "^-{1,2}firefox-extension-id$" {
         $script:FirefoxExtensionId = Read-OptionValue -Values $values -Index $i -Name $values[$i]
+        $i++
+        continue
+      }
+      "^-{1,2}registry-root$" {
+        $script:RegistryRoot = Read-OptionValue -Values $values -Index $i -Name $values[$i]
+        $i++
+        continue
+      }
+      "^-{1,2}registryroot$" {
+        $script:RegistryRoot = Read-OptionValue -Values $values -Index $i -Name $values[$i]
         $i++
         continue
       }
@@ -135,26 +146,32 @@ function Write-Utf8NoBom {
   [System.IO.File]::WriteAllText($Path, $Value, $encoding)
 }
 
+function Join-RegistryRoot {
+  param([string]$Path)
+
+  return (Join-Path $RegistryRoot $Path)
+}
+
 function Get-RegistryTargets {
   $targets = @{
     brave = @(
-      @{ Browser = "chromium"; Path = "HKCU:\Software\WOW6432Node\BraveSoftware\Brave-Browser\NativeMessagingHosts\$HostName" },
-      @{ Browser = "chromium"; Path = "HKCU:\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\$HostName" }
+      @{ Browser = "chromium"; Path = Join-RegistryRoot "WOW6432Node\BraveSoftware\Brave-Browser\NativeMessagingHosts\$HostName" },
+      @{ Browser = "chromium"; Path = Join-RegistryRoot "BraveSoftware\Brave-Browser\NativeMessagingHosts\$HostName" }
     )
     chrome = @(
-      @{ Browser = "chromium"; Path = "HKCU:\Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\$HostName" },
-      @{ Browser = "chromium"; Path = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\$HostName" }
+      @{ Browser = "chromium"; Path = Join-RegistryRoot "WOW6432Node\Google\Chrome\NativeMessagingHosts\$HostName" },
+      @{ Browser = "chromium"; Path = Join-RegistryRoot "Google\Chrome\NativeMessagingHosts\$HostName" }
     )
     chromium = @(
-      @{ Browser = "chromium"; Path = "HKCU:\Software\WOW6432Node\Chromium\NativeMessagingHosts\$HostName" },
-      @{ Browser = "chromium"; Path = "HKCU:\Software\Chromium\NativeMessagingHosts\$HostName" }
+      @{ Browser = "chromium"; Path = Join-RegistryRoot "WOW6432Node\Chromium\NativeMessagingHosts\$HostName" },
+      @{ Browser = "chromium"; Path = Join-RegistryRoot "Chromium\NativeMessagingHosts\$HostName" }
     )
     edge = @(
-      @{ Browser = "chromium"; Path = "HKCU:\Software\WOW6432Node\Microsoft\Edge\NativeMessagingHosts\$HostName" },
-      @{ Browser = "chromium"; Path = "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\$HostName" }
+      @{ Browser = "chromium"; Path = Join-RegistryRoot "WOW6432Node\Microsoft\Edge\NativeMessagingHosts\$HostName" },
+      @{ Browser = "chromium"; Path = Join-RegistryRoot "Microsoft\Edge\NativeMessagingHosts\$HostName" }
     )
     firefox = @(
-      @{ Browser = "firefox"; Path = "HKCU:\Software\Mozilla\NativeMessagingHosts\$HostName" }
+      @{ Browser = "firefox"; Path = Join-RegistryRoot "Mozilla\NativeMessagingHosts\$HostName" }
     )
   }
 
@@ -171,7 +188,7 @@ function Write-NativeManifest {
   $manifestPath = Join-Path $OutDir "$HostName.json"
   $manifest = [ordered]@{
     name = $HostName
-    description = "Localhost Control native host"
+    description = "Localhost Control native messaging host"
     path = $HostExe
     type = "stdio"
   }

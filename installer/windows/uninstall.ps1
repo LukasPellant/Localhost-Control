@@ -5,6 +5,7 @@ $OutDir = Join-Path $PSScriptRoot "out"
 
 $Browser = "all"
 $KeepFiles = $false
+$RegistryRoot = "HKCU:\Software"
 
 function Read-OptionValue {
   param(
@@ -38,6 +39,16 @@ function Read-UninstallArgs {
         $script:KeepFiles = $true
         continue
       }
+      "^-{1,2}registry-root$" {
+        $script:RegistryRoot = Read-OptionValue -Values $values -Index $i -Name $values[$i]
+        $i++
+        continue
+      }
+      "^-{1,2}registryroot$" {
+        $script:RegistryRoot = Read-OptionValue -Values $values -Index $i -Name $values[$i]
+        $i++
+        continue
+      }
       default {
         throw "Unknown argument: $($values[$i])"
       }
@@ -49,26 +60,32 @@ function Read-UninstallArgs {
   }
 }
 
+function Join-RegistryRoot {
+  param([string]$Path)
+
+  return (Join-Path $RegistryRoot $Path)
+}
+
 function Get-RegistryTargets {
   $targets = @{
     brave = @(
-      "HKCU:\Software\WOW6432Node\BraveSoftware\Brave-Browser\NativeMessagingHosts\$HostName",
-      "HKCU:\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\$HostName"
+      (Join-RegistryRoot "WOW6432Node\BraveSoftware\Brave-Browser\NativeMessagingHosts\$HostName"),
+      (Join-RegistryRoot "BraveSoftware\Brave-Browser\NativeMessagingHosts\$HostName")
     )
     chrome = @(
-      "HKCU:\Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\$HostName",
-      "HKCU:\Software\Google\Chrome\NativeMessagingHosts\$HostName"
+      (Join-RegistryRoot "WOW6432Node\Google\Chrome\NativeMessagingHosts\$HostName"),
+      (Join-RegistryRoot "Google\Chrome\NativeMessagingHosts\$HostName")
     )
     chromium = @(
-      "HKCU:\Software\WOW6432Node\Chromium\NativeMessagingHosts\$HostName",
-      "HKCU:\Software\Chromium\NativeMessagingHosts\$HostName"
+      (Join-RegistryRoot "WOW6432Node\Chromium\NativeMessagingHosts\$HostName"),
+      (Join-RegistryRoot "Chromium\NativeMessagingHosts\$HostName")
     )
     edge = @(
-      "HKCU:\Software\WOW6432Node\Microsoft\Edge\NativeMessagingHosts\$HostName",
-      "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\$HostName"
+      (Join-RegistryRoot "WOW6432Node\Microsoft\Edge\NativeMessagingHosts\$HostName"),
+      (Join-RegistryRoot "Microsoft\Edge\NativeMessagingHosts\$HostName")
     )
     firefox = @(
-      "HKCU:\Software\Mozilla\NativeMessagingHosts\$HostName"
+      (Join-RegistryRoot "Mozilla\NativeMessagingHosts\$HostName")
     )
   }
 

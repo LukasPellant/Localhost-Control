@@ -118,7 +118,7 @@ describe("validate-native-host-package", () => {
       const stageDir = path.join(tempRoot, "stage");
       const artifact = path.join(tempRoot, "host-windows.zip");
       mkdirSync(path.join(stageDir, "out"), { recursive: true });
-      writeFileSync(path.join(stageDir, "install.ps1"), "$ErrorActionPreference = 'Stop'\n");
+      writeFileSync(path.join(stageDir, "install.ps1"), readFileSync(path.join(repoRoot, "installer", "windows", "install.ps1")));
       writeFileSync(path.join(stageDir, "uninstall.ps1"), "$ErrorActionPreference = 'Stop'\n");
       writeFileSync(path.join(stageDir, "out", "localhost-control-host.exe"), "not-a-host\n");
       execFileSync(
@@ -227,7 +227,7 @@ describe("validate-native-host-package", () => {
     const artifact = path.join(tempRoot, "host-windows.zip");
 
     mkdirSync(path.join(stageDir, "out"), { recursive: true });
-    writeFileSync(path.join(stageDir, "install.ps1"), "$ErrorActionPreference = 'Stop'\n");
+    writeFileSync(path.join(stageDir, "install.ps1"), readFileSync(path.join(repoRoot, "installer", "windows", "install.ps1")));
     writeFileSync(path.join(stageDir, "uninstall.ps1"), "$ErrorActionPreference = 'Stop'\n");
     writeFileSync(path.join(stageDir, "out", "localhost-control-host.exe"), "rust-host\n");
 

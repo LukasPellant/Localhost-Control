@@ -402,6 +402,81 @@ const validatePkg = async () => {
   }
 };
 
+const windowsRegistryTargets = [
+  { browser: "brave", suffix: `WOW6432Node\\BraveSoftware\\Brave-Browser\\NativeMessagingHosts\\${hostName}` },
+  { browser: "brave", suffix: `BraveSoftware\\Brave-Browser\\NativeMessagingHosts\\${hostName}` },
+  { browser: "chrome", suffix: `WOW6432Node\\Google\\Chrome\\NativeMessagingHosts\\${hostName}` },
+  { browser: "chrome", suffix: `Google\\Chrome\\NativeMessagingHosts\\${hostName}` },
+  { browser: "chromium", suffix: `WOW6432Node\\Chromium\\NativeMessagingHosts\\${hostName}` },
+  { browser: "chromium", suffix: `Chromium\\NativeMessagingHosts\\${hostName}` },
+  { browser: "edge", suffix: `WOW6432Node\\Microsoft\\Edge\\NativeMessagingHosts\\${hostName}` },
+  { browser: "edge", suffix: `Microsoft\\Edge\\NativeMessagingHosts\\${hostName}` },
+  { browser: "firefox", suffix: `Mozilla\\NativeMessagingHosts\\${hostName}` }
+];
+
+const validateWindowsInstall = async (tempRoot) => {
+  const registryRoot = `HKCU:\\Software\\LocalhostControlValidation\\${process.pid}-${Date.now()}`;
+  try {
+    run("powershell", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "& $env:LOCALHOST_CONTROL_INSTALL -SkipBuild -Browser all -RegistryRoot $env:LOCALHOST_CONTROL_REGISTRY_ROOT -ExtensionId $env:LOCALHOST_CONTROL_EXTENSION_ID -Firefox-Extension-Id $env:LOCALHOST_CONTROL_FIREFOX_EXTENSION_ID"
+    ], {
+      LOCALHOST_CONTROL_INSTALL: path.join(tempRoot, "install.ps1"),
+      LOCALHOST_CONTROL_REGISTRY_ROOT: registryRoot,
+      LOCALHOST_CONTROL_EXTENSION_ID: expectedExtensionId,
+      LOCALHOST_CONTROL_FIREFOX_EXTENSION_ID: expectedFirefoxExtensionId
+    });
+
+    const registryJson = run("powershell", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      [
+        "$targets = $env:LOCALHOST_CONTROL_TARGETS | ConvertFrom-Json",
+        "$targets | ForEach-Object {",
+        "  $keyPath = Join-Path $env:LOCALHOST_CONTROL_REGISTRY_ROOT $_.suffix",
+        "  if (!(Test-Path $keyPath)) { throw \"Missing registry target: $keyPath\" }",
+        "  [pscustomobject]@{ browser = $_.browser; path = $keyPath; manifest = (Get-Item -Path $keyPath).GetValue('') }",
+        "} | ConvertTo-Json -Depth 4"
+      ].join("; ")
+    ], {
+      LOCALHOST_CONTROL_REGISTRY_ROOT: registryRoot,
+      LOCALHOST_CONTROL_TARGETS: JSON.stringify(windowsRegistryTargets)
+    });
+
+    const registryEntries = JSON.parse(registryJson);
+    const entries = Array.isArray(registryEntries) ? registryEntries : [registryEntries];
+    if (entries.length !== windowsRegistryTargets.length) {
+      throw new Error("Windows installer did not register every native messaging target.");
+    }
+
+    const expectedHostPath = path.join(tempRoot, "out", "localhost-control-host.exe");
+    for (const entry of entries) {
+      if (typeof entry.manifest !== "string" || !entry.manifest) {
+        throw new Error(`Windows installer registry target is missing a manifest path: ${entry.path}`);
+      }
+      await validateNativeManifestPath(entry.manifest, entry.manifest, entry.browser, expectedHostPath);
+    }
+  } finally {
+    run("powershell", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "try { Remove-Item -Path $env:LOCALHOST_CONTROL_REGISTRY_ROOT -Recurse -Force -ErrorAction Stop } catch {}; exit 0"
+    ], {
+      LOCALHOST_CONTROL_REGISTRY_ROOT: registryRoot
+    });
+  }
+};
+
 const validateWindowsZip = async () => {
   if (process.platform !== "win32") {
     throw new Error("Windows zip validation must run on Windows.");
@@ -435,6 +510,7 @@ const validateWindowsZip = async () => {
     if (entries.some((entry) => normalizeEntry(entry).includes("app/native-host"))) {
       throw new Error("Windows zip must package the Rust native host without the Node app payload.");
     }
+    await validateWindowsInstall(tempRoot);
     await smokeNativeHostProtocol(path.join(tempRoot, "out", "localhost-control-host.exe"));
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
