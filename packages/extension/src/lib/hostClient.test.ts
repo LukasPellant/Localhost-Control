@@ -75,6 +75,35 @@ describe("createNativeHostClient", () => {
     await expect(createNativeHostClient().version()).rejects.toThrow("Native host returned an invalid error response.");
   });
 
+  it("sends project path, command line, and execute flag when starting a profile command", async () => {
+    let sentMessage: unknown;
+    (globalThis as { browser?: unknown }).browser = {
+      runtime: {
+        sendNativeMessage: async (_hostName: string, message: unknown) => {
+          sentMessage = message;
+          return { id: "terminal-1", result: { opened: true, message: "Started command" } };
+        }
+      }
+    };
+
+    await expect(
+      createNativeHostClient().openTerminal({
+        projectHint: "D:\\Projects\\ExampleShop",
+        commandLine: "pnpm dev",
+        executeCommand: true
+      })
+    ).resolves.toEqual({ opened: true, message: "Started command" });
+
+    expect(sentMessage).toMatchObject({
+      method: "openTerminal",
+      params: {
+        projectHint: "D:\\Projects\\ExampleShop",
+        commandLine: "pnpm dev",
+        executeCommand: true
+      }
+    });
+  });
+
   it("uses a fallback message for callback native messaging errors without a message", async () => {
     (globalThis as { chrome?: unknown }).chrome = {
       runtime: {

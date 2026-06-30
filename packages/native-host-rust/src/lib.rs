@@ -826,17 +826,49 @@ fn command_to_execute(params: &TerminalParams) -> Option<&str> {
         .filter(|command_line| !command_line.is_empty())
 }
 
+fn command_execution_cwd(params: &TerminalParams) -> Result<Option<String>, Value> {
+    if command_to_execute(params).is_none() {
+        return Ok(None);
+    }
+    let Some(project_hint) = params
+        .project_hint
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Err(json!({
+            "opened": false,
+            "message": "Command execution requires an absolute existing project path."
+        }));
+    };
+    let path = Path::new(project_hint);
+    if !path.is_absolute() || !path.exists() {
+        return Err(json!({
+            "opened": false,
+            "message": "Command execution requires an absolute existing project path."
+        }));
+    }
+    Ok(Some(project_hint.to_string()))
+}
+
 #[cfg(windows)]
 fn open_terminal(params: &TerminalParams) -> Value {
+    let command_cwd = match command_execution_cwd(params) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
     let command_hint = params
         .command_line
         .as_deref()
         .and_then(|command_line| derive_project_hint(Some(command_line), None));
-    let cwd = params
-        .project_hint
-        .as_deref()
-        .filter(|value| Path::new(value).exists())
-        .map(str::to_string)
+    let cwd = command_cwd
+        .or_else(|| {
+            params
+                .project_hint
+                .as_deref()
+                .filter(|value| Path::new(value).exists())
+                .map(str::to_string)
+        })
         .or_else(|| command_hint.filter(|value| Path::new(value).exists()))
         .or_else(|| std::env::var("USERPROFILE").ok())
         .or_else(|| {
@@ -892,15 +924,22 @@ fn open_terminal(params: &TerminalParams) -> Value {
 
 #[cfg(target_os = "linux")]
 fn open_terminal(params: &TerminalParams) -> Value {
+    let command_cwd = match command_execution_cwd(params) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
     let command_hint = params
         .command_line
         .as_deref()
         .and_then(|command_line| derive_project_hint(Some(command_line), None));
-    let cwd = params
-        .project_hint
-        .as_deref()
-        .filter(|value| Path::new(value).exists())
-        .map(str::to_string)
+    let cwd = command_cwd
+        .or_else(|| {
+            params
+                .project_hint
+                .as_deref()
+                .filter(|value| Path::new(value).exists())
+                .map(str::to_string)
+        })
         .or_else(|| command_hint.filter(|value| Path::new(value).exists()))
         .or_else(|| std::env::var("HOME").ok())
         .or_else(|| {
@@ -967,15 +1006,22 @@ fn open_terminal(params: &TerminalParams) -> Value {
 
 #[cfg(target_os = "macos")]
 fn open_terminal(params: &TerminalParams) -> Value {
+    let command_cwd = match command_execution_cwd(params) {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
     let command_hint = params
         .command_line
         .as_deref()
         .and_then(|command_line| derive_project_hint(Some(command_line), None));
-    let cwd = params
-        .project_hint
-        .as_deref()
-        .filter(|value| Path::new(value).exists())
-        .map(str::to_string)
+    let cwd = command_cwd
+        .or_else(|| {
+            params
+                .project_hint
+                .as_deref()
+                .filter(|value| Path::new(value).exists())
+                .map(str::to_string)
+        })
         .or_else(|| command_hint.filter(|value| Path::new(value).exists()))
         .or_else(|| std::env::var("HOME").ok())
         .or_else(|| {

@@ -32,3 +32,44 @@ fn version_request_matches_extension_contract() {
     assert_eq!(response["result"]["version"], "0.1.5");
     assert_eq!(response["result"]["platform"], std::env::consts::OS);
 }
+
+#[test]
+fn command_execution_requires_project_hint() {
+    let response = handle_request(json!({
+        "id": "terminal-1",
+        "method": "openTerminal",
+        "params": {
+            "commandLine": "pnpm dev",
+            "executeCommand": true
+        }
+    }))
+    .unwrap();
+
+    assert_eq!(response["id"], "terminal-1");
+    assert_eq!(response["result"]["opened"], false);
+    assert_eq!(
+        response["result"]["message"],
+        "Command execution requires an absolute existing project path."
+    );
+}
+
+#[test]
+fn command_execution_rejects_relative_project_hint() {
+    let response = handle_request(json!({
+        "id": "terminal-2",
+        "method": "openTerminal",
+        "params": {
+            "projectHint": ".",
+            "commandLine": "pnpm dev",
+            "executeCommand": true
+        }
+    }))
+    .unwrap();
+
+    assert_eq!(response["id"], "terminal-2");
+    assert_eq!(response["result"]["opened"], false);
+    assert_eq!(
+        response["result"]["message"],
+        "Command execution requires an absolute existing project path."
+    );
+}
