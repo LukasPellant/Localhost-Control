@@ -17,6 +17,19 @@ export type BrowserPrivateWindowResult = {
   reason?: "unavailable" | "failed";
 };
 
+export type BrowserMobilePreviewResult = {
+  opened: boolean;
+  message: string;
+  origin: string;
+  url: string;
+  reason?: "unavailable" | "failed";
+};
+
+const mobilePreviewSize = {
+  width: 390,
+  height: 844
+} as const;
+
 const localhostNames = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1"]);
 const cleanupModes = {
   all: {
@@ -119,6 +132,43 @@ export const openPrivateWindowForUrl = async (value: string): Promise<BrowserPri
   };
 };
 
+export const openMobilePreviewForUrl = async (value: string): Promise<BrowserMobilePreviewResult> => {
+  const origin = originFromLocalhostUrl(value);
+  const windows = getExtensionApi()?.windows;
+
+  if (!windows?.create) {
+    return {
+      opened: false,
+      message: "Mobile preview window API is unavailable.",
+      origin,
+      url: value,
+      reason: "unavailable"
+    };
+  }
+
+  try {
+    await windows.create({
+      url: value,
+      type: "popup",
+      width: mobilePreviewSize.width,
+      height: mobilePreviewSize.height,
+      focused: true
+    });
+  } catch (error) {
+    return mobilePreviewFailureResult(origin, value, error);
+  }
+
+  const runtimeError = getExtensionApi()?.runtime?.lastError?.message;
+  if (runtimeError) return mobilePreviewFailureResult(origin, value, runtimeError);
+
+  return {
+    opened: true,
+    message: `Opened mobile preview for ${origin}.`,
+    origin,
+    url: value
+  };
+};
+
 const cleanupFailureResult = (origin: string, error: unknown): BrowserCleanupResult => {
   const message = error instanceof Error ? error.message : String(error);
   const permissionDenied = /permission|denied|not allowed|not permitted/i.test(message);
@@ -135,6 +185,17 @@ const privateWindowFailureResult = (origin: string, url: string, error: unknown)
   return {
     opened: false,
     message: `Private window failed for ${origin}: ${message}`,
+    origin,
+    url,
+    reason: "failed"
+  };
+};
+
+const mobilePreviewFailureResult = (origin: string, url: string, error: unknown): BrowserMobilePreviewResult => {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    opened: false,
+    message: `Mobile preview failed for ${origin}: ${message}`,
     origin,
     url,
     reason: "failed"

@@ -1,4 +1,10 @@
-export type ActionAuditKind = "start-profile" | "start-workspace" | "stop-process" | "browser-cleanup" | "open-private-window";
+export type ActionAuditKind =
+  | "start-profile"
+  | "start-workspace"
+  | "stop-process"
+  | "browser-cleanup"
+  | "open-private-window"
+  | "open-mobile-preview";
 
 export type ActionAuditEntry = {
   id: string;
@@ -15,7 +21,14 @@ export type ActionAuditInput = {
 };
 
 const maxAuditEntries = 20;
-const allowedActions = new Set<ActionAuditKind>(["start-profile", "start-workspace", "stop-process", "browser-cleanup", "open-private-window"]);
+const allowedActions = new Set<ActionAuditKind>([
+  "start-profile",
+  "start-workspace",
+  "stop-process",
+  "browser-cleanup",
+  "open-private-window",
+  "open-mobile-preview"
+]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;

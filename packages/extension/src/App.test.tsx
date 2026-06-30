@@ -599,6 +599,7 @@ describe("App", () => {
     expect(within(devHealth).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "http://127.0.0.1:5173/admin");
     expect(within(devHealth).getByRole("button", { name: /clean app origin http:\/\/127\.0\.0\.1:5173/i })).toBeInTheDocument();
     expect(within(devHealth).getByRole("button", { name: /open private window http:\/\/127\.0\.0\.1:5173/i })).toBeInTheDocument();
+    expect(within(devHealth).getByRole("button", { name: /open mobile preview http:\/\/127\.0\.0\.1:5173/i })).toBeInTheDocument();
     expect(within(devHealth).getByRole("button", { name: /copy logs for example shop/i })).toBeInTheDocument();
   });
 
@@ -638,6 +639,47 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
     const manager = await screen.findByLabelText("Settings manager");
     expect(manager).toHaveTextContent("Opened private window");
+    expect(manager).not.toHaveTextContent("Cleaned browser data");
+  });
+
+  it("opens the selected localhost app in a mobile preview window from the detail card", async () => {
+    const create = vi.fn(async () => ({ id: 18 }));
+    (globalThis as { chrome?: unknown }).chrome = {
+      windows: { create }
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const devHealth = within(await screen.findByLabelText("Port 5173 details")).getByLabelText("Dev health for Example Shop");
+    fireEvent.click(within(devHealth).getByRole("button", { name: /open mobile preview http:\/\/127\.0\.0\.1:5173/i }));
+
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith({
+        url: "http://127.0.0.1:5173",
+        type: "popup",
+        width: 390,
+        height: 844,
+        focused: true
+      })
+    );
+    expect(await screen.findByText("Opened mobile preview for http://127.0.0.1:5173.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
+    const manager = await screen.findByLabelText("Settings manager");
+    expect(manager).toHaveTextContent("Opened mobile preview");
     expect(manager).not.toHaveTextContent("Cleaned browser data");
   });
 

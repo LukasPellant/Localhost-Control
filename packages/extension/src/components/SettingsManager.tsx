@@ -61,7 +61,8 @@ const auditActionLabels: Record<ActionAuditKind, string> = {
   "start-workspace": "Started workspace",
   "stop-process": "Stopped process",
   "browser-cleanup": "Cleaned browser data",
-  "open-private-window": "Opened private window"
+  "open-private-window": "Opened private window",
+  "open-mobile-preview": "Opened mobile preview"
 };
 
 const formatAuditEntry = (entry: ActionAuditEntry): string => {

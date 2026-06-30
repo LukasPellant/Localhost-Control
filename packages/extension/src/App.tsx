@@ -7,7 +7,7 @@ import { PortList } from "./components/PortList";
 import { SafeActionDialog } from "./components/SafeActionDialog";
 import { SettingsManager } from "./components/SettingsManager";
 import { WorkspaceActionDialog } from "./components/WorkspaceActionDialog";
-import { clearBrowserDataForUrl, openPrivateWindowForUrl, type BrowserCleanupMode } from "./lib/browserCleanup";
+import { clearBrowserDataForUrl, openMobilePreviewForUrl, openPrivateWindowForUrl, type BrowserCleanupMode } from "./lib/browserCleanup";
 import { appendActionAuditEntry, createActionAuditEntry, type ActionAuditInput } from "./lib/actionAudit";
 import { formatDevContext, formatWorkspaceContext } from "./lib/devContext";
 import { getExtensionApi } from "./lib/extensionApi";
@@ -815,6 +815,22 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const openMobilePreviewForEntry = async (entry: PortEntry) => {
+    const url = entry.url ?? `http://127.0.0.1:${entry.port}`;
+    try {
+      const result = await openMobilePreviewForUrl(url);
+      if (result.opened) {
+        void recordAction({
+          action: "open-mobile-preview",
+          target: result.origin
+        });
+      }
+      setMessage(result.message);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const checkHealthForProfile = async (profile: ProjectProfile) => {
     const requestSeq = (profileHealthRequestSeqRef.current[profile.id] ?? 0) + 1;
     profileHealthRequestSeqRef.current[profile.id] = requestSeq;
@@ -1168,6 +1184,7 @@ export const App = ({ client }: AppProps) => {
         onTerminal={(entry) => void openTerminalForEntry(entry)}
         onCleanup={(entry, mode) => void cleanupBrowserDataForEntry(entry, mode)}
         onOpenPrivate={(entry) => void openPrivateWindowForEntry(entry)}
+        onOpenMobilePreview={(entry) => void openMobilePreviewForEntry(entry)}
         onCopyProfileCommand={(profile) => void copyProfileCommand(profile)}
         onOpenProfileTerminal={(profile) => void openTerminalForProfile(profile)}
         onCheckProfileHealth={(profile) => void checkHealthForProfile(profile)}

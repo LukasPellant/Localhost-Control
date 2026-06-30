@@ -1,4 +1,4 @@
-import { Activity, Copy, EyeOff, ExternalLink, FolderPlus, Power, RefreshCw, Terminal, Trash2 } from "lucide-react";
+import { Activity, Copy, EyeOff, ExternalLink, FolderPlus, Power, RefreshCw, Smartphone, Terminal, Trash2 } from "lucide-react";
 import { kindLabel, type PortEntry } from "@localhost-control/shared";
 import { IconButton } from "./IconButton";
 import { originFromLocalhostUrl, type BrowserCleanupMode } from "../lib/browserCleanup";
@@ -23,6 +23,7 @@ type DetailPanelProps = {
   onTerminal(entry: PortEntry): void;
   onCleanup(entry: PortEntry, mode?: BrowserCleanupMode): void;
   onOpenPrivate(entry: PortEntry): void;
+  onOpenMobilePreview(entry: PortEntry): void;
   onCopyProfileCommand(profile: ProjectProfile): void;
   onOpenProfileTerminal(profile: ProjectProfile): void;
   onCheckProfileHealth(profile: ProjectProfile): void;
@@ -46,6 +47,7 @@ export const DetailPanel = ({
   onTerminal,
   onCleanup,
   onOpenPrivate,
+  onOpenMobilePreview,
   onCopyProfileCommand,
   onOpenProfileTerminal,
   onCheckProfileHealth,
@@ -245,6 +247,10 @@ export const DetailPanel = ({
                 <button type="button" onClick={() => onOpenPrivate(entry)} aria-label={`Open private window ${cleanupOrigin}`}>
                   <EyeOff size={14} />
                   Open private
+                </button>
+                <button type="button" onClick={() => onOpenMobilePreview(entry)} aria-label={`Open mobile preview ${cleanupOrigin}`}>
+                  <Smartphone size={14} />
+                  Mobile preview
                 </button>
               </>
             ) : null}

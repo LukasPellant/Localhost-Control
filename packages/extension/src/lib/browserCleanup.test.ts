@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearBrowserDataForUrl, openPrivateWindowForUrl, originFromLocalhostUrl } from "./browserCleanup";
+import { clearBrowserDataForUrl, openMobilePreviewForUrl, openPrivateWindowForUrl, originFromLocalhostUrl } from "./browserCleanup";
 
 afterEach(() => {
   Reflect.deleteProperty(globalThis, "chrome");
@@ -179,6 +179,60 @@ describe("openPrivateWindowForUrl", () => {
     await expect(openPrivateWindowForUrl("http://127.0.0.1:5173/dashboard")).resolves.toEqual({
       opened: false,
       message: "Private window failed for http://127.0.0.1:5173: Incognito mode is disabled.",
+      origin: "http://127.0.0.1:5173",
+      url: "http://127.0.0.1:5173/dashboard",
+      reason: "failed"
+    });
+  });
+});
+
+describe("openMobilePreviewForUrl", () => {
+  it("reports unavailable mobile preview APIs without throwing", async () => {
+    await expect(openMobilePreviewForUrl("http://127.0.0.1:5173/dashboard")).resolves.toEqual({
+      opened: false,
+      message: "Mobile preview window API is unavailable.",
+      origin: "http://127.0.0.1:5173",
+      url: "http://127.0.0.1:5173/dashboard",
+      reason: "unavailable"
+    });
+  });
+
+  it("opens localhost app URLs in a focused mobile preview popup", async () => {
+    const create = vi.fn(async () => ({ id: 14 }));
+    (globalThis as { browser?: unknown }).browser = {
+      windows: { create }
+    };
+
+    await expect(openMobilePreviewForUrl("http://127.0.0.1:5173/dashboard?device=phone")).resolves.toEqual({
+      opened: true,
+      message: "Opened mobile preview for http://127.0.0.1:5173.",
+      origin: "http://127.0.0.1:5173",
+      url: "http://127.0.0.1:5173/dashboard?device=phone"
+    });
+    expect(create).toHaveBeenCalledWith({
+      url: "http://127.0.0.1:5173/dashboard?device=phone",
+      type: "popup",
+      width: 390,
+      height: 844,
+      focused: true
+    });
+  });
+
+  it("keeps mobile previews limited to localhost URLs", async () => {
+    await expect(openMobilePreviewForUrl("https://example.com/dashboard")).rejects.toThrow("Only localhost browser data can be cleared.");
+  });
+
+  it("reports mobile preview failures without throwing", async () => {
+    const create = vi.fn(async () => {
+      throw new Error("Popup windows are disabled.");
+    });
+    (globalThis as { chrome?: unknown }).chrome = {
+      windows: { create }
+    };
+
+    await expect(openMobilePreviewForUrl("http://127.0.0.1:5173/dashboard")).resolves.toEqual({
+      opened: false,
+      message: "Mobile preview failed for http://127.0.0.1:5173: Popup windows are disabled.",
       origin: "http://127.0.0.1:5173",
       url: "http://127.0.0.1:5173/dashboard",
       reason: "failed"
