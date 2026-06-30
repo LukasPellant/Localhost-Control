@@ -2,7 +2,7 @@
   "name": "localhost-control",
   "version": "0.1.5",
   "private": true,
-  "description": "A Brave/Chromium side panel for finding and killing stale localhost dev servers.",
+  "description": "Find, check, clean, and stop localhost development servers from a clean browser side panel.",
   "type": "module",
   "scripts": {
     "build": "pnpm -r --sort build",
