@@ -586,10 +586,9 @@ button:disabled {
   white-space: nowrap;
 }
 
-.stale-signal,
-.doctor-card {
+.dev-health-card {
   display: grid;
-  gap: 4px;
+  gap: 8px;
   min-width: 0;
   padding: 8px;
   border: 1px solid var(--border);
@@ -599,25 +598,95 @@ button:disabled {
   font-size: 11px;
 }
 
-.stale-signal strong,
-.doctor-card strong {
+.dev-health-heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dev-health-heading div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.dev-health-heading strong {
   color: var(--text);
   font-size: 12px;
 }
 
-.stale-signal.high,
-.doctor-card.conflict {
+.dev-health-heading span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dev-health-status {
+  flex: 0 1 auto;
+  max-width: 48%;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.dev-health-status.healthy {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.dev-health-status.unhealthy,
+.dev-health-status.error {
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.dev-health-grid {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.dev-health-grid div {
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+.dev-health-grid .attention {
+  border-color: var(--accent-border);
+  background: var(--surface);
+}
+
+.dev-health-grid .danger {
   border-color: var(--danger-border);
   background: var(--danger-soft);
 }
 
-.stale-signal.high strong,
-.doctor-card.conflict strong {
-  color: var(--danger);
+.dev-health-grid dt {
+  margin: 0 0 2px;
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
-.doctor-card.attention {
-  border-color: var(--accent-border);
+.dev-health-grid dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-rule-actions {
@@ -651,14 +720,45 @@ button:disabled {
   color: var(--text);
 }
 
-.profile-links {
+.dev-health-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 6px;
+}
+
+.dev-health-actions button {
+  display: inline-flex;
+  min-width: 0;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dev-health-actions button:hover:not(:disabled) {
+  border-color: var(--control-border-hover);
+  background: var(--control-hover);
+  color: var(--text);
+}
+
+.dev-health-links {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.profile-links a {
+.dev-health-links a {
   min-width: 0;
   padding: 5px 7px;
   border: 1px solid var(--border);
@@ -669,24 +769,24 @@ button:disabled {
   text-decoration: none;
 }
 
-.log-preview {
+.dev-health-logs {
   display: grid;
   gap: 5px;
   min-width: 0;
 }
 
-.log-preview strong {
+.dev-health-logs strong {
   color: var(--faint);
   font-size: 10px;
   text-transform: uppercase;
 }
 
-.log-preview code {
+.dev-health-logs code {
   min-width: 0;
   overflow: hidden;
   padding: 5px 6px;
   border-radius: 6px;
-  background: var(--control);
+  background: var(--surface);
   color: var(--text);
   font-size: 11px;
   text-overflow: ellipsis;

@@ -385,6 +385,28 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const copyProfileCommand = async (profile: ProjectProfile) => {
+    if (!profile.startCommand) return;
+    try {
+      await copyText(profile.startCommand);
+      setMessage(`Copied command for ${profile.name}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const openTerminalForProfile = async (profile: ProjectProfile) => {
+    try {
+      const result = await client.openTerminal({
+        ...(profile.projectPath ? { projectHint: profile.projectPath } : {}),
+        ...(profile.startCommand ? { commandLine: profile.startCommand } : {})
+      });
+      setMessage(result.message);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const cleanupBrowserDataForEntry = async (entry: PortEntry) => {
     const url = entry.url ?? `http://127.0.0.1:${entry.port}`;
     try {
@@ -595,6 +617,8 @@ export const App = ({ client }: AppProps) => {
         onCopy={(entry) => void copyEntry(entry)}
         onTerminal={(entry) => void openTerminalForEntry(entry)}
         onCleanup={(entry) => void cleanupBrowserDataForEntry(entry)}
+        onCopyProfileCommand={(profile) => void copyProfileCommand(profile)}
+        onOpenProfileTerminal={(profile) => void openTerminalForProfile(profile)}
         onCheckProfileHealth={(profile) => void checkHealthForProfile(profile)}
         onSaveProfile={(entry) => void saveProfileForEntry(entry)}
         onTrustProject={(entry) => void trustProject(entry)}

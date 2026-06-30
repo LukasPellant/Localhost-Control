@@ -222,6 +222,106 @@ describe("App", () => {
     expect(screen.getByLabelText("Port 5173 details")).toHaveTextContent("vite ready in 420ms");
   });
 
+  it("groups saved profile health, origin cleanup, command, URLs, and recent logs in the detail card", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            extraUrls: [{ label: "Admin", url: "http://127.0.0.1:5173/admin" }],
+            healthUrl: "http://127.0.0.1:5173/health",
+            notes: "Storefront and checkout",
+            logLines: ["vite ready in 420ms", "GET /health 200"]
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const details = await screen.findByLabelText("Port 5173 details");
+    const devHealth = within(details).getByLabelText("Dev health for Example Shop");
+
+    expect(devHealth).toHaveTextContent("Example Shop");
+    expect(devHealth).toHaveTextContent("Health URL");
+    expect(devHealth).toHaveTextContent("http://127.0.0.1:5173/health");
+    expect(devHealth).toHaveTextContent("Origin");
+    expect(devHealth).toHaveTextContent("http://127.0.0.1:5173");
+    expect(devHealth).toHaveTextContent("Saved command");
+    expect(devHealth).toHaveTextContent("pnpm dev");
+    expect(devHealth).toHaveTextContent("Recent profile logs");
+    expect(devHealth).toHaveTextContent("GET /health 200");
+    expect(within(devHealth).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "http://127.0.0.1:5173/admin");
+    expect(within(devHealth).getByRole("button", { name: /clean app origin http:\/\/127\.0\.0\.1:5173/i })).toBeInTheDocument();
+  });
+
+  it("copies and opens the saved profile command from the detail card", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const devHealth = within(await screen.findByLabelText("Port 5173 details")).getByLabelText("Dev health for Example Shop");
+    fireEvent.click(within(devHealth).getByRole("button", { name: /copy command for example shop/i }));
+    expect(await screen.findByText("Copied command for Example Shop")).toBeInTheDocument();
+    fireEvent.click(within(devHealth).getByRole("button", { name: /open terminal for example shop/i }));
+
+    expect(writeText).toHaveBeenCalledWith("pnpm dev");
+    await waitFor(() =>
+      expect(client.openTerminal).toHaveBeenCalledWith({
+        projectHint: "D:\\Projects\\ExampleShop",
+        commandLine: "pnpm dev"
+      })
+    );
+  });
+
+  it("hides saved command actions when a profile has no start command", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const devHealth = within(await screen.findByLabelText("Port 5173 details")).getByLabelText("Dev health for Example Shop");
+    expect(within(devHealth).queryByRole("button", { name: /copy command for example shop/i })).not.toBeInTheDocument();
+    expect(within(devHealth).queryByRole("button", { name: /open terminal for example shop/i })).not.toBeInTheDocument();
+  });
+
   it("checks a saved profile health URL and surfaces the readiness result", async () => {
     const fetchHealth = vi.fn(async () => ({ ok: true, status: 204, statusText: "No Content" }));
     vi.stubGlobal("fetch", fetchHealth);
@@ -818,7 +918,7 @@ describe("App", () => {
     render(<App client={client} />);
 
     expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
-    fireEvent.click(within(screen.getByLabelText("Port 5173 details")).getByRole("button", { name: /clean browser data for port 5173/i }));
+    fireEvent.click(within(screen.getByLabelText("Port 5173 details")).getByRole("button", { name: /clean app origin http:\/\/127\.0\.0\.1:5173/i }));
 
     await waitFor(() =>
       expect(remove).toHaveBeenCalledWith(
@@ -922,7 +1022,7 @@ describe("App", () => {
     render(<App client={duplicateClient} />);
 
     expect((await screen.findAllByRole("button", { name: /select port 5173/i }))[0]).toBeInTheDocument();
-    const doctor = screen.getByLabelText("Port doctor");
+    const doctor = screen.getByLabelText("Dev health for port 5173");
     expect(doctor).toHaveTextContent("2 listeners share port 5173");
     expect(doctor).toHaveTextContent("Next free: 5175");
   });
@@ -957,7 +1057,7 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Unknown" }));
     const row = await screen.findByRole("button", { name: /select port 8990/i });
     expect(row).toHaveTextContent("Possible stale process");
-    expect(screen.getByLabelText("Stale process signal")).toHaveTextContent("Long uptime");
-    expect(screen.getByLabelText("Stale process signal")).toHaveTextContent("High memory");
+    expect(screen.getByLabelText("Dev health for port 8990")).toHaveTextContent("Long uptime");
+    expect(screen.getByLabelText("Dev health for port 8990")).toHaveTextContent("High memory");
   });
 });

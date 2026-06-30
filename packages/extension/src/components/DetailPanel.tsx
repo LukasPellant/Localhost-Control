@@ -1,6 +1,7 @@
 import { Activity, Copy, EyeOff, ExternalLink, FolderPlus, Power, Terminal, Trash2 } from "lucide-react";
 import { kindLabel, type PortEntry } from "@localhost-control/shared";
 import { IconButton } from "./IconButton";
+import { originFromLocalhostUrl } from "../lib/browserCleanup";
 import type { PortDoctorReport } from "../lib/portDoctor";
 import type { ProfileHealthResult } from "../lib/profileHealth";
 import type { ProjectProfile } from "../lib/projectProfiles";
@@ -18,6 +19,8 @@ type DetailPanelProps = {
   onCopy(entry: PortEntry): void;
   onTerminal(entry: PortEntry): void;
   onCleanup(entry: PortEntry): void;
+  onCopyProfileCommand(profile: ProjectProfile): void;
+  onOpenProfileTerminal(profile: ProjectProfile): void;
   onCheckProfileHealth(profile: ProjectProfile): void;
   onSaveProfile(entry: PortEntry): void;
   onTrustProject(entry: PortEntry): void;
@@ -35,6 +38,8 @@ export const DetailPanel = ({
   onCopy,
   onTerminal,
   onCleanup,
+  onCopyProfileCommand,
+  onOpenProfileTerminal,
   onCheckProfileHealth,
   onSaveProfile,
   onTrustProject,
@@ -52,6 +57,16 @@ export const DetailPanel = ({
   const memory = formatMemory(entry.resources?.memoryBytes);
   const privateMemory = formatMemory(entry.resources?.privateMemoryBytes, "private");
   const uptime = formatUptime(entry.resources);
+  const entryUrl = entry.url ?? `http://127.0.0.1:${entry.port}`;
+  const cleanupOrigin = (() => {
+    try {
+      return originFromLocalhostUrl(entryUrl);
+    } catch {
+      return undefined;
+    }
+  })();
+  const showDevHealth =
+    Boolean(profile) || Boolean(profileHealth) || Boolean(cleanupOrigin) || Boolean(doctorReport && doctorReport.status !== "ok") || Boolean(staleSignal);
 
   return (
     <section className="detail-panel" aria-label={`Port ${entry.port} details`}>
@@ -70,9 +85,6 @@ export const DetailPanel = ({
           <IconButton label={`Open terminal for port ${entry.port}`} onClick={() => onTerminal(entry)}>
             <Terminal size={15} />
           </IconButton>
-          <IconButton label={`Clean browser data for port ${entry.port}`} onClick={() => onCleanup(entry)}>
-            <Trash2 size={15} />
-          </IconButton>
           <IconButton label={`Kill port ${entry.port}`} tone="danger" onClick={() => onKill(entry)} disabled={!entry.killable}>
             <Power size={15} />
           </IconButton>
@@ -87,7 +99,7 @@ export const DetailPanel = ({
         ) : null}
         <div>
           <dt>URL</dt>
-          <dd>{entry.url ?? `http://127.0.0.1:${entry.port}`}</dd>
+          <dd>{entryUrl}</dd>
         </div>
         <div>
           <dt>PID</dt>
@@ -133,64 +145,115 @@ export const DetailPanel = ({
           <dt>Command</dt>
           <dd>{entry.commandLine ?? entry.protectionReason ?? "No command line available"}</dd>
         </div>
-        {profile?.healthUrl ? (
-          <div className="wide">
-            <dt>Health URL</dt>
-            <dd>{profile.healthUrl}</dd>
-          </div>
-        ) : null}
-        {profileHealth ? (
-          <div className="wide">
-            <dt>Health status</dt>
-            <dd>{profileHealth.label}</dd>
-          </div>
-        ) : null}
-        {profile?.notes ? (
-          <div className="wide">
-            <dt>Notes</dt>
-            <dd>{profile.notes}</dd>
-          </div>
-        ) : null}
       </dl>
-      {staleSignal ? (
-        <div className={`stale-signal ${staleSignal.severity}`} aria-label="Stale process signal">
-          <strong>{staleSignal.label}</strong>
-          <span>{staleSignal.reasons.join(" / ")}</span>
-        </div>
-      ) : null}
-      {doctorReport && doctorReport.status !== "ok" ? (
-        <div className={`doctor-card ${doctorReport.status}`} aria-label="Port doctor">
-          <strong>{doctorReport.summary}</strong>
-          <span>{doctorReport.nextFreePort ? `Next free: ${doctorReport.nextFreePort}` : "No free port found"}</span>
-          {doctorReport.issues.map((issue) => (
-            <span key={issue}>{issue}</span>
-          ))}
-        </div>
-      ) : null}
-      {profile?.extraUrls?.length ? (
-        <div className="profile-links" aria-label="Profile URLs">
-          {profile.extraUrls.map((item) => (
-            <a key={`${item.label}-${item.url}`} href={item.url} target="_blank" rel="noreferrer">
-              {item.label}
-            </a>
-          ))}
-        </div>
-      ) : null}
-      {profile?.logLines?.length ? (
-        <div className="log-preview" aria-label="Recent logs">
-          <strong>Recent logs</strong>
-          {profile.logLines.slice(-4).map((line, index) => (
-            <code key={`${index}-${line}`}>{line}</code>
-          ))}
+      {showDevHealth ? (
+        <div className="dev-health-card" aria-label={profile ? `Dev health for ${profile.name}` : `Dev health for port ${entry.port}`}>
+          <div className="dev-health-heading">
+            <div>
+              <strong>Dev health</strong>
+              <span>{profile?.name ?? `Port ${entry.port}`}</span>
+            </div>
+            {profileHealth ? <span className={`dev-health-status ${profileHealth.state}`}>{profileHealth.label}</span> : null}
+          </div>
+          <dl className="dev-health-grid">
+            {profile?.healthUrl || profileHealth ? (
+              <div>
+                <dt>Health</dt>
+                <dd>{profileHealth?.label ?? "Not checked"}</dd>
+              </div>
+            ) : null}
+            {profile?.healthUrl ? (
+              <div>
+                <dt>Health URL</dt>
+                <dd>{profile.healthUrl}</dd>
+              </div>
+            ) : null}
+            {cleanupOrigin ? (
+              <div>
+                <dt>Origin</dt>
+                <dd>{cleanupOrigin}</dd>
+              </div>
+            ) : null}
+            {profile?.startCommand ? (
+              <div>
+                <dt>Saved command</dt>
+                <dd>{profile.startCommand}</dd>
+              </div>
+            ) : null}
+            {profile?.notes ? (
+              <div>
+                <dt>Notes</dt>
+                <dd>{profile.notes}</dd>
+              </div>
+            ) : null}
+            {doctorReport && doctorReport.status !== "ok" ? (
+              <div className={doctorReport.status === "conflict" ? "danger" : "attention"}>
+                <dt>Doctor</dt>
+                <dd>
+                  {doctorReport.summary}
+                  {" / "}
+                  {doctorReport.nextFreePort ? `Next free: ${doctorReport.nextFreePort}` : "No free port found"}
+                  {doctorReport.issues.length ? ` / ${doctorReport.issues.join(" / ")}` : ""}
+                </dd>
+              </div>
+            ) : null}
+            {staleSignal ? (
+              <div className={staleSignal.severity === "high" ? "danger" : "attention"}>
+                <dt>Stale</dt>
+                <dd>
+                  {staleSignal.label}
+                  {" / "}
+                  {staleSignal.reasons.join(" / ")}
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+          <div className="dev-health-actions">
+            {profile?.healthUrl ? (
+              <button type="button" onClick={() => onCheckProfileHealth(profile)} aria-label={`Check health for ${profile.name}`}>
+                <Activity size={14} />
+                Check health
+              </button>
+            ) : null}
+            {cleanupOrigin ? (
+              <button type="button" onClick={() => onCleanup(entry)} aria-label={`Clean app origin ${cleanupOrigin}`}>
+                <Trash2 size={14} />
+                Clean app origin
+              </button>
+            ) : null}
+            {profile?.startCommand ? (
+              <>
+                <button type="button" onClick={() => onCopyProfileCommand(profile)} aria-label={`Copy command for ${profile.name}`}>
+                  <Copy size={14} />
+                  Copy command
+                </button>
+                <button type="button" onClick={() => onOpenProfileTerminal(profile)} aria-label={`Open terminal for ${profile.name}`}>
+                  <Terminal size={14} />
+                  Open terminal in project
+                </button>
+              </>
+            ) : null}
+          </div>
+          {profile?.extraUrls?.length ? (
+            <div className="dev-health-links" aria-label="Profile URLs">
+              {profile.extraUrls.map((item) => (
+                <a key={`${item.label}-${item.url}`} href={item.url} target="_blank" rel="noreferrer">
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          ) : null}
+          {profile?.logLines?.length ? (
+            <div className="dev-health-logs" aria-label="Recent profile logs">
+              <strong>Recent profile logs</strong>
+              {profile.logLines.slice(-4).map((line, index) => (
+                <code key={`${index}-${line}`}>{line}</code>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
       <div className="detail-rule-actions">
-        {profile?.healthUrl ? (
-          <button type="button" onClick={() => onCheckProfileHealth(profile)} aria-label={`Check health for ${profile.name}`}>
-            <Activity size={14} />
-            Check health
-          </button>
-        ) : null}
         <button type="button" onClick={() => onSaveProfile(entry)} disabled={Boolean(profile)}>
           <FolderPlus size={14} />
           Save profile

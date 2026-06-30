@@ -30,4 +30,11 @@ describe("port row styles", () => {
     expect(ruleBody(".settings-manager")).toContain("min-width: 0");
     expect(ruleBody(".settings-manager")).toContain("overflow-y: auto");
   });
+
+  it("keeps dev health controls compact in narrow detail panels", () => {
+    expect(ruleBody(".dev-health-card")).toContain("min-width: 0");
+    expect(ruleBody(".dev-health-actions")).toContain("repeat(auto-fit, minmax(112px, 1fr))");
+    expect(ruleBody(".dev-health-actions button")).toContain("min-width: 0");
+    expect(ruleBody(".dev-health-grid dd")).toContain("text-overflow: ellipsis");
+  });
 });
