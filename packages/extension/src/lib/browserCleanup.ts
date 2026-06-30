@@ -9,6 +9,14 @@ export type BrowserCleanupResult = {
 
 export type BrowserCleanupMode = "all" | "cache";
 
+export type BrowserPrivateWindowResult = {
+  opened: boolean;
+  message: string;
+  origin: string;
+  url: string;
+  reason?: "unavailable" | "failed";
+};
+
 const localhostNames = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1"]);
 const cleanupModes = {
   all: {
@@ -80,6 +88,37 @@ export const clearBrowserDataForUrl = async (value: string, mode: BrowserCleanup
   };
 };
 
+export const openPrivateWindowForUrl = async (value: string): Promise<BrowserPrivateWindowResult> => {
+  const origin = originFromLocalhostUrl(value);
+  const windows = getExtensionApi()?.windows;
+
+  if (!windows?.create) {
+    return {
+      opened: false,
+      message: "Private window API is unavailable.",
+      origin,
+      url: value,
+      reason: "unavailable"
+    };
+  }
+
+  try {
+    await windows.create({ url: value, type: "normal", incognito: true });
+  } catch (error) {
+    return privateWindowFailureResult(origin, value, error);
+  }
+
+  const runtimeError = getExtensionApi()?.runtime?.lastError?.message;
+  if (runtimeError) return privateWindowFailureResult(origin, value, runtimeError);
+
+  return {
+    opened: true,
+    message: `Opened private window for ${origin}.`,
+    origin,
+    url: value
+  };
+};
+
 const cleanupFailureResult = (origin: string, error: unknown): BrowserCleanupResult => {
   const message = error instanceof Error ? error.message : String(error);
   const permissionDenied = /permission|denied|not allowed|not permitted/i.test(message);
@@ -88,5 +127,16 @@ const cleanupFailureResult = (origin: string, error: unknown): BrowserCleanupRes
     message: permissionDenied ? `Browser cleanup permission was denied for ${origin}.` : `Browser cleanup failed for ${origin}: ${message}`,
     origin,
     reason: permissionDenied ? "permission-denied" : "failed"
+  };
+};
+
+const privateWindowFailureResult = (origin: string, url: string, error: unknown): BrowserPrivateWindowResult => {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    opened: false,
+    message: `Private window failed for ${origin}: ${message}`,
+    origin,
+    url,
+    reason: "failed"
   };
 };

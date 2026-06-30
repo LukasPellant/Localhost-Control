@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearBrowserDataForUrl, originFromLocalhostUrl } from "./browserCleanup";
+import { clearBrowserDataForUrl, openPrivateWindowForUrl, originFromLocalhostUrl } from "./browserCleanup";
 
 afterEach(() => {
   Reflect.deleteProperty(globalThis, "chrome");
@@ -129,6 +129,58 @@ describe("clearBrowserDataForUrl", () => {
       cleared: false,
       message: "Browser cleanup failed for http://127.0.0.1:5173: Browsing data removal failed.",
       origin: "http://127.0.0.1:5173",
+      reason: "failed"
+    });
+  });
+});
+
+describe("openPrivateWindowForUrl", () => {
+  it("reports unavailable window APIs without throwing", async () => {
+    await expect(openPrivateWindowForUrl("http://127.0.0.1:5173/dashboard")).resolves.toEqual({
+      opened: false,
+      message: "Private window API is unavailable.",
+      origin: "http://127.0.0.1:5173",
+      url: "http://127.0.0.1:5173/dashboard",
+      reason: "unavailable"
+    });
+  });
+
+  it("opens localhost app URLs in a private browser window", async () => {
+    const create = vi.fn(async () => ({ id: 10 }));
+    (globalThis as { browser?: unknown }).browser = {
+      windows: { create }
+    };
+
+    await expect(openPrivateWindowForUrl("http://127.0.0.1:5173/dashboard?fresh=1")).resolves.toEqual({
+      opened: true,
+      message: "Opened private window for http://127.0.0.1:5173.",
+      origin: "http://127.0.0.1:5173",
+      url: "http://127.0.0.1:5173/dashboard?fresh=1"
+    });
+    expect(create).toHaveBeenCalledWith({
+      url: "http://127.0.0.1:5173/dashboard?fresh=1",
+      type: "normal",
+      incognito: true
+    });
+  });
+
+  it("keeps private window opens limited to localhost URLs", async () => {
+    await expect(openPrivateWindowForUrl("https://example.com/dashboard")).rejects.toThrow("Only localhost browser data can be cleared.");
+  });
+
+  it("reports incognito window failures without throwing", async () => {
+    const create = vi.fn(async () => {
+      throw new Error("Incognito mode is disabled.");
+    });
+    (globalThis as { chrome?: unknown }).chrome = {
+      windows: { create }
+    };
+
+    await expect(openPrivateWindowForUrl("http://127.0.0.1:5173/dashboard")).resolves.toEqual({
+      opened: false,
+      message: "Private window failed for http://127.0.0.1:5173: Incognito mode is disabled.",
+      origin: "http://127.0.0.1:5173",
+      url: "http://127.0.0.1:5173/dashboard",
       reason: "failed"
     });
   });

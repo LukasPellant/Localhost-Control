@@ -18,7 +18,7 @@ type TabsApi = {
 };
 
 type WindowsApi = {
-  create(properties: { url: string; type?: "normal" | "popup" }): Promise<unknown> | void;
+  create(properties: { url: string; type?: "normal" | "popup"; incognito?: boolean; focused?: boolean }): Promise<unknown> | void;
 };
 
 type BrowsingDataApi = {
