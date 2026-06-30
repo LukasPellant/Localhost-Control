@@ -52,6 +52,13 @@ type RestartableProfileEntry = {
   entry: PortEntry;
 };
 
+type WorkspaceRestartMode = "all" | "failed";
+
+type PendingWorkspaceRestart = {
+  state: WorkspaceState;
+  mode: WorkspaceRestartMode;
+};
+
 const killClosedPort = (result: KillResult): boolean => result.killed && result.portClosed;
 
 const nativeHostDownloadUrl = (): string => {
@@ -146,7 +153,7 @@ export const App = ({ client }: AppProps) => {
   const [pendingKillEntry, setPendingKillEntry] = useState<PortEntry | null>(null);
   const [pendingWorkspaceStop, setPendingWorkspaceStop] = useState<WorkspaceState | null>(null);
   const [pendingProfileRestart, setPendingProfileRestart] = useState<RestartableProfileEntry | null>(null);
-  const [pendingWorkspaceRestart, setPendingWorkspaceRestart] = useState<WorkspaceState | null>(null);
+  const [pendingWorkspaceRestart, setPendingWorkspaceRestart] = useState<PendingWorkspaceRestart | null>(null);
   const [profileHealthResults, setProfileHealthResults] = useState<Record<string, ProfileHealthResult>>({});
   const [settingsManagerOpen, setSettingsManagerOpen] = useState(false);
   const [settingsActionSaving, setSettingsActionSaving] = useState(false);
@@ -424,10 +431,18 @@ export const App = ({ client }: AppProps) => {
   const stopWorkspaceEntries = (state: WorkspaceState): Array<{ profile: ProjectProfile; entry: PortEntry }> =>
     state.profileStates.flatMap(({ profile, entry }) => (entry?.killable ? [{ profile, entry }] : []));
 
-  const restartWorkspaceEntries = (state: WorkspaceState): RestartableProfileEntry[] =>
-    state.profileStates.flatMap(({ profile, entry }) =>
-      entry?.killable && isTrustedStartableProjectProfile(settings, profile) ? [{ profile, entry }] : []
-    );
+  const failedWorkspaceEntries = (state: WorkspaceState): RestartableProfileEntry[] =>
+    state.profileStates.flatMap((profileState) => {
+      const { profile, entry } = profileState;
+      return profileState.status === "unhealthy" && entry?.killable && isTrustedStartableProjectProfile(settings, profile) ? [{ profile, entry }] : [];
+    });
+
+  const restartWorkspaceEntries = (state: WorkspaceState, mode: WorkspaceRestartMode = "all"): RestartableProfileEntry[] =>
+    mode === "failed"
+      ? failedWorkspaceEntries(state)
+      : state.profileStates.flatMap(({ profile, entry }) =>
+          entry?.killable && isTrustedStartableProjectProfile(settings, profile) ? [{ profile, entry }] : []
+        );
 
   const requestStopWorkspace = (state: WorkspaceState) => {
     const stoppableEntries = stopWorkspaceEntries(state);
@@ -526,26 +541,30 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
-  const requestRestartWorkspace = (state: WorkspaceState) => {
-    const restartableEntries = restartWorkspaceEntries(state);
+  const requestRestartWorkspace = (state: WorkspaceState, mode: WorkspaceRestartMode = "all") => {
+    const restartableEntries = restartWorkspaceEntries(state, mode);
     if (!restartableEntries.length) {
-      setMessage(`No running profiles with safe restart commands configured for ${state.workspace.name}`);
+      const target = mode === "failed" ? "failed profiles" : "running profiles";
+      setMessage(`No ${target} with safe restart commands configured for ${state.workspace.name}`);
       return;
     }
-    setPendingWorkspaceRestart(state);
+    setPendingWorkspaceRestart({ state, mode });
   };
 
-  const confirmRestartWorkspace = async (state: WorkspaceState) => {
-    const restartableEntries = restartWorkspaceEntries(state);
+  const confirmRestartWorkspace = async (state: WorkspaceState, mode: WorkspaceRestartMode = "all") => {
+    const restartableEntries = restartWorkspaceEntries(state, mode);
+    const restartTarget = mode === "failed" ? "failed profiles" : "workspace";
+    const restartPastTense = mode === "failed" ? "Restarted failed" : "Restarted";
     if (!restartableEntries.length) {
       setPendingWorkspaceRestart(null);
-      setMessage(`No running profiles with safe restart commands configured for ${state.workspace.name}`);
+      const target = mode === "failed" ? "failed profiles" : "running profiles";
+      setMessage(`No ${target} with safe restart commands configured for ${state.workspace.name}`);
       return;
     }
 
     setBusy(true);
     setPendingWorkspaceRestart(null);
-    setMessage(`Restarting workspace ${state.workspace.name}...`);
+    setMessage(mode === "failed" ? `Restarting failed profiles in ${state.workspace.name}...` : `Restarting workspace ${state.workspace.name}...`);
     const stoppedProfiles: StartableProjectProfile[] = [];
     const startedProfiles: StartableProjectProfile[] = [];
     const failures: string[] = [];
@@ -589,16 +608,20 @@ export const App = ({ client }: AppProps) => {
         action: "start-workspace",
         target: state.workspace.name,
         detail: failures.length
-          ? `Restarted ${startedCount} of ${restartableEntries.length} ${restartableEntries.length === 1 ? "profile" : "profiles"}; ${failures.length} failed`
-          : `Restarted ${startedCount} ${startedCount === 1 ? "profile" : "profiles"}`
+          ? `${restartPastTense} ${startedCount} of ${restartableEntries.length} ${restartableEntries.length === 1 ? "profile" : "profiles"}; ${failures.length} failed`
+          : `${restartPastTense} ${startedCount} ${startedCount === 1 ? "profile" : "profiles"}`
       });
       const healthProfiles = startedProfiles.filter((profile) => profile.healthUrl);
       healthProfiles.forEach((profile) => void waitForProfileReady(profile));
       if (failures.length) {
-        setMessage(`Restarted workspace ${state.workspace.name}: ${startedCount} of ${restartableEntries.length} profiles; ${failures.length} failed`);
+        setMessage(
+          `Restarted ${restartTarget} ${mode === "failed" ? `in ${state.workspace.name}` : state.workspace.name}: ${startedCount} of ${restartableEntries.length} profiles; ${failures.length} failed`
+        );
         return;
       }
-      setMessage(`Restarted workspace ${state.workspace.name}: ${startedCount} ${startedCount === 1 ? "profile" : "profiles"}`);
+      setMessage(
+        `Restarted ${restartTarget} ${mode === "failed" ? `in ${state.workspace.name}` : state.workspace.name}: ${startedCount} ${startedCount === 1 ? "profile" : "profiles"}`
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -995,6 +1018,7 @@ export const App = ({ client }: AppProps) => {
           {workspaceStates.map((state) => {
             const stoppableEntries = stopWorkspaceEntries(state);
             const restartableEntries = restartWorkspaceEntries(state);
+            const failedRestartableEntries = restartWorkspaceEntries(state, "failed");
             return (
               <article className={`workspace-chip ${state.status}`} key={state.workspace.id}>
                 <button className="workspace-summary" type="button" onClick={() => state.openUrls.forEach((url) => openExternalUrl(url))} aria-label={`Open workspace ${state.workspace.name}`}>
@@ -1015,6 +1039,12 @@ export const App = ({ client }: AppProps) => {
                     <button type="button" onClick={() => requestRestartWorkspace(state)} aria-label={`Restart workspace ${state.workspace.name}`}>
                       <RefreshCw size={12} />
                       Restart
+                    </button>
+                  ) : null}
+                  {failedRestartableEntries.length ? (
+                    <button type="button" onClick={() => requestRestartWorkspace(state, "failed")} aria-label={`Restart failed workspace ${state.workspace.name}`}>
+                      <RefreshCw size={12} />
+                      Failed
                     </button>
                   ) : null}
                   {stoppableEntries.length ? (
@@ -1160,11 +1190,11 @@ export const App = ({ client }: AppProps) => {
 
       {pendingWorkspaceRestart ? (
         <WorkspaceActionDialog
-          action="restart"
-          workspace={pendingWorkspaceRestart.workspace}
-          profiles={restartWorkspaceEntries(pendingWorkspaceRestart)}
+          action={pendingWorkspaceRestart.mode === "failed" ? "restart-failed" : "restart"}
+          workspace={pendingWorkspaceRestart.state.workspace}
+          profiles={restartWorkspaceEntries(pendingWorkspaceRestart.state, pendingWorkspaceRestart.mode)}
           onCancel={() => setPendingWorkspaceRestart(null)}
-          onConfirm={() => void confirmRestartWorkspace(pendingWorkspaceRestart)}
+          onConfirm={() => void confirmRestartWorkspace(pendingWorkspaceRestart.state, pendingWorkspaceRestart.mode)}
         />
       ) : null}
 

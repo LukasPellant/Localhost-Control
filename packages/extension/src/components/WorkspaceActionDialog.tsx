@@ -7,7 +7,7 @@ import type { ProjectWorkspace } from "../lib/projectWorkspaces";
 type WorkspaceActionDialogProps = {
   workspace: ProjectWorkspace;
   profiles: Array<{ profile: ProjectProfile; entry: PortEntry }>;
-  action?: "stop" | "restart";
+  action?: "stop" | "restart" | "restart-failed";
   onCancel(): void;
   onConfirm(): void;
 };
@@ -15,12 +15,20 @@ type WorkspaceActionDialogProps = {
 export const WorkspaceActionDialog = ({ workspace, profiles, action = "stop", onCancel, onConfirm }: WorkspaceActionDialogProps) => {
   const dialogRef = useRef<HTMLElement | null>(null);
   const cancelRef = useRef<HTMLButtonElement | null>(null);
-  const title = action === "restart" ? `Restart workspace ${workspace.name}` : `Stop workspace ${workspace.name}`;
+  const title =
+    action === "restart-failed"
+      ? `Restart failed profiles in ${workspace.name}`
+      : action === "restart"
+        ? `Restart workspace ${workspace.name}`
+        : `Stop workspace ${workspace.name}`;
   const description =
-    action === "restart"
+    action === "restart-failed"
+      ? "Review the failed profile processes before stopping and starting them again."
+      : action === "restart"
       ? "Review the running profile processes before stopping and starting them again."
       : "Review the running profile processes before forcing them to close.";
-  const confirmLabel = action === "restart" ? `Restart ${profiles.length}` : `Force stop ${profiles.length}`;
+  const confirmLabel =
+    action === "restart-failed" ? `Restart failed ${profiles.length}` : action === "restart" ? `Restart ${profiles.length}` : `Force stop ${profiles.length}`;
 
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;

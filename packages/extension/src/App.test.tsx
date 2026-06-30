@@ -1100,6 +1100,115 @@ describe("App", () => {
     expect(await screen.findByText("Restarted workspace Daily stack: 2 profiles")).toBeInTheDocument();
   });
 
+  it("restarts only failed workspace profiles after confirmation", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects", "C:\\Workspaces"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          },
+          {
+            id: "api",
+            name: "Local API",
+            projectPath: "C:\\Workspaces\\LocalApi",
+            startCommand: "pnpm api",
+            expectedPort: 17321,
+            mainUrl: "http://127.0.0.1:17321"
+          },
+          {
+            id: "docs",
+            name: "Docs",
+            projectPath: "D:\\Projects\\Docs",
+            startCommand: "pnpm docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321"
+          }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api", "docs"] }]
+      })
+    );
+
+    const unhealthyClient: HostClient = {
+      ...client,
+      scan: vi.fn(async () => ({
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 22,
+        entries: entries.map((entry) => (entry.port === 5173 ? { ...entry, statusCode: 500, title: "Server Error" } : entry))
+      }))
+    };
+
+    render(<App client={unhealthyClient} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    expect(within(workspaces).getByText("1 running, 2 need attention")).toBeInTheDocument();
+    fireEvent.click(within(workspaces).getByRole("button", { name: /restart failed workspace daily stack/i }));
+
+    const dialog = screen.getByRole("dialog", { name: /restart failed profiles in daily stack/i });
+    expect(within(dialog).getByText("Example Shop")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Local API")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Docs")).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /restart failed 1/i }));
+
+    await waitFor(() => expect(unhealthyClient.kill).toHaveBeenCalledTimes(1));
+    expect(unhealthyClient.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" });
+    await waitFor(() => expect(unhealthyClient.openTerminal).toHaveBeenCalledTimes(1));
+    expect(unhealthyClient.openTerminal).toHaveBeenCalledWith({
+      projectHint: "D:\\Projects\\ExampleShop",
+      commandLine: "pnpm dev",
+      executeCommand: true
+    });
+    expect(await screen.findByText("Restarted failed profiles in Daily stack: 1 profile")).toBeInTheDocument();
+  });
+
+  it("does not offer restart failed when workspace only has stopped profiles needing attention", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects", "C:\\Workspaces"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          },
+          {
+            id: "api",
+            name: "Local API",
+            projectPath: "C:\\Workspaces\\LocalApi",
+            startCommand: "pnpm api",
+            expectedPort: 17321,
+            mainUrl: "http://127.0.0.1:17321"
+          },
+          {
+            id: "docs",
+            name: "Docs",
+            projectPath: "D:\\Projects\\Docs",
+            startCommand: "pnpm docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321"
+          }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api", "docs"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    expect(within(workspaces).getByText("2 running, 1 needs attention")).toBeInTheDocument();
+    expect(within(workspaces).queryByRole("button", { name: /restart failed workspace daily stack/i })).not.toBeInTheDocument();
+  });
+
   it("does not stop workspace profiles when restart health permission is denied", async () => {
     const requestPermission = vi.fn(async () => false);
     (globalThis as { browser?: unknown }).browser = {
