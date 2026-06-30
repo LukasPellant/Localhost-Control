@@ -2,8 +2,9 @@ import type { PortEntry } from "@localhost-control/shared";
 import { originFromLocalhostUrl } from "./browserCleanup";
 import type { PortDoctorReport } from "./portDoctor";
 import type { ProfileHealthResult } from "./profileHealth";
-import type { ProjectProfile } from "./projectProfiles";
+import type { ProfileState, ProjectProfile } from "./projectProfiles";
 import { recentProfileLogLines } from "./profileLogs";
+import type { WorkspaceState } from "./projectWorkspaces";
 import { formatCpu, formatMemory, formatUptime } from "./resources";
 import { redactSensitiveText, sanitizeLocalUrl } from "./sensitiveText";
 import type { StaleProcessSignal } from "./staleProcesses";
@@ -68,6 +69,58 @@ const formatResources = (entry: PortEntry): string | undefined =>
 const formatRecentLogs = (profile: ProjectProfile | undefined): string[] => {
   const logLines = recentProfileLogLines(profile).map((line) => truncate(line.text, MAX_LOG_LINE_LENGTH));
   return logLines.length ? ["- Recent profile logs (untrusted diagnostics):", ...logLines.map((line) => `  - ${line}`)] : [];
+};
+
+const workspaceServiceUrl = (state: ProfileState): string | undefined => (state.entry ? entryUrl(state.entry) : state.profile.mainUrl);
+
+const workspaceServiceSummary = (state: ProfileState): string => {
+  const url = sanitizeLocalUrl(workspaceServiceUrl(state));
+  const parts = joinParts([state.status, state.healthLabel, state.entry ? `PID ${state.entry.pid}` : undefined, url]);
+  return `- ${sanitizeText(state.profile.name) ?? "Service"}${parts ? `: ${parts}` : ""}`;
+};
+
+const workspaceServiceDetails = (state: ProfileState): string[] => {
+  const processCommand = state.entry?.commandLine;
+  const savedCommand =
+    state.profile.startCommand && state.profile.startCommand !== processCommand ? state.profile.startCommand : undefined;
+  const logs = recentProfileLogLines(state.profile)
+    .map((line) => sanitizeText(line.text, MAX_LOG_LINE_LENGTH))
+    .filter((line): line is string => Boolean(line))
+    .slice(-3);
+
+  return [
+    state.profile.mainUrl ? `  - Main URL: ${sanitizeLocalUrl(state.profile.mainUrl)}` : undefined,
+    state.profile.healthUrl ? `  - Health URL: ${sanitizeLocalUrl(state.profile.healthUrl)}` : undefined,
+    processCommand ? `  - Command: ${sanitizeText(processCommand)}` : undefined,
+    savedCommand ? `  - Saved command: ${sanitizeText(savedCommand)}` : undefined,
+    ...logs.map((line) => `  - Log: ${line}`)
+  ].filter((line): line is string => Boolean(line));
+};
+
+export const formatWorkspaceContext = (state: WorkspaceState): string => {
+  const openUrls = state.openUrls
+    .map((url) => sanitizeLocalUrl(url))
+    .filter((url): url is string => Boolean(url));
+  const serviceLines = state.profileStates.flatMap((profileState) => [
+    workspaceServiceSummary(profileState),
+    ...workspaceServiceDetails(profileState)
+  ]);
+
+  const lines = [
+    "# Localhost Control workspace context",
+    "",
+    optionalLine("Workspace", state.workspace.name),
+    optionalLine("Status", state.status),
+    optionalLine("Health", state.healthLabel),
+    optionalLine("Services", `${state.runningCount}/${state.totalCount} running, ${state.attentionCount} attention`),
+    optionalLine("Notes", state.workspace.notes),
+    ...(openUrls.length ? ["- Open URLs:", ...openUrls.map((url) => `  - ${url}`)] : []),
+    "",
+    "## Services",
+    ...serviceLines
+  ];
+
+  return truncate(lines.filter((line): line is string => line !== undefined).join("\n"), MAX_OUTPUT_LENGTH);
 };
 
 export const formatDevContext = ({ entry, profile, profileHealth, doctorReport, staleSignal }: DevContextInput): string => {

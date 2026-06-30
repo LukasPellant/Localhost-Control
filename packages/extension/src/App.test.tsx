@@ -698,6 +698,57 @@ describe("App", () => {
     expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:4321", "_blank", "noopener,noreferrer");
   });
 
+  it("copies saved workspace context for AI agents", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "C:\\Users\\pella\\Projects\\ExampleShop",
+            startCommand: "pnpm dev --token hunter2",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173?token=hunter2",
+            healthUrl: "http://127.0.0.1:5173/health?access_token=hunter2",
+            logLines: ["Authorization: Bearer abc123", "ready"]
+          },
+          {
+            id: "docs",
+            name: "Docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321"
+          }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "docs"], notes: "Release loop" }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    fireEvent.click(within(workspaces).getByRole("button", { name: /copy workspace context daily stack/i }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const copiedText = String(writeText.mock.calls[0]?.[0] ?? "");
+    expect(copiedText).toContain("# Localhost Control workspace context");
+    expect(copiedText).toContain("- Workspace: Daily stack");
+    expect(copiedText).toContain("- Example Shop: running / Observed HTTP 200 / PID 100");
+    expect(copiedText).toContain("- Docs: stopped / No running port / http://127.0.0.1:4321");
+    expect(copiedText).toContain("Authorization: Bearer [redacted]");
+    expect(copiedText).toContain("--token [redacted]");
+    expect(copiedText).toContain("token=[redacted]");
+    expect(copiedText).not.toContain("hunter2");
+    expect(copiedText).not.toContain("abc123");
+    expect(copiedText).not.toContain("pella");
+    expect(await screen.findByText("Copied workspace context for Daily stack")).toBeInTheDocument();
+  });
+
   it("starts workspace profiles that have a saved project path and start command", async () => {
     window.localStorage.setItem(
       "localhost-control-settings",

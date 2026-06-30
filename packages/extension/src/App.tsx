@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, SlidersHorizontal, Terminal, Upload } from "lucide-react";
+import { Copy, Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, SlidersHorizontal, Terminal, Upload } from "lucide-react";
 import { withAppScope, type KillParams, type PortEntry, type ScanResult } from "@localhost-control/shared";
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
@@ -8,7 +8,7 @@ import { SafeActionDialog } from "./components/SafeActionDialog";
 import { SettingsManager } from "./components/SettingsManager";
 import { clearBrowserDataForUrl, type BrowserCleanupMode } from "./lib/browserCleanup";
 import { appendActionAuditEntry, createActionAuditEntry, type ActionAuditInput } from "./lib/actionAudit";
-import { formatDevContext } from "./lib/devContext";
+import { formatDevContext, formatWorkspaceContext } from "./lib/devContext";
 import { getExtensionApi } from "./lib/extensionApi";
 import { type HostClient } from "./lib/hostClient";
 import { analyzePortDoctor, formatPortDoctorAdvice, type PortDoctorReport } from "./lib/portDoctor";
@@ -447,6 +447,15 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const copyWorkspaceContext = async (state: (typeof workspaceStates)[number]) => {
+    try {
+      await copyText(formatWorkspaceContext(state));
+      setMessage(`Copied workspace context for ${state.workspace.name}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const copyDoctorAdvice = async (entry: PortEntry, report: PortDoctorReport) => {
     try {
       await copyText(formatPortDoctorAdvice(report));
@@ -798,6 +807,10 @@ export const App = ({ client }: AppProps) => {
                 {state.workspace.notes ? <span className="workspace-notes">{state.workspace.notes}</span> : null}
               </button>
               <div className="workspace-actions">
+                <button type="button" onClick={() => void copyWorkspaceContext(state)} aria-label={`Copy workspace context ${state.workspace.name}`}>
+                  <Copy size={13} />
+                  Context
+                </button>
                 <button type="button" onClick={() => void startWorkspace(state)} aria-label={`Start workspace ${state.workspace.name}`}>
                   <Terminal size={13} />
                   Start
