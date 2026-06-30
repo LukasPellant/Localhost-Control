@@ -17,6 +17,10 @@ type TabsApi = {
   create(properties: { url: string }): Promise<unknown> | void;
 };
 
+type WindowsApi = {
+  create(properties: { url: string; type?: "normal" | "popup" }): Promise<unknown> | void;
+};
+
 type BrowsingDataApi = {
   remove(
     options: {
@@ -47,6 +51,7 @@ export type ExtensionApi = {
     local?: StorageAreaApi;
   };
   tabs?: TabsApi;
+  windows?: WindowsApi;
   browsingData?: BrowsingDataApi;
   permissions?: PermissionsApi;
 };

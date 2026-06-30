@@ -151,8 +151,16 @@ export const App = ({ client }: AppProps) => {
   const openedDownloadForError = useRef(false);
   const importFileRef = useRef<HTMLInputElement | null>(null);
 
-  const openExternalUrl = useCallback((url: string) => {
-    const tabs = getExtensionApi()?.tabs;
+  const openExternalUrl = useCallback((url: string, mode: "tab" | "window" = "tab") => {
+    const api = getExtensionApi();
+    if (mode === "window" && api?.windows?.create) {
+      void Promise.resolve(api.windows.create({ url, type: "popup" })).catch((error: unknown) => {
+        setMessage(error instanceof Error ? error.message : String(error));
+      });
+      return;
+    }
+
+    const tabs = api?.tabs;
     if (tabs?.create) {
       void Promise.resolve(tabs.create({ url })).catch((error: unknown) => {
         setMessage(error instanceof Error ? error.message : String(error));
@@ -780,7 +788,7 @@ export const App = ({ client }: AppProps) => {
         <section className="workspace-strip" aria-label="Project workspaces">
           {workspaceStates.map((state) => (
             <article className={`workspace-chip ${state.status}`} key={state.workspace.id}>
-              <button className="workspace-summary" type="button" onClick={() => state.openUrls.forEach(openExternalUrl)} aria-label={`Open workspace ${state.workspace.name}`}>
+              <button className="workspace-summary" type="button" onClick={() => state.openUrls.forEach((url) => openExternalUrl(url))} aria-label={`Open workspace ${state.workspace.name}`}>
                 <span className="workspace-name">{state.workspace.name}</span>
                 <span className="workspace-health">{state.healthLabel}</span>
                 {state.workspace.notes ? <span className="workspace-notes">{state.workspace.notes}</span> : null}
@@ -809,7 +817,7 @@ export const App = ({ client }: AppProps) => {
                 aria-label={`Open profile ${state.profile.name}`}
                 onClick={() => {
                   if (state.entry) setSelectedKey(`${state.entry.pid}:${state.entry.port}`);
-                  else if (state.profile.mainUrl) openExternalUrl(state.profile.mainUrl);
+                  else if (state.profile.mainUrl) openExternalUrl(state.profile.mainUrl, state.profile.preferredOpenMode);
                 }}
               >
                 <span className="profile-name">{state.profile.name}</span>

@@ -848,6 +848,36 @@ describe("App", () => {
     expect(await screen.findByText("tabs.create failed")).toBeInTheDocument();
   });
 
+  it("opens stopped profiles in their preferred browser window mode", async () => {
+    const createTab = vi.fn(async () => undefined);
+    const createWindow = vi.fn(async () => undefined);
+    (globalThis as { browser?: unknown }).browser = {
+      tabs: { create: createTab },
+      windows: { create: createWindow }
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "docs",
+            name: "Docs",
+            mainUrl: "http://127.0.0.1:4321",
+            preferredOpenMode: "window"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /open profile docs/i }));
+
+    await waitFor(() => expect(createWindow).toHaveBeenCalledWith({ url: "http://127.0.0.1:4321", type: "popup" }));
+    expect(createTab).not.toHaveBeenCalled();
+  });
+
   it("loads a saved dark theme and exposes the theme picker", async () => {
     window.localStorage.setItem("localhost-control-settings", JSON.stringify({ themeMode: "dark" }));
 
