@@ -1392,7 +1392,7 @@ describe("App", () => {
     expect(screen.getByText(/install the localhost control native host/i)).toBeInTheDocument();
   });
 
-  it("opens the native host download page once when the installed extension cannot find the host", async () => {
+  it("opens the native host download page only after the user chooses the install help", async () => {
     const createTab = vi.fn();
     (globalThis as { browser?: unknown }).browser = {
       runtime: {
@@ -1406,6 +1406,10 @@ describe("App", () => {
     render(<App client={{ ...client, scan: vi.fn(async () => Promise.reject(new Error("No such native application com.localhost_control.host"))) }} />);
 
     expect(await screen.findByText("Native host offline")).toBeInTheDocument();
+    expect(createTab).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /download native host/i }));
+
     await waitFor(() =>
       expect(createTab).toHaveBeenCalledWith({
         url: "https://github.com/LukasPellant/Localhost-Control/releases/tag/v9.8.7"

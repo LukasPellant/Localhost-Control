@@ -44,8 +44,6 @@ type StartableProjectProfile = ProjectProfile & {
   startCommand: string;
 };
 
-const isMissingNativeHostError = (message: string): boolean =>
-  /native messaging host.*not found|specified native messaging host not found|no such native application/i.test(message);
 const nativeHostDownloadUrl = (): string => {
   const version = getExtensionApi()?.runtime?.getManifest?.().version;
   return version ? `${nativeHostReleasesUrl}/tag/v${version}` : nativeHostReleasesUrl;
@@ -148,7 +146,6 @@ export const App = ({ client }: AppProps) => {
   const settingsRef = useRef(settings);
   const auditSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const profileHealthRequestSeqRef = useRef<Record<string, number>>({});
-  const openedDownloadForError = useRef(false);
   const importFileRef = useRef<HTMLInputElement | null>(null);
 
   const openExternalUrl = useCallback((url: string, mode: "tab" | "window" = "tab") => {
@@ -231,13 +228,6 @@ export const App = ({ client }: AppProps) => {
     if (!settingsManagerOpen) return;
     window.setTimeout(() => document.getElementById("settings-manager")?.focus(), 0);
   }, [settingsManagerOpen]);
-
-  useEffect(() => {
-    if (!hostError || openedDownloadForError.current || !isMissingNativeHostError(hostError)) return;
-    if (!getExtensionApi()?.tabs?.create) return;
-    openedDownloadForError.current = true;
-    openNativeHostDownload();
-  }, [hostError, openNativeHostDownload]);
 
   useEffect(() => {
     if (!settings.refreshIntervalSec) return;
