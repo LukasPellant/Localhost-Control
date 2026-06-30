@@ -246,11 +246,12 @@ jobs:
           fi
 
       - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-        run: |
-          gh release create "$RELEASE_TAG" dist/native-host/* dist/extension-store/* \
-            --title "Localhost Control $RELEASE_TAG" \
-            --notes-file dist/release-notes.md \
-            --verify-tag
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: Localhost Control ${{ inputs.tag || github.ref_name }}
+          body_path: dist/release-notes.md
+          files: |
+            dist/native-host/*
+            dist/extension-store/*
+          fail_on_unmatched_files: true

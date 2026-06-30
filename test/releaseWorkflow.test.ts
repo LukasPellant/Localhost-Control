@@ -37,6 +37,12 @@ describe("release-native-host workflow", () => {
     expect(workflow).toContain("dist/extension-store/*");
   });
 
+  it("publishes GitHub releases with the artifact release action", () => {
+    expect(workflow).toContain("uses: softprops/action-gh-release@v2");
+    expect(workflow).toContain("body_path: dist/release-notes.md");
+    expect(workflow).toContain("fail_on_unmatched_files: true");
+  });
+
   it("includes Windows artifacts in local release verification", () => {
     expect(packageJson.scripts["host:verify:release-local"]).toContain("pnpm host:verify:windows");
   });

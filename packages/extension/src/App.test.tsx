@@ -104,7 +104,7 @@ const client: HostClient = {
   kill: vi.fn(async () => ({ killed: true, pid: 100, port: 5173, portClosed: true, message: "Killed 100" })),
   openTerminal: vi.fn(async () => ({ opened: true, message: "Opened" })),
   openProjectFolder: vi.fn(async () => ({ opened: true, message: "Opened project folder D:\\Projects\\ExampleShop" })),
-  version: vi.fn(async () => ({ version: "0.1.8", platform: "win32" }))
+  version: vi.fn(async () => ({ version: "0.1.9", platform: "win32" }))
 };
 
 describe("App", () => {
