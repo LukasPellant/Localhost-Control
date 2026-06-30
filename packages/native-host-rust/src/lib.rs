@@ -52,6 +52,12 @@ struct TerminalParams {
     execute_command: Option<bool>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectFolderParams {
+    project_path: String,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ProcessResources {
@@ -225,6 +231,15 @@ pub fn handle_request(request: Value) -> Result<Value, String> {
                             .to_string()
                     })?;
             open_terminal(&params)
+        }
+        "openProjectFolder" => {
+            let params: ProjectFolderParams =
+                serde_json::from_value(request.get("params").cloned().unwrap_or(Value::Null))
+                    .map_err(|_| {
+                        "Request does not match the Localhost Control native host protocol."
+                            .to_string()
+                    })?;
+            open_project_folder(&params)
         }
         _ => json!({
             "error": "invalid_request",
@@ -1055,6 +1070,82 @@ fn open_terminal(params: &TerminalParams) -> Value {
         .spawn()
     {
         Ok(_) => json!({ "opened": true, "message": format!("Opened Terminal in {cwd}") }),
+        Err(error) => json!({ "opened": false, "message": error.to_string() }),
+    }
+}
+
+fn project_folder_error() -> Value {
+    json!({
+        "opened": false,
+        "message": "Project folder opening requires an absolute existing project directory."
+    })
+}
+
+fn canonical_project_folder(params: &ProjectFolderParams) -> Result<String, Value> {
+    let project_path = params.project_path.trim();
+    if project_path.is_empty() {
+        return Err(project_folder_error());
+    }
+    let path = Path::new(project_path);
+    if !path.is_absolute() || !path.is_dir() {
+        return Err(project_folder_error());
+    }
+    std::fs::canonicalize(path)
+        .map(|path| path.display().to_string())
+        .map_err(|_| project_folder_error())
+}
+
+#[cfg(windows)]
+fn open_project_folder(params: &ProjectFolderParams) -> Value {
+    let folder = match canonical_project_folder(params) {
+        Ok(folder) => folder,
+        Err(response) => return response,
+    };
+    let mut command = Command::new("explorer.exe");
+    command.arg(&folder).creation_flags_no_window();
+    match command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(_) => json!({ "opened": true, "message": format!("Opened project folder {folder}") }),
+        Err(error) => json!({ "opened": false, "message": error.to_string() }),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn open_project_folder(params: &ProjectFolderParams) -> Value {
+    let folder = match canonical_project_folder(params) {
+        Ok(folder) => folder,
+        Err(response) => return response,
+    };
+    match Command::new("xdg-open")
+        .arg(&folder)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(_) => json!({ "opened": true, "message": format!("Opened project folder {folder}") }),
+        Err(error) => json!({ "opened": false, "message": error.to_string() }),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn open_project_folder(params: &ProjectFolderParams) -> Value {
+    let folder = match canonical_project_folder(params) {
+        Ok(folder) => folder,
+        Err(response) => return response,
+    };
+    match Command::new("open")
+        .arg(&folder)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(_) => json!({ "opened": true, "message": format!("Opened project folder {folder}") }),
         Err(error) => json!({ "opened": false, "message": error.to_string() }),
     }
 }

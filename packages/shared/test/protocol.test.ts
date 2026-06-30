@@ -40,6 +40,30 @@ describe("native messaging protocol", () => {
     ).toBe(false);
   });
 
+  it("validates project folder open requests", () => {
+    expect(
+      isHostRequest({
+        id: "folder-1",
+        method: "openProjectFolder",
+        params: { projectPath: "D:\\Projects\\ExampleShop" }
+      })
+    ).toBe(true);
+    expect(
+      isHostRequest({
+        id: "folder-1",
+        method: "openProjectFolder",
+        params: { projectPath: "" }
+      })
+    ).toBe(false);
+    expect(
+      isHostRequest({
+        id: "folder-1",
+        method: "openProjectFolder",
+        params: { projectPath: 123 }
+      })
+    ).toBe(false);
+  });
+
   it("validates kill results and scan results", () => {
     const validEntry = {
       port: 5173,

@@ -37,6 +37,11 @@ const hasTerminalParams = (value: unknown): boolean => {
   );
 };
 
+const hasOpenProjectFolderParams = (value: unknown): boolean => {
+  if (!isObject(value)) return false;
+  return isString(value.projectPath) && value.projectPath.trim().length > 0;
+};
+
 const isOptionalNumber = (value: unknown): boolean => value === undefined || isNumber(value);
 const isOptionalString = (value: unknown): boolean => value === undefined || isString(value);
 const isOptionalPositiveInteger = (value: unknown): boolean => value === undefined || isPositiveInteger(value);
@@ -65,6 +70,8 @@ export const isHostRequest = (value: unknown): value is HostRequest => {
       return hasKillParams(value.params);
     case "openTerminal":
       return hasTerminalParams(value.params);
+    case "openProjectFolder":
+      return hasOpenProjectFolderParams(value.params);
     case "version":
       return value.params === undefined;
     default:

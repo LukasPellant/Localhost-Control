@@ -103,6 +103,7 @@ const client: HostClient = {
   })),
   kill: vi.fn(async () => ({ killed: true, pid: 100, port: 5173, portClosed: true, message: "Killed 100" })),
   openTerminal: vi.fn(async () => ({ opened: true, message: "Opened" })),
+  openProjectFolder: vi.fn(async () => ({ opened: true, message: "Opened project folder D:\\Projects\\ExampleShop" })),
   version: vi.fn(async () => ({ version: "0.1.5", platform: "win32" }))
 };
 
@@ -562,6 +563,7 @@ describe("App", () => {
     window.localStorage.setItem(
       "localhost-control-settings",
       JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
         projectProfiles: [
           {
             id: "shop",
@@ -600,7 +602,48 @@ describe("App", () => {
     expect(within(devHealth).getByRole("button", { name: /clean app origin http:\/\/127\.0\.0\.1:5173/i })).toBeInTheDocument();
     expect(within(devHealth).getByRole("button", { name: /open private window http:\/\/127\.0\.0\.1:5173/i })).toBeInTheDocument();
     expect(within(devHealth).getByRole("button", { name: /open mobile preview http:\/\/127\.0\.0\.1:5173/i })).toBeInTheDocument();
+    expect(within(devHealth).getByRole("button", { name: /open project folder for example shop/i })).toBeInTheDocument();
     expect(within(devHealth).getByRole("button", { name: /copy logs for example shop/i })).toBeInTheDocument();
+  });
+
+  it("opens a trusted saved profile folder from the detail card", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const devHealth = within(await screen.findByLabelText("Port 5173 details")).getByLabelText("Dev health for Example Shop");
+    fireEvent.click(within(devHealth).getByRole("button", { name: /open project folder for example shop/i }));
+
+    await waitFor(() => expect(client.openProjectFolder).toHaveBeenCalledTimes(1));
+    expect(client.openProjectFolder).toHaveBeenCalledWith({ projectPath: "D:\\Projects\\ExampleShop" });
+    expect(await screen.findByText("Opened project folder D:\\Projects\\ExampleShop")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
+    const manager = await screen.findByLabelText("Settings manager");
+    expect(manager).toHaveTextContent("Opened project folder");
+  });
+
+  it("keeps untrusted project hints behind the trust action before opening folders", async () => {
+    render(<App client={client} />);
+
+    const devHealth = within(await screen.findByLabelText("Port 5173 details")).getByLabelText("Dev health for port 5173");
+
+    expect(within(devHealth).queryByRole("button", { name: /open project folder/i })).not.toBeInTheDocument();
+    expect(client.openProjectFolder).not.toHaveBeenCalled();
   });
 
   it("opens the selected localhost app in a private browser window from the detail card", async () => {

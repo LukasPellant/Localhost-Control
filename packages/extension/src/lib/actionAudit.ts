@@ -4,7 +4,8 @@ export type ActionAuditKind =
   | "stop-process"
   | "browser-cleanup"
   | "open-private-window"
-  | "open-mobile-preview";
+  | "open-mobile-preview"
+  | "open-project-folder";
 
 export type ActionAuditEntry = {
   id: string;
@@ -27,7 +28,8 @@ const allowedActions = new Set<ActionAuditKind>([
   "stop-process",
   "browser-cleanup",
   "open-private-window",
-  "open-mobile-preview"
+  "open-mobile-preview",
+  "open-project-folder"
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);

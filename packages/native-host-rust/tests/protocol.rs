@@ -73,3 +73,22 @@ fn command_execution_rejects_relative_project_hint() {
         "Command execution requires an absolute existing project path."
     );
 }
+
+#[test]
+fn project_folder_open_rejects_relative_paths() {
+    let response = handle_request(json!({
+        "id": "folder-1",
+        "method": "openProjectFolder",
+        "params": {
+            "projectPath": "."
+        }
+    }))
+    .unwrap();
+
+    assert_eq!(response["id"], "folder-1");
+    assert_eq!(response["result"]["opened"], false);
+    assert_eq!(
+        response["result"]["message"],
+        "Project folder opening requires an absolute existing project directory."
+    );
+}

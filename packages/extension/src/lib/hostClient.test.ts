@@ -104,6 +104,43 @@ describe("createNativeHostClient", () => {
     });
   });
 
+  it("sends project folder open requests through native messaging", async () => {
+    let sentMessage: unknown;
+    (globalThis as { browser?: unknown }).browser = {
+      runtime: {
+        sendNativeMessage: async (_hostName: string, message: unknown) => {
+          sentMessage = message;
+          return { id: "folder-1", result: { opened: true, message: "Opened project folder D:\\Projects\\ExampleShop" } };
+        }
+      }
+    };
+
+    await expect(createNativeHostClient().openProjectFolder({ projectPath: "D:\\Projects\\ExampleShop" })).resolves.toEqual({
+      opened: true,
+      message: "Opened project folder D:\\Projects\\ExampleShop"
+    });
+
+    expect(sentMessage).toMatchObject({
+      method: "openProjectFolder",
+      params: { projectPath: "D:\\Projects\\ExampleShop" }
+    });
+  });
+
+  it("rejects malformed project folder responses before they reach the UI", async () => {
+    (globalThis as { browser?: unknown }).browser = {
+      runtime: {
+        sendNativeMessage: async (_hostName: string, message: { id: string; method: string }) => ({
+          id: message.id,
+          result: { opened: "yes", message: "Opened" }
+        })
+      }
+    };
+
+    await expect(createNativeHostClient().openProjectFolder({ projectPath: "D:\\Projects\\ExampleShop" })).rejects.toThrow(
+      "Native host returned an invalid openProjectFolder response."
+    );
+  });
+
   it("uses a fallback message for callback native messaging errors without a message", async () => {
     (globalThis as { chrome?: unknown }).chrome = {
       runtime: {

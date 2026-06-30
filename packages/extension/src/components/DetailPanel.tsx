@@ -1,4 +1,4 @@
-import { Activity, Copy, EyeOff, ExternalLink, FolderPlus, Power, RefreshCw, Smartphone, Terminal, Trash2 } from "lucide-react";
+import { Activity, Copy, EyeOff, ExternalLink, FolderOpen, FolderPlus, Power, RefreshCw, Smartphone, Terminal, Trash2 } from "lucide-react";
 import { kindLabel, type PortEntry } from "@localhost-control/shared";
 import { IconButton } from "./IconButton";
 import { originFromLocalhostUrl, type BrowserCleanupMode } from "../lib/browserCleanup";
@@ -15,6 +15,7 @@ type DetailPanelProps = {
   profileHealth?: ProfileHealthResult | undefined;
   doctorReport?: PortDoctorReport | undefined;
   staleSignal?: StaleProcessSignal | undefined;
+  projectFolderPath?: string | undefined;
   onKill(entry: PortEntry): void;
   onOpen(entry: PortEntry): void;
   onCopy(entry: PortEntry): void;
@@ -24,6 +25,7 @@ type DetailPanelProps = {
   onCleanup(entry: PortEntry, mode?: BrowserCleanupMode): void;
   onOpenPrivate(entry: PortEntry): void;
   onOpenMobilePreview(entry: PortEntry): void;
+  onOpenProjectFolder(entry: PortEntry): void;
   onCopyProfileCommand(profile: ProjectProfile): void;
   onOpenProfileTerminal(profile: ProjectProfile): void;
   onCheckProfileHealth(profile: ProjectProfile): void;
@@ -39,6 +41,7 @@ export const DetailPanel = ({
   profileHealth,
   doctorReport,
   staleSignal,
+  projectFolderPath,
   onKill,
   onOpen,
   onCopy,
@@ -48,6 +51,7 @@ export const DetailPanel = ({
   onCleanup,
   onOpenPrivate,
   onOpenMobilePreview,
+  onOpenProjectFolder,
   onCopyProfileCommand,
   onOpenProfileTerminal,
   onCheckProfileHealth,
@@ -77,8 +81,14 @@ export const DetailPanel = ({
     }
   })();
   const showDevHealth =
-    Boolean(profile) || Boolean(profileHealth) || Boolean(cleanupOrigin) || Boolean(doctorReport && doctorReport.status !== "ok") || Boolean(staleSignal);
+    Boolean(profile) ||
+    Boolean(profileHealth) ||
+    Boolean(cleanupOrigin) ||
+    Boolean(doctorReport && doctorReport.status !== "ok") ||
+    Boolean(staleSignal) ||
+    Boolean(projectFolderPath);
   const recentLogs = recentProfileLogLines(profile);
+  const projectFolderLabel = profile ? `Open project folder for ${profile.name}` : `Open project folder for port ${entry.port}`;
 
   return (
     <section className="detail-panel" aria-label={`Port ${entry.port} details`}>
@@ -258,6 +268,12 @@ export const DetailPanel = ({
               <Copy size={14} />
               Copy dev context
             </button>
+            {projectFolderPath ? (
+              <button type="button" onClick={() => onOpenProjectFolder(entry)} aria-label={projectFolderLabel}>
+                <FolderOpen size={14} />
+                Open folder
+              </button>
+            ) : null}
             {profile && recentLogs.length ? (
               <button type="button" onClick={() => onCopyProfileLogs(profile)} aria-label={`Copy logs for ${profile.name}`}>
                 <Copy size={14} />

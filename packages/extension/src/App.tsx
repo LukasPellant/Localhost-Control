@@ -293,6 +293,15 @@ export const App = ({ client }: AppProps) => {
     [settings.projectProfiles]
   );
   const selectedProfile = selectedEntry ? profileForEntry(selectedEntry) : undefined;
+  const projectFolderPathForEntry = useCallback(
+    (entry: PortEntry): string | undefined => {
+      const profile = profileForEntry(entry);
+      const projectPath = profile?.projectPath ?? entry.projectHint;
+      return projectPath && isTrustedProjectPath(settings, projectPath) ? projectPath : undefined;
+    },
+    [profileForEntry, settings]
+  );
+  const selectedProjectFolderPath = selectedEntry ? projectFolderPathForEntry(selectedEntry) : undefined;
   const selectedProfileHealth = selectedProfile ? profileHealthResults[selectedProfile.id] : undefined;
   const workspaceStates = useMemo(
     () => deriveWorkspaceStates(settings.projectWorkspaces, settings.projectProfiles, profileStates),
@@ -831,6 +840,29 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const openProjectFolderForEntry = async (entry: PortEntry) => {
+    const profile = profileForEntry(entry);
+    const projectPath = projectFolderPathForEntry(entry);
+    if (!projectPath) {
+      setMessage("Trust the project path before opening its folder.");
+      return;
+    }
+
+    try {
+      const result = await client.openProjectFolder({ projectPath });
+      if (result.opened) {
+        void recordAction({
+          action: "open-project-folder",
+          target: profile?.name ?? projectPath,
+          detail: projectPath
+        });
+      }
+      setMessage(result.message);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const checkHealthForProfile = async (profile: ProjectProfile) => {
     const requestSeq = (profileHealthRequestSeqRef.current[profile.id] ?? 0) + 1;
     profileHealthRequestSeqRef.current[profile.id] = requestSeq;
@@ -1176,6 +1208,7 @@ export const App = ({ client }: AppProps) => {
         profileHealth={selectedProfileHealth}
         doctorReport={selectedDoctorReport}
         staleSignal={selectedStaleSignal}
+        projectFolderPath={selectedProjectFolderPath}
         onKill={requestKillEntry}
         onOpen={openEntry}
         onCopy={(entry) => void copyEntry(entry)}
@@ -1185,6 +1218,7 @@ export const App = ({ client }: AppProps) => {
         onCleanup={(entry, mode) => void cleanupBrowserDataForEntry(entry, mode)}
         onOpenPrivate={(entry) => void openPrivateWindowForEntry(entry)}
         onOpenMobilePreview={(entry) => void openMobilePreviewForEntry(entry)}
+        onOpenProjectFolder={(entry) => void openProjectFolderForEntry(entry)}
         onCopyProfileCommand={(profile) => void copyProfileCommand(profile)}
         onOpenProfileTerminal={(profile) => void openTerminalForProfile(profile)}
         onCheckProfileHealth={(profile) => void checkHealthForProfile(profile)}

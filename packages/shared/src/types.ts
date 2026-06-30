@@ -22,6 +22,10 @@ export type TerminalParams = {
   executeCommand?: boolean;
 };
 
+export type OpenProjectFolderParams = {
+  projectPath: string;
+};
+
 export type ProcessResources = {
   cpuPercent?: number;
   memoryBytes?: number;
@@ -35,6 +39,7 @@ export type HostRequest =
   | { id: string; method: "scan"; params: ScanParams }
   | { id: string; method: "kill"; params: KillParams }
   | { id: string; method: "openTerminal"; params: TerminalParams }
+  | { id: string; method: "openProjectFolder"; params: OpenProjectFolderParams }
   | { id: string; method: "version" };
 
 export type PortEntry = {
@@ -72,6 +77,11 @@ export type KillResult = {
 };
 
 export type TerminalResult = {
+  opened: boolean;
+  message: string;
+};
+
+export type OpenProjectFolderResult = {
   opened: boolean;
   message: string;
 };

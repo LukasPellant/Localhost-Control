@@ -4,6 +4,8 @@ import {
   isScanResult,
   type KillParams,
   type KillResult,
+  type OpenProjectFolderParams,
+  type OpenProjectFolderResult,
   type ScanParams,
   type ScanResult,
   type TerminalParams,
@@ -16,6 +18,7 @@ export type HostClient = {
   scan(params: ScanParams): Promise<ScanResult>;
   kill(params: KillParams): Promise<KillResult>;
   openTerminal(params: TerminalParams): Promise<TerminalResult>;
+  openProjectFolder(params: OpenProjectFolderParams): Promise<OpenProjectFolderResult>;
   version(): Promise<VersionResult>;
 };
 
@@ -28,6 +31,7 @@ type NativeRequest =
   | { method: "scan"; params: ScanParams }
   | { method: "kill"; params: KillParams }
   | { method: "openTerminal"; params: TerminalParams }
+  | { method: "openProjectFolder"; params: OpenProjectFolderParams }
   | { method: "version" };
 
 const requestId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -37,6 +41,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const isNativeErrorResult = (value: unknown): value is { error: string; message: string } =>
   isRecord(value) && typeof value.error === "string" && typeof value.message === "string";
 const isTerminalResult = (value: unknown): value is TerminalResult =>
+  isRecord(value) && typeof value.opened === "boolean" && typeof value.message === "string";
+const isOpenProjectFolderResult = (value: unknown): value is OpenProjectFolderResult =>
   isRecord(value) && typeof value.opened === "boolean" && typeof value.message === "string";
 const isVersionResult = (value: unknown): value is VersionResult =>
   isRecord(value) && typeof value.version === "string" && typeof value.platform === "string";
@@ -94,6 +100,12 @@ export const createNativeHostClient = (): HostClient => ({
   kill: async (params) => validateNativeResult(await sendNative<KillResult>({ method: "kill", params }), isKillResult, "kill"),
   openTerminal: async (params) =>
     validateNativeResult(await sendNative<TerminalResult>({ method: "openTerminal", params }), isTerminalResult, "openTerminal"),
+  openProjectFolder: async (params) =>
+    validateNativeResult(
+      await sendNative<OpenProjectFolderResult>({ method: "openProjectFolder", params }),
+      isOpenProjectFolderResult,
+      "openProjectFolder"
+    ),
   version: async () => validateNativeResult(await sendNative<VersionResult>({ method: "version" }), isVersionResult, "version")
 });
 
