@@ -850,6 +850,14 @@ button:disabled {
   white-space: nowrap;
 }
 
+.dev-health-logs code.warning {
+  color: var(--warning);
+}
+
+.dev-health-logs code.error {
+  color: var(--danger);
+}
+
 .dialog-backdrop {
   position: fixed;
   inset: 0;

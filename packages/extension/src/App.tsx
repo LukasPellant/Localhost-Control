@@ -15,6 +15,7 @@ import { analyzePortDoctor, formatPortDoctorAdvice, type PortDoctorReport } from
 import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
 import { checkProfileHealth, type ProfileHealthResult } from "./lib/profileHealth";
 import { deriveProfileStates, matchProfileForEntry, type ProfileState, type ProjectProfile } from "./lib/projectProfiles";
+import { formatProfileLogs } from "./lib/profileLogs";
 import { deriveWorkspaceStates, type ProjectWorkspace } from "./lib/projectWorkspaces";
 import { defaultSettings, loadSettings, saveActionAudit, saveSettings, type Settings } from "./lib/settings";
 import {
@@ -457,6 +458,15 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const copyProfileLogs = async (profile: ProjectProfile) => {
+    try {
+      await copyText(formatProfileLogs(profile));
+      setMessage(`Copied logs for ${profile.name}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const exportSettings = () => {
     const blob = new Blob([exportSettingsBundle(settings)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -848,6 +858,7 @@ export const App = ({ client }: AppProps) => {
         onOpen={openEntry}
         onCopy={(entry) => void copyEntry(entry)}
         onCopyDevContext={(entry) => void copyDevContextForEntry(entry)}
+        onCopyProfileLogs={(profile) => void copyProfileLogs(profile)}
         onTerminal={(entry) => void openTerminalForEntry(entry)}
         onCleanup={(entry, mode) => void cleanupBrowserDataForEntry(entry, mode)}
         onCopyProfileCommand={(profile) => void copyProfileCommand(profile)}

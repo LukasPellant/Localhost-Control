@@ -196,7 +196,7 @@ describe("App", () => {
             extraUrls: [{ label: "Admin", url: "http://127.0.0.1:5173/admin" }],
             healthUrl: "http://127.0.0.1:5173/health",
             notes: "Storefront and checkout",
-            logLines: ["vite ready in 420ms", "GET /health 200"]
+            logLines: ["vite ready in 420ms", "WARN deprecated env", "ERROR failed checkout", "Authorization: Bearer abc123"]
           },
           {
             id: "docs",
@@ -347,7 +347,7 @@ describe("App", () => {
             extraUrls: [{ label: "Admin", url: "http://127.0.0.1:5173/admin" }],
             healthUrl: "http://127.0.0.1:5173/health",
             notes: "Storefront and checkout",
-            logLines: ["vite ready in 420ms", "GET /health 200"]
+            logLines: ["vite ready in 420ms", "WARN deprecated env", "ERROR failed checkout", "Authorization: Bearer abc123"]
           }
         ]
       })
@@ -366,9 +366,49 @@ describe("App", () => {
     expect(devHealth).toHaveTextContent("Saved command");
     expect(devHealth).toHaveTextContent("pnpm dev");
     expect(devHealth).toHaveTextContent("Recent profile logs");
-    expect(devHealth).toHaveTextContent("GET /health 200");
+    expect(within(devHealth).getByText("WARN deprecated env")).toHaveClass("warning");
+    expect(within(devHealth).getByText("ERROR failed checkout")).toHaveClass("error");
+    expect(devHealth).toHaveTextContent("Authorization: Bearer [redacted]");
+    expect(devHealth).not.toHaveTextContent("abc123");
     expect(within(devHealth).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "http://127.0.0.1:5173/admin");
     expect(within(devHealth).getByRole("button", { name: /clean app origin http:\/\/127\.0\.0\.1:5173/i })).toBeInTheDocument();
+    expect(within(devHealth).getByRole("button", { name: /copy logs for example shop/i })).toBeInTheDocument();
+  });
+
+  it("copies sanitized recent profile logs from the detail card", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            logLines: ["vite ready in 420ms", "WARN deprecated env", "ERROR failed checkout", "Authorization: Bearer abc123"]
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const devHealth = within(await screen.findByLabelText("Port 5173 details")).getByLabelText("Dev health for Example Shop");
+    fireEvent.click(within(devHealth).getByRole("button", { name: /copy logs for example shop/i }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const copiedText = String(writeText.mock.calls[0]?.[0] ?? "");
+    expect(copiedText).toContain("Recent logs for Example Shop");
+    expect(copiedText).toContain("- WARN deprecated env");
+    expect(copiedText).toContain("- ERROR failed checkout");
+    expect(copiedText).toContain("Authorization: Bearer [redacted]");
+    expect(copiedText).not.toContain("abc123");
+    expect(await screen.findByText("Copied logs for Example Shop")).toBeInTheDocument();
   });
 
   it("copies and opens the saved profile command from the detail card", async () => {

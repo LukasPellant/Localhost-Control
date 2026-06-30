@@ -5,6 +5,7 @@ import { originFromLocalhostUrl, type BrowserCleanupMode } from "../lib/browserC
 import type { PortDoctorReport } from "../lib/portDoctor";
 import type { ProfileHealthResult } from "../lib/profileHealth";
 import type { ProjectProfile } from "../lib/projectProfiles";
+import { recentProfileLogLines } from "../lib/profileLogs";
 import { formatCpu, formatMemory, formatUptime } from "../lib/resources";
 import type { StaleProcessSignal } from "../lib/staleProcesses";
 
@@ -18,6 +19,7 @@ type DetailPanelProps = {
   onOpen(entry: PortEntry): void;
   onCopy(entry: PortEntry): void;
   onCopyDevContext(entry: PortEntry): void;
+  onCopyProfileLogs(profile: ProjectProfile): void;
   onTerminal(entry: PortEntry): void;
   onCleanup(entry: PortEntry, mode?: BrowserCleanupMode): void;
   onCopyProfileCommand(profile: ProjectProfile): void;
@@ -39,6 +41,7 @@ export const DetailPanel = ({
   onOpen,
   onCopy,
   onCopyDevContext,
+  onCopyProfileLogs,
   onTerminal,
   onCleanup,
   onCopyProfileCommand,
@@ -71,6 +74,7 @@ export const DetailPanel = ({
   })();
   const showDevHealth =
     Boolean(profile) || Boolean(profileHealth) || Boolean(cleanupOrigin) || Boolean(doctorReport && doctorReport.status !== "ok") || Boolean(staleSignal);
+  const recentLogs = recentProfileLogLines(profile);
 
   return (
     <section className="detail-panel" aria-label={`Port ${entry.port} details`}>
@@ -242,6 +246,12 @@ export const DetailPanel = ({
               <Copy size={14} />
               Copy dev context
             </button>
+            {profile && recentLogs.length ? (
+              <button type="button" onClick={() => onCopyProfileLogs(profile)} aria-label={`Copy logs for ${profile.name}`}>
+                <Copy size={14} />
+                Copy logs
+              </button>
+            ) : null}
             {doctorReport && doctorReport.status !== "ok" && doctorReport.advice.length ? (
               <button type="button" onClick={() => onCopyDoctorAdvice(entry, doctorReport)} aria-label={`Copy doctor advice for port ${entry.port}`}>
                 <Copy size={14} />
@@ -270,11 +280,13 @@ export const DetailPanel = ({
               ))}
             </div>
           ) : null}
-          {profile?.logLines?.length ? (
+          {recentLogs.length ? (
             <div className="dev-health-logs" aria-label="Recent profile logs">
               <strong>Recent profile logs</strong>
-              {profile.logLines.slice(-4).map((line, index) => (
-                <code key={`${index}-${line}`}>{line}</code>
+              {recentLogs.map((line, index) => (
+                <code className={line.severity} key={`${index}-${line.text}`}>
+                  {line.text}
+                </code>
               ))}
             </div>
           ) : null}

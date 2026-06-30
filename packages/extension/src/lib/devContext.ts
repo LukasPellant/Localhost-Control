@@ -3,6 +3,7 @@ import { originFromLocalhostUrl } from "./browserCleanup";
 import type { PortDoctorReport } from "./portDoctor";
 import type { ProfileHealthResult } from "./profileHealth";
 import type { ProjectProfile } from "./projectProfiles";
+import { recentProfileLogLines } from "./profileLogs";
 import { formatCpu, formatMemory, formatUptime } from "./resources";
 import { redactSensitiveText, sanitizeLocalUrl } from "./sensitiveText";
 import type { StaleProcessSignal } from "./staleProcesses";
@@ -17,7 +18,6 @@ export type DevContextInput = {
 
 const MAX_OUTPUT_LENGTH = 16_000;
 const MAX_FIELD_LENGTH = 240;
-const MAX_LOG_LINES = 4;
 const MAX_LOG_LINE_LENGTH = 180;
 
 const truncate = (value: string, maxLength = MAX_FIELD_LENGTH): string =>
@@ -66,12 +66,8 @@ const formatResources = (entry: PortEntry): string | undefined =>
   joinParts([formatCpu(entry.resources), formatMemory(entry.resources?.memoryBytes), formatUptime(entry.resources)]);
 
 const formatRecentLogs = (profile: ProjectProfile | undefined): string[] => {
-  const logLines = profile?.logLines
-    ?.slice(-MAX_LOG_LINES)
-    .map((line) => sanitizeText(line, MAX_LOG_LINE_LENGTH))
-    .filter((line): line is string => Boolean(line));
-  if (!logLines?.length) return [];
-  return ["- Recent profile logs (untrusted diagnostics):", ...logLines.map((line) => `  - ${line}`)];
+  const logLines = recentProfileLogLines(profile).map((line) => truncate(line.text, MAX_LOG_LINE_LENGTH));
+  return logLines.length ? ["- Recent profile logs (untrusted diagnostics):", ...logLines.map((line) => `  - ${line}`)] : [];
 };
 
 export const formatDevContext = ({ entry, profile, profileHealth, doctorReport, staleSignal }: DevContextInput): string => {
