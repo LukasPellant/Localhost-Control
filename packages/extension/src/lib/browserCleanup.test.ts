@@ -22,7 +22,8 @@ describe("clearBrowserDataForUrl", () => {
     await expect(clearBrowserDataForUrl("http://127.0.0.1:5173")).resolves.toEqual({
       cleared: false,
       message: "Browser cleanup permission is unavailable.",
-      origin: "http://127.0.0.1:5173"
+      origin: "http://127.0.0.1:5173",
+      reason: "unavailable"
     });
   });
 
@@ -99,5 +100,36 @@ describe("clearBrowserDataForUrl", () => {
 
   it("keeps cache-only cleanup limited to localhost origins", async () => {
     await expect(clearBrowserDataForUrl("https://example.com/app", "cache")).rejects.toThrow("Only localhost browser data can be cleared.");
+  });
+
+  it("reports permission-denied cleanup failures without throwing", async () => {
+    const remove = vi.fn(async () => {
+      throw new Error("Permission denied to remove browsing data.");
+    });
+    (globalThis as { chrome?: unknown }).chrome = {
+      browsingData: { remove }
+    };
+
+    await expect(clearBrowserDataForUrl("http://127.0.0.1:5173/dashboard")).resolves.toEqual({
+      cleared: false,
+      message: "Browser cleanup permission was denied for http://127.0.0.1:5173.",
+      origin: "http://127.0.0.1:5173",
+      reason: "permission-denied"
+    });
+  });
+
+  it("reports Chrome runtime cleanup errors without throwing", async () => {
+    const remove = vi.fn(() => undefined);
+    (globalThis as { chrome?: unknown }).chrome = {
+      browsingData: { remove },
+      runtime: { lastError: { message: "Browsing data removal failed." } }
+    };
+
+    await expect(clearBrowserDataForUrl("http://127.0.0.1:5173/dashboard", "cache")).resolves.toEqual({
+      cleared: false,
+      message: "Browser cleanup failed for http://127.0.0.1:5173: Browsing data removal failed.",
+      origin: "http://127.0.0.1:5173",
+      reason: "failed"
+    });
   });
 });

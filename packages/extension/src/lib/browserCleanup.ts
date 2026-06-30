@@ -4,6 +4,7 @@ export type BrowserCleanupResult = {
   cleared: boolean;
   message: string;
   origin: string;
+  reason?: "unavailable" | "permission-denied" | "failed";
 };
 
 export type BrowserCleanupMode = "all" | "cache";
@@ -47,7 +48,8 @@ export const clearBrowserDataForUrl = async (value: string, mode: BrowserCleanup
     return {
       cleared: false,
       message: "Browser cleanup permission is unavailable.",
-      origin
+      origin,
+      reason: "unavailable"
     };
   }
 
@@ -62,11 +64,29 @@ export const clearBrowserDataForUrl = async (value: string, mode: BrowserCleanup
         originTypes: { unprotectedWeb: true }
       };
 
-  await browsingData.remove(options, cleanupMode.dataToRemove);
+  try {
+    await browsingData.remove(options, cleanupMode.dataToRemove);
+  } catch (error) {
+    return cleanupFailureResult(origin, error);
+  }
+
+  const runtimeError = getExtensionApi()?.runtime?.lastError?.message;
+  if (runtimeError) return cleanupFailureResult(origin, runtimeError);
 
   return {
     cleared: true,
     message: `Cleared ${cleanupMode.label} for ${origin}.`,
     origin
+  };
+};
+
+const cleanupFailureResult = (origin: string, error: unknown): BrowserCleanupResult => {
+  const message = error instanceof Error ? error.message : String(error);
+  const permissionDenied = /permission|denied|not allowed|not permitted/i.test(message);
+  return {
+    cleared: false,
+    message: permissionDenied ? `Browser cleanup permission was denied for ${origin}.` : `Browser cleanup failed for ${origin}: ${message}`,
+    origin,
+    reason: permissionDenied ? "permission-denied" : "failed"
   };
 };
