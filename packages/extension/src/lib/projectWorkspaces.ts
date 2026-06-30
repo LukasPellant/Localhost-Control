@@ -34,13 +34,13 @@ export const sanitizeProjectWorkspaces = (value: unknown, profiles: ProjectProfi
     if (!isRecord(item) || !isNonEmptyString(item.id) || !isNonEmptyString(item.name) || !Array.isArray(item.profileIds)) return [];
     const id = item.id.trim();
     if (workspaceIds.has(id)) return [];
-    workspaceIds.add(id);
 
     const uniqueIds = item.profileIds.reduce<string[]>((ids, profileId) => {
       if (!isNonEmptyString(profileId) || !profileIds.has(profileId.trim()) || ids.includes(profileId.trim())) return ids;
       return [...ids, profileId.trim()];
     }, []);
     if (!uniqueIds.length) return [];
+    workspaceIds.add(id);
 
     const workspace: ProjectWorkspace = {
       id,

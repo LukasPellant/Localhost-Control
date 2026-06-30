@@ -68,6 +68,18 @@ describe("project workspaces", () => {
     ]);
   });
 
+  it("does not let an invalid workspace reserve a duplicate id during import", () => {
+    const workspaces = sanitizeProjectWorkspaces(
+      [
+        { id: "daily", name: "Broken daily", profileIds: ["missing"] },
+        { id: "daily", name: "Daily stack", profileIds: ["shop", "api"] }
+      ],
+      profiles
+    );
+
+    expect(workspaces).toEqual<ProjectWorkspace[]>([{ id: "daily", name: "Daily stack", profileIds: ["shop", "api"] }]);
+  });
+
   it("derives workspace health, next actions, and openable URLs from profile states", () => {
     const states = deriveProfileStates(profiles, runningEntries);
     const workspaceStates = deriveWorkspaceStates([{ id: "daily", name: "Daily stack", profileIds: ["shop", "api", "docs"] }], profiles, states);
