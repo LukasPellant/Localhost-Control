@@ -749,7 +749,7 @@ describe("App", () => {
     expect(await screen.findByText("Copied workspace context for Daily stack")).toBeInTheDocument();
   });
 
-  it("starts workspace profiles that have a saved project path and start command", async () => {
+  it("starts only stopped workspace profiles that have a saved project path and start command", async () => {
     window.localStorage.setItem(
       "localhost-control-settings",
       JSON.stringify({
@@ -774,6 +774,7 @@ describe("App", () => {
           {
             id: "docs",
             name: "Docs",
+            projectPath: "D:\\Projects\\Docs",
             startCommand: "pnpm docs",
             expectedPort: 4321,
             mainUrl: "http://127.0.0.1:4321"
@@ -788,18 +789,13 @@ describe("App", () => {
     const workspaces = await screen.findByLabelText("Project workspaces");
     fireEvent.click(within(workspaces).getByRole("button", { name: /start workspace daily stack/i }));
 
-    await waitFor(() => expect(client.openTerminal).toHaveBeenCalledTimes(2));
-    expect(client.openTerminal).toHaveBeenNthCalledWith(1, {
-      projectHint: "D:\\Projects\\ExampleShop",
-      commandLine: "pnpm dev",
+    await waitFor(() => expect(client.openTerminal).toHaveBeenCalledTimes(1));
+    expect(client.openTerminal).toHaveBeenCalledWith({
+      projectHint: "D:\\Projects\\Docs",
+      commandLine: "pnpm docs",
       executeCommand: true
     });
-    expect(client.openTerminal).toHaveBeenNthCalledWith(2, {
-      projectHint: "D:\\Projects\\LocalApi",
-      commandLine: "pnpm api",
-      executeCommand: true
-    });
-    expect(await screen.findByText("Started workspace Daily stack: 2 commands")).toBeInTheDocument();
+    expect(await screen.findByText("Started workspace Daily stack: 1 command")).toBeInTheDocument();
   });
 
   it("requests workspace health permissions before starting workspace commands", async () => {
@@ -862,7 +858,7 @@ describe("App", () => {
     fireEvent.click(within(workspaces).getByRole("button", { name: /start workspace daily stack/i }));
 
     expect(client.openTerminal).not.toHaveBeenCalled();
-    expect(await screen.findByText("No safe start commands configured for Daily stack")).toBeInTheDocument();
+    expect(await screen.findByText("No stopped profiles with safe start commands configured for Daily stack")).toBeInTheDocument();
   });
 
   it("does not open or render imported external profile URLs", async () => {

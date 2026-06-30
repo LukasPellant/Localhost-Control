@@ -679,10 +679,11 @@ export const App = ({ client }: AppProps) => {
 
   const startWorkspace = async (state: (typeof workspaceStates)[number]) => {
     const startableProfiles = state.profileStates
+      .filter((profileState) => profileState.status === "stopped")
       .map(({ profile }) => profile)
       .filter((profile) => isTrustedStartableProjectProfile(settings, profile));
     if (!startableProfiles.length) {
-      setMessage(`No safe start commands configured for ${state.workspace.name}`);
+      setMessage(`No stopped profiles with safe start commands configured for ${state.workspace.name}`);
       return;
     }
 
