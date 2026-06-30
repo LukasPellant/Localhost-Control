@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 type ExtensionManifest = {
   version?: string;
   permissions?: string[];
+  host_permissions?: string[];
+  optional_host_permissions?: string[];
 };
 
 type PackageJson = {
@@ -24,5 +26,22 @@ describe("extension manifest", () => {
 
   it("requests only the browser permissions needed for native messaging, cleanup, and the side panel", () => {
     expect(readManifest().permissions).toEqual(["nativeMessaging", "sidePanel", "storage", "browsingData"]);
+  });
+
+  it("limits health-check host access to localhost origins", () => {
+    const manifest = readManifest();
+    expect(manifest.host_permissions).toBeUndefined();
+    expect(manifest.optional_host_permissions).toEqual([
+      "http://localhost/*",
+      "http://127.0.0.1/*",
+      "http://[::1]/*",
+      "http://0.0.0.0/*",
+      "http://*.localhost/*",
+      "https://localhost/*",
+      "https://127.0.0.1/*",
+      "https://[::1]/*",
+      "https://0.0.0.0/*",
+      "https://*.localhost/*"
+    ]);
   });
 });

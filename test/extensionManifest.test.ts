@@ -11,6 +11,8 @@ describe("buildFirefoxManifest", () => {
     const manifest = buildFirefoxManifest(readChromeManifest());
 
     expect(manifest.permissions).toEqual(["nativeMessaging", "storage", "browsingData"]);
+    expect(manifest.optional_host_permissions).toContain("http://localhost/*");
+    expect(manifest.optional_host_permissions).toContain("https://*.localhost/*");
     expect(manifest).not.toHaveProperty("side_panel");
     expect(manifest).not.toHaveProperty("action");
     expect(manifest).toMatchObject({

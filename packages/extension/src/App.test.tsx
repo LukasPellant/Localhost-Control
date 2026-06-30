@@ -110,6 +110,7 @@ describe("App", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
     delete (globalThis as { chrome?: unknown }).chrome;
     delete (globalThis as { browser?: unknown }).browser;
     Reflect.deleteProperty(navigator, "clipboard");
@@ -219,6 +220,112 @@ describe("App", () => {
     expect(await screen.findByRole("button", { name: /select port 5173/i })).toHaveTextContent("Example Shop");
     expect(screen.getByLabelText("Port 5173 details")).toHaveTextContent("Storefront and checkout");
     expect(screen.getByLabelText("Port 5173 details")).toHaveTextContent("vite ready in 420ms");
+  });
+
+  it("checks a saved profile health URL and surfaces the readiness result", async () => {
+    const fetchHealth = vi.fn(async () => ({ ok: true, status: 204, statusText: "No Content" }));
+    vi.stubGlobal("fetch", fetchHealth);
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            healthUrl: "http://127.0.0.1:5173/health"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const details = await screen.findByLabelText("Port 5173 details");
+    fireEvent.click(within(details).getByRole("button", { name: /check health for example shop/i }));
+
+    expect(await screen.findByText("Example Shop health check passed (204)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Project profiles")).toHaveTextContent("Healthy 204");
+    expect(screen.getByLabelText("Port 5173 details")).toHaveTextContent("Healthy 204");
+    expect(fetchHealth).toHaveBeenCalledWith(
+      "http://127.0.0.1:5173/health",
+      expect.objectContaining({ cache: "no-store", redirect: "manual" })
+    );
+  });
+
+  it("shows blocked health checks without marking a running profile unhealthy", async () => {
+    const fetchHealth = vi.fn();
+    vi.stubGlobal("fetch", fetchHealth);
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            healthUrl: "https://example.com/health"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const details = await screen.findByLabelText("Port 5173 details");
+    fireEvent.click(within(details).getByRole("button", { name: /check health for example shop/i }));
+
+    expect(await screen.findByText("Example Shop health check is limited to localhost URLs.")).toBeInTheDocument();
+    const profiles = screen.getByLabelText("Project profiles");
+    expect(profiles).toHaveTextContent("running");
+    expect(profiles).toHaveTextContent("Health check blocked");
+    expect(fetchHealth).not.toHaveBeenCalled();
+  });
+
+  it("keeps the newest profile health result when checks finish out of order", async () => {
+    const responses: Array<(value: { ok: boolean; status: number; statusText: string }) => void> = [];
+    const fetchHealth = vi.fn(
+      () =>
+        new Promise<{ ok: boolean; status: number; statusText: string }>((resolve) => {
+          responses.push(resolve);
+        })
+    );
+    vi.stubGlobal("fetch", fetchHealth);
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            healthUrl: "http://127.0.0.1:5173/health"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const details = await screen.findByLabelText("Port 5173 details");
+    const button = within(details).getByRole("button", { name: /check health for example shop/i });
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => expect(fetchHealth).toHaveBeenCalledTimes(2));
+    responses[1]?.({ ok: false, status: 503, statusText: "Service Unavailable" });
+    expect(await screen.findByText("Example Shop health check failed (503)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Project profiles")).toHaveTextContent("Unhealthy 503");
+
+    responses[0]?.({ ok: true, status: 204, statusText: "No Content" });
+    await waitFor(() => expect(screen.getByLabelText("Project profiles")).toHaveTextContent("Unhealthy 503"));
+    expect(screen.getByLabelText("Project profiles")).not.toHaveTextContent("Healthy 204");
   });
 
   it("shows saved workspaces and opens all workspace URLs", async () => {

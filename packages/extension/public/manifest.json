@@ -25,5 +25,17 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-  "permissions": ["nativeMessaging", "sidePanel", "storage", "browsingData"]
+  "permissions": ["nativeMessaging", "sidePanel", "storage", "browsingData"],
+  "optional_host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "http://[::1]/*",
+    "http://0.0.0.0/*",
+    "http://*.localhost/*",
+    "https://localhost/*",
+    "https://127.0.0.1/*",
+    "https://[::1]/*",
+    "https://0.0.0.0/*",
+    "https://*.localhost/*"
+  ]
 }

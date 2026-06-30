@@ -1,7 +1,8 @@
-import { Copy, EyeOff, ExternalLink, FolderPlus, Power, Terminal, Trash2 } from "lucide-react";
+import { Activity, Copy, EyeOff, ExternalLink, FolderPlus, Power, Terminal, Trash2 } from "lucide-react";
 import { kindLabel, type PortEntry } from "@localhost-control/shared";
 import { IconButton } from "./IconButton";
 import type { PortDoctorReport } from "../lib/portDoctor";
+import type { ProfileHealthResult } from "../lib/profileHealth";
 import type { ProjectProfile } from "../lib/projectProfiles";
 import { formatCpu, formatMemory, formatUptime } from "../lib/resources";
 import type { StaleProcessSignal } from "../lib/staleProcesses";
@@ -9,6 +10,7 @@ import type { StaleProcessSignal } from "../lib/staleProcesses";
 type DetailPanelProps = {
   entry: PortEntry | undefined;
   profile?: ProjectProfile | undefined;
+  profileHealth?: ProfileHealthResult | undefined;
   doctorReport?: PortDoctorReport | undefined;
   staleSignal?: StaleProcessSignal | undefined;
   onKill(entry: PortEntry): void;
@@ -16,6 +18,7 @@ type DetailPanelProps = {
   onCopy(entry: PortEntry): void;
   onTerminal(entry: PortEntry): void;
   onCleanup(entry: PortEntry): void;
+  onCheckProfileHealth(profile: ProjectProfile): void;
   onSaveProfile(entry: PortEntry): void;
   onTrustProject(entry: PortEntry): void;
   onHideProcess(entry: PortEntry): void;
@@ -24,6 +27,7 @@ type DetailPanelProps = {
 export const DetailPanel = ({
   entry,
   profile,
+  profileHealth,
   doctorReport,
   staleSignal,
   onKill,
@@ -31,6 +35,7 @@ export const DetailPanel = ({
   onCopy,
   onTerminal,
   onCleanup,
+  onCheckProfileHealth,
   onSaveProfile,
   onTrustProject,
   onHideProcess
@@ -134,6 +139,12 @@ export const DetailPanel = ({
             <dd>{profile.healthUrl}</dd>
           </div>
         ) : null}
+        {profileHealth ? (
+          <div className="wide">
+            <dt>Health status</dt>
+            <dd>{profileHealth.label}</dd>
+          </div>
+        ) : null}
         {profile?.notes ? (
           <div className="wide">
             <dt>Notes</dt>
@@ -174,6 +185,12 @@ export const DetailPanel = ({
         </div>
       ) : null}
       <div className="detail-rule-actions">
+        {profile?.healthUrl ? (
+          <button type="button" onClick={() => onCheckProfileHealth(profile)} aria-label={`Check health for ${profile.name}`}>
+            <Activity size={14} />
+            Check health
+          </button>
+        ) : null}
         <button type="button" onClick={() => onSaveProfile(entry)} disabled={Boolean(profile)}>
           <FolderPlus size={14} />
           Save profile

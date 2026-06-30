@@ -36,6 +36,11 @@ type BrowsingDataApi = {
   ): Promise<void> | void;
 };
 
+type PermissionsApi = {
+  contains?(permissions: { origins?: string[] }): Promise<boolean> | void;
+  request?(permissions: { origins?: string[] }, callback?: (granted: boolean) => void): Promise<boolean> | void;
+};
+
 export type ExtensionApi = {
   runtime?: RuntimeApi;
   storage?: {
@@ -43,6 +48,7 @@ export type ExtensionApi = {
   };
   tabs?: TabsApi;
   browsingData?: BrowsingDataApi;
+  permissions?: PermissionsApi;
 };
 
 export const getExtensionApi = (): ExtensionApi | undefined => {

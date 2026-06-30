@@ -11,7 +11,8 @@ import { getExtensionApi } from "./lib/extensionApi";
 import { type HostClient } from "./lib/hostClient";
 import { analyzePortDoctor } from "./lib/portDoctor";
 import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
-import { deriveProfileStates, matchProfileForEntry, type ProjectProfile } from "./lib/projectProfiles";
+import { checkProfileHealth, type ProfileHealthResult } from "./lib/profileHealth";
+import { deriveProfileStates, matchProfileForEntry, type ProfileState, type ProjectProfile } from "./lib/projectProfiles";
 import { deriveWorkspaceStates, type ProjectWorkspace } from "./lib/projectWorkspaces";
 import { defaultSettings, loadSettings, saveSettings, type Settings } from "./lib/settings";
 import {
@@ -101,9 +102,11 @@ export const App = ({ client }: AppProps) => {
   const [message, setMessage] = useState("");
   const [hostError, setHostError] = useState<string | null>(null);
   const [pendingKillEntry, setPendingKillEntry] = useState<PortEntry | null>(null);
+  const [profileHealthResults, setProfileHealthResults] = useState<Record<string, ProfileHealthResult>>({});
   const [settingsManagerOpen, setSettingsManagerOpen] = useState(false);
   const [settingsActionSaving, setSettingsActionSaving] = useState(false);
   const settingsActionSavingRef = useRef(false);
+  const profileHealthRequestSeqRef = useRef<Record<string, number>>({});
   const openedDownloadForError = useRef(false);
   const importFileRef = useRef<HTMLInputElement | null>(null);
 
@@ -204,12 +207,27 @@ export const App = ({ client }: AppProps) => {
     () => visibleEntries.find((entry) => `${entry.pid}:${entry.port}` === selectedKey) ?? visibleEntries[0],
     [selectedKey, visibleEntries]
   );
-  const profileStates = useMemo(() => deriveProfileStates(settings.projectProfiles, entries), [entries, settings.projectProfiles]);
+  const profileStates = useMemo(
+    () =>
+      deriveProfileStates(settings.projectProfiles, entries).map((state) => {
+        const healthResult = profileHealthResults[state.profile.id];
+        if (!healthResult) return state;
+        const status: ProfileState["status"] =
+          healthResult.state === "healthy" ? (state.entry ? "running" : state.status) : healthResult.state === "unhealthy" ? "unhealthy" : state.status;
+        return {
+          ...state,
+          status,
+          healthLabel: healthResult.label
+        };
+      }),
+    [entries, profileHealthResults, settings.projectProfiles]
+  );
   const profileForEntry = useCallback(
     (entry: PortEntry): ProjectProfile | undefined => matchProfileForEntry(entry, settings.projectProfiles)?.profile,
     [settings.projectProfiles]
   );
   const selectedProfile = selectedEntry ? profileForEntry(selectedEntry) : undefined;
+  const selectedProfileHealth = selectedProfile ? profileHealthResults[selectedProfile.id] : undefined;
   const workspaceStates = useMemo(
     () => deriveWorkspaceStates(settings.projectWorkspaces, settings.projectProfiles, profileStates),
     [profileStates, settings.projectProfiles, settings.projectWorkspaces]
@@ -375,6 +393,15 @@ export const App = ({ client }: AppProps) => {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     }
+  };
+
+  const checkHealthForProfile = async (profile: ProjectProfile) => {
+    const requestSeq = (profileHealthRequestSeqRef.current[profile.id] ?? 0) + 1;
+    profileHealthRequestSeqRef.current[profile.id] = requestSeq;
+    const result = await checkProfileHealth(profile);
+    if (profileHealthRequestSeqRef.current[profile.id] !== requestSeq) return;
+    setProfileHealthResults((current) => ({ ...current, [profile.id]: result }));
+    setMessage(result.message);
   };
 
   const saveProfileForEntry = async (entry: PortEntry) => {
@@ -560,6 +587,7 @@ export const App = ({ client }: AppProps) => {
       <DetailPanel
         entry={selectedEntry}
         profile={selectedProfile}
+        profileHealth={selectedProfileHealth}
         doctorReport={selectedDoctorReport}
         staleSignal={selectedStaleSignal}
         onKill={requestKillEntry}
@@ -567,6 +595,7 @@ export const App = ({ client }: AppProps) => {
         onCopy={(entry) => void copyEntry(entry)}
         onTerminal={(entry) => void openTerminalForEntry(entry)}
         onCleanup={(entry) => void cleanupBrowserDataForEntry(entry)}
+        onCheckProfileHealth={(profile) => void checkHealthForProfile(profile)}
         onSaveProfile={(entry) => void saveProfileForEntry(entry)}
         onTrustProject={(entry) => void trustProject(entry)}
         onHideProcess={(entry) => void hideProcess(entry)}
