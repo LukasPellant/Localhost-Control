@@ -4,8 +4,24 @@ import { deriveProfileStates, type ProjectProfile } from "./projectProfiles";
 import { deriveWorkspaceStates, sanitizeProjectWorkspaces, type ProjectWorkspace } from "./projectWorkspaces";
 
 const profiles: ProjectProfile[] = [
-  { id: "shop", name: "Example Shop", projectPath: "D:\\Projects\\ExampleShop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
-  { id: "api", name: "Local API", expectedPort: 17321, mainUrl: "http://127.0.0.1:17321" },
+  {
+    id: "shop",
+    name: "Example Shop",
+    projectPath: "D:\\Projects\\ExampleShop",
+    expectedPort: 5173,
+    mainUrl: "http://127.0.0.1:5173",
+    extraUrls: [{ label: "Admin", url: "http://127.0.0.1:5173/admin" }]
+  },
+  {
+    id: "api",
+    name: "Local API",
+    expectedPort: 17321,
+    mainUrl: "http://127.0.0.1:17321",
+    extraUrls: [
+      { label: "OpenAPI", url: "http://127.0.0.1:17321/docs" },
+      { label: "Duplicate main", url: "http://127.0.0.1:17321" }
+    ]
+  },
   { id: "docs", name: "Docs", expectedPort: 4321, mainUrl: "http://127.0.0.1:4321" }
 ];
 
@@ -64,7 +80,13 @@ describe("project workspaces", () => {
         attentionCount: 2,
         totalCount: 3,
         healthLabel: "1 running, 2 need attention",
-        openUrls: ["http://127.0.0.1:5173", "http://127.0.0.1:17321", "http://127.0.0.1:4321"],
+        openUrls: [
+          "http://127.0.0.1:5173",
+          "http://127.0.0.1:5173/admin",
+          "http://127.0.0.1:17321",
+          "http://127.0.0.1:17321/docs",
+          "http://127.0.0.1:4321"
+        ],
         profileStates: states
       }
     ]);

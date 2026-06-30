@@ -20,6 +20,10 @@ export type WorkspaceState = {
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+const openUrlsForProfileState = (state: ProfileState): string[] => [
+  ...(state.entry?.url ? [state.entry.url] : state.profile.mainUrl ? [state.profile.mainUrl] : []),
+  ...(state.profile.extraUrls?.map((item) => item.url) ?? [])
+];
 
 export const sanitizeProjectWorkspaces = (value: unknown, profiles: ProjectProfile[]): ProjectWorkspace[] => {
   if (!Array.isArray(value)) return [];
@@ -67,7 +71,7 @@ export const deriveWorkspaceStates = (
     const runningCount = memberStates.filter((state) => state.status === "running").length;
     const attentionCount = memberStates.length - runningCount;
     const status: WorkspaceState["status"] = runningCount === memberStates.length ? "healthy" : runningCount > 0 ? "degraded" : "stopped";
-    const openUrls = [...new Set(memberStates.flatMap((state) => state.entry?.url ?? state.profile.mainUrl ?? []))];
+    const openUrls = [...new Set(memberStates.flatMap(openUrlsForProfileState))];
 
     return [
       {

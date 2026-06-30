@@ -627,8 +627,21 @@ describe("App", () => {
       "localhost-control-settings",
       JSON.stringify({
         projectProfiles: [
-          { id: "shop", name: "Example Shop", projectPath: "D:\\Projects\\ExampleShop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
-          { id: "api", name: "Local API", expectedPort: 17321, mainUrl: "http://127.0.0.1:17321" },
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            extraUrls: [{ label: "Admin", url: "http://127.0.0.1:5173/admin" }]
+          },
+          {
+            id: "api",
+            name: "Local API",
+            expectedPort: 17321,
+            mainUrl: "http://127.0.0.1:17321",
+            extraUrls: [{ label: "OpenAPI", url: "http://127.0.0.1:17321/docs" }]
+          },
           { id: "docs", name: "Docs", expectedPort: 4321, mainUrl: "http://127.0.0.1:4321" }
         ],
         projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api", "docs"], notes: "Morning release loop" }]
@@ -645,7 +658,9 @@ describe("App", () => {
     fireEvent.click(within(workspaces).getByRole("button", { name: /open workspace daily stack/i }));
 
     expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:5173", "_blank", "noopener,noreferrer");
+    expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:5173/admin", "_blank", "noopener,noreferrer");
     expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:17321", "_blank", "noopener,noreferrer");
+    expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:17321/docs", "_blank", "noopener,noreferrer");
     expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:4321", "_blank", "noopener,noreferrer");
   });
 
