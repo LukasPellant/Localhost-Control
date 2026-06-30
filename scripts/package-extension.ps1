@@ -54,6 +54,11 @@ try {
       Remove-Item -Force
 
     Compress-Archive -Path (Join-Path $StageDir "*") -DestinationPath $zipPath -CompressionLevel Optimal
+    node (Join-Path $Root "scripts\validate-extension-package.mjs") "--target=$Target" "--artifact=$zipPath"
+    if ($LASTEXITCODE -ne 0) {
+      Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
+      throw "Extension package validation failed for $zipPath"
+    }
 
     Write-Host "$Target extension package created:"
     Write-Host $zipPath

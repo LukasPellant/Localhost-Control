@@ -9,6 +9,9 @@ describe("package-extension.ps1", () => {
     expect(script).toContain("$StageDir");
     expect(script).toContain('"--dist-dir=$StageDir"');
     expect(script).toContain('Compress-Archive -Path (Join-Path $StageDir "*")');
+    expect(script).toContain('validate-extension-package.mjs") "--target=$Target" "--artifact=$zipPath"');
+    expect(script).toContain("Extension package validation failed for $zipPath");
+    expect(script).toContain("Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue");
     expect(script).not.toContain('Compress-Archive -Path (Join-Path $DistDir "*")');
   });
 
