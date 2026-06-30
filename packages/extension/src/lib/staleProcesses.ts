@@ -17,16 +17,19 @@ export const detectStaleProcess = (entry: PortEntry, profile: ProjectProfile | u
   const reasons: string[] = [];
   let score = 0;
   let hasRuntimeEvidence = false;
+  let hasLongUptime = false;
 
   const uptimeMs = entry.resources?.uptimeMs ?? 0;
   if (uptimeMs >= veryLongUptimeMs) {
     reasons.push("Long uptime");
     score += 3;
     hasRuntimeEvidence = true;
+    hasLongUptime = true;
   } else if (uptimeMs >= longUptimeMs) {
     reasons.push("Long uptime");
     score += 2;
     hasRuntimeEvidence = true;
+    hasLongUptime = true;
   }
 
   if ((entry.resources?.memoryBytes ?? 0) >= highMemoryBytes) {
@@ -51,9 +54,17 @@ export const detectStaleProcess = (entry: PortEntry, profile: ProjectProfile | u
   }
 
   if (!hasRuntimeEvidence || score < 4) return undefined;
+
+  const isGhostCandidate =
+    !profile &&
+    !entry.projectHint &&
+    hasLongUptime &&
+    (entry.confidence === "low" || entry.detectedKind === "unknown") &&
+    score >= 6;
+
   return {
     severity: score >= 6 ? "high" : "medium",
-    label: "Possible stale process",
+    label: isGhostCandidate ? "Possible ghost process" : "Possible stale process",
     reasons
   };
 };

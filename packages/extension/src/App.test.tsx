@@ -1539,7 +1539,7 @@ describe("App", () => {
     expect(await screen.findByText("Copied doctor advice for port 5173")).toBeInTheDocument();
   });
 
-  it("surfaces stale process candidates in the list and detail panel", async () => {
+  it("surfaces ghost process candidates in the list and detail panel", async () => {
     const staleEntry: PortEntry = {
       port: 8990,
       address: "::",
@@ -1568,7 +1568,7 @@ describe("App", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Unknown" }));
     const row = await screen.findByRole("button", { name: /select port 8990/i });
-    expect(row).toHaveTextContent("Possible stale process");
+    expect(row).toHaveTextContent("Possible ghost process");
     expect(screen.getByLabelText("Dev health for port 8990")).toHaveTextContent("Long uptime");
     expect(screen.getByLabelText("Dev health for port 8990")).toHaveTextContent("High memory");
   });
