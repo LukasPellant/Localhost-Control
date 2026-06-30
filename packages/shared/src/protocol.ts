@@ -32,7 +32,8 @@ const hasTerminalParams = (value: unknown): boolean => {
   if (!isObject(value)) return false;
   return (
     (value.projectHint === undefined || isString(value.projectHint)) &&
-    (value.commandLine === undefined || isString(value.commandLine))
+    (value.commandLine === undefined || isString(value.commandLine)) &&
+    (value.executeCommand === undefined || isBoolean(value.executeCommand))
   );
 };
 

@@ -49,6 +49,7 @@ struct ScanParams {
 struct TerminalParams {
     project_hint: Option<String>,
     command_line: Option<String>,
+    execute_command: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -802,6 +803,30 @@ fn build_kill_result(
 }
 
 #[cfg(windows)]
+fn powershell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+#[cfg(target_os = "macos")]
+fn applescript_quote(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn command_to_execute(params: &TerminalParams) -> Option<&str> {
+    params
+        .execute_command
+        .unwrap_or(false)
+        .then(|| params.command_line.as_deref().map(str::trim))
+        .flatten()
+        .filter(|command_line| !command_line.is_empty())
+}
+
+#[cfg(windows)]
 fn open_terminal(params: &TerminalParams) -> Value {
     let command_hint = params
         .command_line
@@ -825,15 +850,30 @@ fn open_terminal(params: &TerminalParams) -> Value {
         .map(|value| format!("{value}\\Microsoft\\WindowsApps\\wt.exe"))
         .filter(|value| Path::new(value).exists())
         .unwrap_or_else(|| "powershell.exe".to_string());
+    let command_line = command_to_execute(params);
+    let powershell_command = match command_line {
+        Some(command_line) => format!(
+            "Set-Location -LiteralPath {}; {}",
+            powershell_single_quote(&cwd),
+            command_line
+        ),
+        None => format!(
+            "Set-Location -LiteralPath {}",
+            powershell_single_quote(&cwd)
+        ),
+    };
     let mut command = Command::new(&terminal);
     if terminal.ends_with("wt.exe") {
-        command.args(["-d", &cwd]);
-    } else {
         command.args([
+            "-d",
+            &cwd,
+            "powershell.exe",
             "-NoExit",
             "-Command",
-            &format!("Set-Location -LiteralPath '{}'", cwd.replace('\'', "''")),
+            &powershell_command,
         ]);
+    } else {
+        command.args(["-NoExit", "-Command", &powershell_command]);
     }
     match command
         .current_dir(&cwd)
@@ -842,6 +882,9 @@ fn open_terminal(params: &TerminalParams) -> Value {
         .stderr(Stdio::null())
         .spawn()
     {
+        Ok(_) if command_line.is_some() => {
+            json!({ "opened": true, "message": format!("Started command in {cwd}") })
+        }
         Ok(_) => json!({ "opened": true, "message": format!("Opened terminal in {cwd}") }),
         Err(error) => json!({ "opened": false, "message": error.to_string() }),
     }
@@ -866,6 +909,7 @@ fn open_terminal(params: &TerminalParams) -> Value {
                 .map(|path| path.display().to_string())
         })
         .unwrap_or_else(|| "/".to_string());
+    let command_line = command_to_execute(params);
     for terminal in [
         "xdg-terminal-exec",
         "gnome-terminal",
@@ -874,7 +918,28 @@ fn open_terminal(params: &TerminalParams) -> Value {
         "xterm",
     ] {
         let mut command = Command::new(terminal);
-        if terminal == "gnome-terminal" {
+        if let Some(command_line) = command_line {
+            if terminal == "gnome-terminal" {
+                command.args([
+                    "--working-directory",
+                    &cwd,
+                    "--",
+                    "bash",
+                    "-lc",
+                    command_line,
+                ]);
+            } else if terminal == "konsole" {
+                command.args(["--workdir", &cwd, "-e", "bash", "-lc", command_line]);
+            } else if terminal == "xfce4-terminal" {
+                command
+                    .arg("--working-directory")
+                    .arg(&cwd)
+                    .arg("--command")
+                    .arg(format!("bash -lc {}", shell_single_quote(command_line)));
+            } else {
+                command.args(["bash", "-lc", command_line]);
+            }
+        } else if terminal == "gnome-terminal" {
             command.args(["--working-directory", &cwd]);
         } else if terminal == "konsole" {
             command.args(["--workdir", &cwd]);
@@ -887,7 +952,11 @@ fn open_terminal(params: &TerminalParams) -> Value {
             .spawn()
         {
             Ok(_) => {
-                return json!({ "opened": true, "message": format!("Opened terminal in {cwd}") })
+                return if command_line.is_some() {
+                    json!({ "opened": true, "message": format!("Started command in {cwd}") })
+                } else {
+                    json!({ "opened": true, "message": format!("Opened terminal in {cwd}") })
+                }
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
             Err(error) => return json!({ "opened": false, "message": error.to_string() }),
@@ -915,6 +984,23 @@ fn open_terminal(params: &TerminalParams) -> Value {
                 .map(|path| path.display().to_string())
         })
         .unwrap_or_else(|| "/".to_string());
+    if let Some(command_line) = command_to_execute(params) {
+        let script = format!(
+            "tell application \"Terminal\" to do script \"cd {} && {}\"",
+            applescript_quote(&shell_single_quote(&cwd)),
+            applescript_quote(command_line)
+        );
+        return match Command::new("osascript")
+            .args(["-e", &script])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            Ok(_) => json!({ "opened": true, "message": format!("Started command in {cwd}") }),
+            Err(error) => json!({ "opened": false, "message": error.to_string() }),
+        };
+    }
     match Command::new("open")
         .args(["-a", "Terminal", &cwd])
         .stdin(Stdio::null())

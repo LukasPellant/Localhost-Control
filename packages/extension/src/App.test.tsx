@@ -222,6 +222,64 @@ describe("App", () => {
     expect(screen.getByLabelText("Port 5173 details")).toHaveTextContent("vite ready in 420ms");
   });
 
+  it("starts a stopped project profile with a saved project path and command", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "docs",
+            name: "Docs",
+            projectPath: "D:\\Projects\\ManualDocs",
+            startCommand: "pnpm docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /start profile docs/i }));
+
+    await waitFor(() =>
+      expect(client.openTerminal).toHaveBeenCalledWith({
+        projectHint: "D:\\Projects\\ManualDocs",
+        commandLine: "pnpm docs",
+        executeCommand: true
+      })
+    );
+    expect(openSpy).not.toHaveBeenCalledWith("http://127.0.0.1:4321", "_blank", "noopener,noreferrer");
+    expect(await screen.findByText("Started profile Docs")).toBeInTheDocument();
+  });
+
+  it("does not offer profile start when the saved command is not safe to run", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "docs",
+            name: "Docs",
+            projectPath: "D:\\Projects\\ManualDocs",
+            startCommand: "pnpm docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    expect(within(profiles).queryByRole("button", { name: /start profile docs/i })).not.toBeInTheDocument();
+  });
+
   it("groups saved profile health, origin cleanup, command, URLs, and recent logs in the detail card", async () => {
     window.localStorage.setItem(
       "localhost-control-settings",
@@ -503,6 +561,7 @@ describe("App", () => {
     window.localStorage.setItem(
       "localhost-control-settings",
       JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
         projectProfiles: [
           {
             id: "shop",
@@ -540,11 +599,13 @@ describe("App", () => {
     await waitFor(() => expect(client.openTerminal).toHaveBeenCalledTimes(2));
     expect(client.openTerminal).toHaveBeenNthCalledWith(1, {
       projectHint: "D:\\Projects\\ExampleShop",
-      commandLine: "pnpm dev"
+      commandLine: "pnpm dev",
+      executeCommand: true
     });
     expect(client.openTerminal).toHaveBeenNthCalledWith(2, {
       projectHint: "D:\\Projects\\LocalApi",
-      commandLine: "pnpm api"
+      commandLine: "pnpm api",
+      executeCommand: true
     });
     expect(await screen.findByText("Started workspace Daily stack: 2 commands")).toBeInTheDocument();
   });

@@ -23,6 +23,23 @@ describe("native messaging protocol", () => {
     expect(isHostRequest({ id: "scan-1", method: "scan", params: { httpProbe: true } })).toBe(false);
   });
 
+  it("validates terminal requests with explicit command execution intent", () => {
+    expect(
+      isHostRequest({
+        id: "terminal-1",
+        method: "openTerminal",
+        params: { projectHint: "D:\\Projects\\ExampleShop", commandLine: "pnpm dev", executeCommand: true }
+      })
+    ).toBe(true);
+    expect(
+      isHostRequest({
+        id: "terminal-1",
+        method: "openTerminal",
+        params: { projectHint: "D:\\Projects\\ExampleShop", commandLine: "pnpm dev", executeCommand: "yes" }
+      })
+    ).toBe(false);
+  });
+
   it("validates kill results and scan results", () => {
     const validEntry = {
       port: 5173,

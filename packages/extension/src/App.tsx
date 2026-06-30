@@ -99,6 +99,24 @@ const settingsExportSummary = (settings: Settings): string =>
   } ${settings.projectWorkspaces.length === 1 ? "workspace" : "workspaces"}`;
 const isStartableProjectProfile = (profile: ProjectProfile): profile is StartableProjectProfile =>
   Boolean(profile.projectPath && profile.startCommand);
+const normalizeProjectPath = (value: string): string =>
+  value
+    .trim()
+    .replace(/\//g, "\\")
+    .replace(/\\+$/, "")
+    .toLowerCase();
+const isTrustedProjectPath = (settings: Settings, projectPath: string): boolean => {
+  const normalizedPath = normalizeProjectPath(projectPath);
+  return (
+    settings.trustedProjectPaths.some((path) => normalizeProjectPath(path) === normalizedPath) ||
+    settings.trustedProjectRoots.some((root) => {
+      const normalizedRoot = normalizeProjectPath(root);
+      return normalizedPath === normalizedRoot || normalizedPath.startsWith(`${normalizedRoot}\\`);
+    })
+  );
+};
+const isTrustedStartableProjectProfile = (settings: Settings, profile: ProjectProfile): profile is StartableProjectProfile =>
+  isStartableProjectProfile(profile) && isTrustedProjectPath(settings, profile.projectPath);
 
 export const App = ({ client }: AppProps) => {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
@@ -433,6 +451,24 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const startProfile = async (profile: ProjectProfile) => {
+    if (!isTrustedStartableProjectProfile(settings, profile)) {
+      setMessage(`Profile ${profile.name} is missing a trusted path or command`);
+      return;
+    }
+
+    try {
+      const result = await client.openTerminal({
+        projectHint: profile.projectPath,
+        commandLine: profile.startCommand,
+        executeCommand: true
+      });
+      setMessage(result.opened ? `Started profile ${profile.name}` : result.message);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const cleanupBrowserDataForEntry = async (entry: PortEntry, mode: BrowserCleanupMode = "all") => {
     const url = entry.url ?? `http://127.0.0.1:${entry.port}`;
     try {
@@ -504,7 +540,7 @@ export const App = ({ client }: AppProps) => {
   const startWorkspace = async (state: (typeof workspaceStates)[number]) => {
     const startableProfiles = state.profileStates
       .map(({ profile }) => profile)
-      .filter(isStartableProjectProfile);
+      .filter((profile) => isTrustedStartableProjectProfile(settings, profile));
     if (!startableProfiles.length) {
       setMessage(`No safe start commands configured for ${state.workspace.name}`);
       return;
@@ -512,10 +548,15 @@ export const App = ({ client }: AppProps) => {
 
     try {
       for (const profile of startableProfiles) {
-        await client.openTerminal({
+        const result = await client.openTerminal({
           projectHint: profile.projectPath,
-          commandLine: profile.startCommand
+          commandLine: profile.startCommand,
+          executeCommand: true
         });
+        if (!result.opened) {
+          setMessage(result.message);
+          return;
+        }
       }
       setMessage(`Started workspace ${state.workspace.name}: ${startableProfiles.length} ${startableProfiles.length === 1 ? "command" : "commands"}`);
     } catch (error) {
@@ -624,19 +665,32 @@ export const App = ({ client }: AppProps) => {
       {profileStates.length ? (
         <section className="profile-strip" aria-label="Project profiles">
           {profileStates.map((state) => (
-            <button
+            <article
               className={`profile-chip ${state.status}`}
               key={state.profile.id}
-              type="button"
-              onClick={() => {
-                if (state.entry) setSelectedKey(`${state.entry.pid}:${state.entry.port}`);
-                else if (state.profile.mainUrl) openExternalUrl(state.profile.mainUrl);
-              }}
             >
-              <span className="profile-name">{state.profile.name}</span>
-              <span className="profile-status">{state.status}</span>
-              <span className="profile-health">{state.healthLabel}</span>
-            </button>
+              <button
+                className="profile-summary"
+                type="button"
+                aria-label={`Open profile ${state.profile.name}`}
+                onClick={() => {
+                  if (state.entry) setSelectedKey(`${state.entry.pid}:${state.entry.port}`);
+                  else if (state.profile.mainUrl) openExternalUrl(state.profile.mainUrl);
+                }}
+              >
+                <span className="profile-name">{state.profile.name}</span>
+                <span className="profile-status">{state.status}</span>
+                <span className="profile-health">{state.healthLabel}</span>
+              </button>
+              {state.status === "stopped" && isTrustedStartableProjectProfile(settings, state.profile) ? (
+                <div className="profile-actions">
+                  <button type="button" onClick={() => void startProfile(state.profile)} aria-label={`Start profile ${state.profile.name}`}>
+                    <Terminal size={13} />
+                    Start
+                  </button>
+                </div>
+              ) : null}
+            </article>
           ))}
           {settings.projectProfiles.length >= 2 && !hasWorkspaceForCurrentProfiles ? (
             <button className="profile-chip action" type="button" onClick={() => void saveWorkspaceFromProfiles()}>

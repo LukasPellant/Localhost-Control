@@ -19,6 +19,7 @@ export type KillParams = {
 export type TerminalParams = {
   projectHint?: string;
   commandLine?: string;
+  executeCommand?: boolean;
 };
 
 export type ProcessResources = {

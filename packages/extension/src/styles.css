@@ -287,6 +287,7 @@ button:disabled {
   padding: 9px;
 }
 
+.profile-summary,
 .workspace-summary {
   display: grid;
   min-width: 0;
@@ -306,6 +307,7 @@ button:disabled {
   border-color: var(--danger-border);
 }
 
+.profile-actions,
 .workspace-actions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
@@ -313,6 +315,7 @@ button:disabled {
   margin-top: 6px;
 }
 
+.profile-actions button,
 .workspace-actions button {
   display: inline-flex;
   min-width: 0;
@@ -332,6 +335,7 @@ button:disabled {
   white-space: nowrap;
 }
 
+.profile-actions button:hover:not(:disabled),
 .workspace-actions button:hover:not(:disabled) {
   border-color: var(--control-border-hover);
   background: var(--control-hover);
