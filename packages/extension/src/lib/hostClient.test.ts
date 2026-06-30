@@ -25,7 +25,7 @@ describe("shouldUseMockClient", () => {
   it("detects Firefox browser native messaging as an installed extension context", () => {
     (globalThis as { browser?: unknown }).browser = {
       runtime: {
-        sendNativeMessage: async () => ({ id: "version-1", result: { version: "0.1.7", platform: "win32" } })
+        sendNativeMessage: async () => ({ id: "version-1", result: { version: "0.1.8", platform: "win32" } })
       }
     };
 
@@ -39,12 +39,12 @@ describe("createNativeHostClient", () => {
       runtime: {
         sendNativeMessage: async (_hostName: string, message: { id: string; method: string }) => ({
           id: message.id,
-          result: { version: "0.1.7", platform: "win32" }
+          result: { version: "0.1.8", platform: "win32" }
         })
       }
     };
 
-    await expect(createNativeHostClient().version()).resolves.toEqual({ version: "0.1.7", platform: "win32" });
+    await expect(createNativeHostClient().version()).resolves.toEqual({ version: "0.1.8", platform: "win32" });
   });
 
   it("rejects malformed scan responses before they reach the UI", async () => {

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -209,6 +209,14 @@ const validateNativeManifestBySuffix = async (root, relativePath, browser, expec
   await validateNativeManifestPath(fullPath, relativePath, browser, expectedHostPath);
 };
 
+const normalizeWindowsComparablePath = async (filePath) => {
+  try {
+    return (await realpath(filePath)).toLowerCase();
+  } catch {
+    return path.resolve(filePath).toLowerCase();
+  }
+};
+
 const validateNativeManifestPath = async (fullPath, relativePath, browser, expectedHostPath) => {
   let manifest;
   try {
@@ -219,7 +227,7 @@ const validateNativeManifestPath = async (fullPath, relativePath, browser, expec
 
   const manifestHostPathMatches =
     process.platform === "win32"
-      ? path.resolve(manifest.path ?? "").toLowerCase() === path.resolve(expectedHostPath).toLowerCase()
+      ? (await normalizeWindowsComparablePath(manifest.path ?? "")) === (await normalizeWindowsComparablePath(expectedHostPath))
       : manifest.path === expectedHostPath;
 
   if (manifest.name !== hostName || manifest.description !== "Localhost Control native messaging host" || !manifestHostPathMatches || manifest.type !== "stdio") {

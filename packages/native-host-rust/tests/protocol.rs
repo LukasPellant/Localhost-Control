@@ -29,7 +29,7 @@ fn version_request_matches_extension_contract() {
     let response = handle_request(json!({ "id": "version-1", "method": "version" })).unwrap();
 
     assert_eq!(response["id"], "version-1");
-    assert_eq!(response["result"]["version"], "0.1.7");
+    assert_eq!(response["result"]["version"], "0.1.8");
     assert_eq!(response["result"]["platform"], std::env::consts::OS);
 }
 
