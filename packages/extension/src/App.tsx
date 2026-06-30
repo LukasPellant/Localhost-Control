@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, SlidersHorizontal, Terminal, Upload } from "lucide-react";
+import { Copy, Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, SlidersHorizontal, Square, Terminal, Upload } from "lucide-react";
 import { withAppScope, type KillParams, type PortEntry, type ScanResult } from "@localhost-control/shared";
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
 import { PortList } from "./components/PortList";
 import { SafeActionDialog } from "./components/SafeActionDialog";
 import { SettingsManager } from "./components/SettingsManager";
+import { WorkspaceStopDialog } from "./components/WorkspaceStopDialog";
 import { clearBrowserDataForUrl, type BrowserCleanupMode } from "./lib/browserCleanup";
 import { appendActionAuditEntry, createActionAuditEntry, type ActionAuditInput } from "./lib/actionAudit";
 import { formatDevContext, formatWorkspaceContext } from "./lib/devContext";
@@ -16,7 +17,7 @@ import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
 import { checkProfileHealth, preflightProfileHealthCheck, type ProfileHealthResult } from "./lib/profileHealth";
 import { deriveProfileStates, matchProfileForEntry, type ProfileState, type ProjectProfile } from "./lib/projectProfiles";
 import { formatProfileLogs } from "./lib/profileLogs";
-import { deriveWorkspaceStates, type ProjectWorkspace } from "./lib/projectWorkspaces";
+import { deriveWorkspaceStates, type ProjectWorkspace, type WorkspaceState } from "./lib/projectWorkspaces";
 import { slugifyLocalId } from "./lib/localIds";
 import { defaultSettings, loadSettings, saveActionAudit, saveSettings, type Settings } from "./lib/settings";
 import {
@@ -136,6 +137,7 @@ export const App = ({ client }: AppProps) => {
   const [message, setMessage] = useState("");
   const [hostError, setHostError] = useState<string | null>(null);
   const [pendingKillEntry, setPendingKillEntry] = useState<PortEntry | null>(null);
+  const [pendingWorkspaceStop, setPendingWorkspaceStop] = useState<WorkspaceState | null>(null);
   const [profileHealthResults, setProfileHealthResults] = useState<Record<string, ProfileHealthResult>>({});
   const [settingsManagerOpen, setSettingsManagerOpen] = useState(false);
   const [settingsActionSaving, setSettingsActionSaving] = useState(false);
@@ -404,6 +406,60 @@ export const App = ({ client }: AppProps) => {
       setMessage(result.message);
     } catch (error) {
       setScanResult(previousResult);
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const stopWorkspaceEntries = (state: WorkspaceState): Array<{ profile: ProjectProfile; entry: PortEntry }> =>
+    state.profileStates.flatMap(({ profile, entry }) => (entry?.killable ? [{ profile, entry }] : []));
+
+  const requestStopWorkspace = (state: WorkspaceState) => {
+    const stoppableEntries = stopWorkspaceEntries(state);
+    if (!stoppableEntries.length) {
+      setMessage(`No running killable profiles found for ${state.workspace.name}`);
+      return;
+    }
+    setPendingWorkspaceStop(state);
+  };
+
+  const confirmStopWorkspace = async (state: WorkspaceState) => {
+    const stoppableEntries = stopWorkspaceEntries(state);
+    if (!stoppableEntries.length) {
+      setPendingWorkspaceStop(null);
+      setMessage(`No running killable profiles found for ${state.workspace.name}`);
+      return;
+    }
+
+    setBusy(true);
+    setPendingWorkspaceStop(null);
+    setMessage(`Stopping workspace ${state.workspace.name}...`);
+    const failures: string[] = [];
+    let stoppedCount = 0;
+    try {
+      for (const { profile, entry } of stoppableEntries) {
+        try {
+          await client.kill({ pid: entry.pid, port: entry.port, mode: "force-tree" });
+          stoppedCount += 1;
+        } catch (error) {
+          failures.push(`${profile.name}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      await scan();
+      await recordAction({
+        action: "stop-process",
+        target: `Workspace ${state.workspace.name}`,
+        detail: failures.length
+          ? `${stoppedCount} of ${stoppableEntries.length} ${stoppableEntries.length === 1 ? "profile" : "profiles"}; ${failures.length} failed`
+          : `${stoppedCount} ${stoppedCount === 1 ? "profile" : "profiles"}`
+      });
+      if (failures.length) {
+        setMessage(`Stopped workspace ${state.workspace.name}: ${stoppedCount} of ${stoppableEntries.length} profiles; ${failures.length} failed`);
+        return;
+      }
+      setMessage(`Stopped workspace ${state.workspace.name}: ${stoppedCount} ${stoppedCount === 1 ? "profile" : "profiles"}`);
+    } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
@@ -796,25 +852,34 @@ export const App = ({ client }: AppProps) => {
 
       {workspaceStates.length ? (
         <section className="workspace-strip" aria-label="Project workspaces">
-          {workspaceStates.map((state) => (
-            <article className={`workspace-chip ${state.status}`} key={state.workspace.id}>
-              <button className="workspace-summary" type="button" onClick={() => state.openUrls.forEach((url) => openExternalUrl(url))} aria-label={`Open workspace ${state.workspace.name}`}>
-                <span className="workspace-name">{state.workspace.name}</span>
-                <span className="workspace-health">{state.healthLabel}</span>
-                {state.workspace.notes ? <span className="workspace-notes">{state.workspace.notes}</span> : null}
-              </button>
-              <div className="workspace-actions">
-                <button type="button" onClick={() => void copyWorkspaceContext(state)} aria-label={`Copy workspace context ${state.workspace.name}`}>
-                  <Copy size={13} />
-                  Context
+          {workspaceStates.map((state) => {
+            const stoppableEntries = stopWorkspaceEntries(state);
+            return (
+              <article className={`workspace-chip ${state.status}`} key={state.workspace.id}>
+                <button className="workspace-summary" type="button" onClick={() => state.openUrls.forEach((url) => openExternalUrl(url))} aria-label={`Open workspace ${state.workspace.name}`}>
+                  <span className="workspace-name">{state.workspace.name}</span>
+                  <span className="workspace-health">{state.healthLabel}</span>
+                  {state.workspace.notes ? <span className="workspace-notes">{state.workspace.notes}</span> : null}
                 </button>
-                <button type="button" onClick={() => void startWorkspace(state)} aria-label={`Start workspace ${state.workspace.name}`}>
-                  <Terminal size={13} />
-                  Start
-                </button>
-              </div>
-            </article>
-          ))}
+                <div className="workspace-actions">
+                  <button type="button" onClick={() => void copyWorkspaceContext(state)} aria-label={`Copy workspace context ${state.workspace.name}`}>
+                    <Copy size={13} />
+                    Context
+                  </button>
+                  <button type="button" onClick={() => void startWorkspace(state)} aria-label={`Start workspace ${state.workspace.name}`}>
+                    <Terminal size={13} />
+                    Start
+                  </button>
+                  {stoppableEntries.length ? (
+                    <button type="button" onClick={() => requestStopWorkspace(state)} aria-label={`Stop workspace ${state.workspace.name}`}>
+                      <Square size={12} />
+                      Stop
+                    </button>
+                  ) : null}
+                </div>
+              </article>
+            );
+          })}
         </section>
       ) : null}
 
@@ -838,12 +903,26 @@ export const App = ({ client }: AppProps) => {
                 <span className="profile-status">{state.status}</span>
                 <span className="profile-health">{state.healthLabel}</span>
               </button>
-              {state.status === "stopped" && isTrustedStartableProjectProfile(settings, state.profile) ? (
+              {(state.status === "stopped" && isTrustedStartableProjectProfile(settings, state.profile)) || state.entry?.killable ? (
                 <div className="profile-actions">
-                  <button type="button" onClick={() => void startProfile(state.profile)} aria-label={`Start profile ${state.profile.name}`}>
-                    <Terminal size={13} />
-                    Start
-                  </button>
+                  {state.status === "stopped" && isTrustedStartableProjectProfile(settings, state.profile) ? (
+                    <button type="button" onClick={() => void startProfile(state.profile)} aria-label={`Start profile ${state.profile.name}`}>
+                      <Terminal size={13} />
+                      Start
+                    </button>
+                  ) : null}
+                  {state.entry?.killable ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (state.entry?.killable) requestKillEntry(state.entry);
+                      }}
+                      aria-label={`Stop profile ${state.profile.name}`}
+                    >
+                      <Square size={12} />
+                      Stop
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
             </article>
@@ -898,6 +977,15 @@ export const App = ({ client }: AppProps) => {
           profile={profileForEntry(pendingKillEntry)}
           onCancel={() => setPendingKillEntry(null)}
           onConfirm={(entry) => void confirmKillEntry(entry)}
+        />
+      ) : null}
+
+      {pendingWorkspaceStop ? (
+        <WorkspaceStopDialog
+          workspace={pendingWorkspaceStop.workspace}
+          profiles={stopWorkspaceEntries(pendingWorkspaceStop)}
+          onCancel={() => setPendingWorkspaceStop(null)}
+          onConfirm={() => void confirmStopWorkspace(pendingWorkspaceStop)}
         />
       ) : null}
 

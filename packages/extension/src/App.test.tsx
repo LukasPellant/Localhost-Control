@@ -262,6 +262,35 @@ describe("App", () => {
     expect(manager).toHaveTextContent("Started profile");
   });
 
+  it("stops a running project profile from the profile strip after confirmation", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /stop profile example shop/i }));
+
+    const dialog = screen.getByRole("dialog", { name: /stop example shop/i });
+    expect(within(dialog).getByText("node vite")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /force stop/i }));
+
+    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));
+  });
+
   it("waits for started profile health and reports when it becomes ready", async () => {
     let failFirstCheck: ((error: Error) => void) | undefined;
     const fetchHealth = vi
@@ -796,6 +825,122 @@ describe("App", () => {
       executeCommand: true
     });
     expect(await screen.findByText("Started workspace Daily stack: 1 command")).toBeInTheDocument();
+  });
+
+  it("stops all running workspace profiles after confirmation", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          },
+          {
+            id: "api",
+            name: "Local API",
+            projectPath: "C:\\Workspaces\\LocalApi",
+            expectedPort: 17321,
+            mainUrl: "http://127.0.0.1:17321"
+          },
+          {
+            id: "docs",
+            name: "Docs",
+            projectPath: "D:\\Projects\\Docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321"
+          }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api", "docs"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    fireEvent.click(within(workspaces).getByRole("button", { name: /stop workspace daily stack/i }));
+
+    const dialog = screen.getByRole("dialog", { name: /stop workspace daily stack/i });
+    expect(within(dialog).getByText("Example Shop")).toBeInTheDocument();
+    expect(within(dialog).getByText("Local API")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Docs")).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /force stop 2/i }));
+
+    await waitFor(() => expect(client.kill).toHaveBeenCalledTimes(2));
+    expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" });
+    expect(client.kill).toHaveBeenCalledWith({ pid: 150, port: 17321, mode: "force-tree" });
+  });
+
+  it("keeps stopping remaining workspace profiles when one stop fails", async () => {
+    vi.mocked(client.kill)
+      .mockRejectedValueOnce(new Error("PID 100 is already closed"))
+      .mockResolvedValueOnce({ killed: true, pid: 150, port: 17321, portClosed: true, message: "Killed 150" });
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          },
+          {
+            id: "api",
+            name: "Local API",
+            projectPath: "C:\\Workspaces\\LocalApi",
+            expectedPort: 17321,
+            mainUrl: "http://127.0.0.1:17321"
+          }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    fireEvent.click(within(workspaces).getByRole("button", { name: /stop workspace daily stack/i }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: /stop workspace daily stack/i })).getByRole("button", { name: /force stop 2/i }));
+
+    await waitFor(() => expect(client.kill).toHaveBeenCalledTimes(2));
+    expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" });
+    expect(client.kill).toHaveBeenCalledWith({ pid: 150, port: 17321, mode: "force-tree" });
+    expect(await screen.findByText("Stopped workspace Daily stack: 1 of 2 profiles; 1 failed")).toBeInTheDocument();
+  });
+
+  it("offers workspace stop when the only running member is unhealthy", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "steam",
+            name: "Steam Local",
+            projectPath: "C:\\Program Files (x86)\\Steam",
+            expectedPort: 3515,
+            mainUrl: "http://127.0.0.1:3515"
+          }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["steam"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    expect(within(workspaces).getByText("0 running, 1 needs attention")).toBeInTheDocument();
+    fireEvent.click(within(workspaces).getByRole("button", { name: /stop workspace daily stack/i }));
+
+    const dialog = screen.getByRole("dialog", { name: /stop workspace daily stack/i });
+    expect(within(dialog).getByText("Steam Local")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /force stop 1/i }));
+
+    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 200, port: 3515, mode: "force-tree" }));
   });
 
   it("requests workspace health permissions before starting workspace commands", async () => {
