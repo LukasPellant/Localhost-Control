@@ -253,5 +253,5 @@ jobs:
           body_path: dist/release-notes.md
           files: |
             dist/native-host/*
-            dist/extension-store/*
+            dist/extension-store/**/*.zip
           fail_on_unmatched_files: true

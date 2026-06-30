@@ -34,7 +34,7 @@ describe("release-native-host workflow", () => {
     expect(workflow).toContain("dist/chrome-store/*.zip");
     expect(workflow).toContain("dist/firefox-addons/*.zip");
     expect(workflow).toContain("path: dist/extension-store");
-    expect(workflow).toContain("dist/extension-store/*");
+    expect(workflow).toContain("dist/extension-store/**/*.zip");
   });
 
   it("publishes GitHub releases with the artifact release action", () => {
