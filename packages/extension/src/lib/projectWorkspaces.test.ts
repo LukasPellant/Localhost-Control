@@ -107,4 +107,20 @@ describe("project workspaces", () => {
     });
     expect(workspaceStates[0]?.profileStates.map((state) => state.profile.id)).toEqual(["shop", "remote"]);
   });
+
+  it("does not count one running process as multiple workspace profiles", () => {
+    const duplicatePortProfiles: ProjectProfile[] = [
+      { id: "api", name: "API", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
+      { id: "shop", name: "Shop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" }
+    ];
+    const states = deriveProfileStates(duplicatePortProfiles, [runningEntries[0]!]);
+    const workspaceStates = deriveWorkspaceStates([{ id: "daily", name: "Daily stack", profileIds: ["api", "shop"] }], duplicatePortProfiles, states);
+
+    expect(workspaceStates[0]).toMatchObject({
+      runningCount: 1,
+      attentionCount: 1,
+      totalCount: 2,
+      healthLabel: "1 running, 1 needs attention"
+    });
+  });
 });

@@ -59,6 +59,20 @@ describe("project profile matching", () => {
     expect(states[2]?.healthLabel).toBe("No running port");
   });
 
+  it("assigns one running port to only one best matching profile", () => {
+    const profiles: ProjectProfile[] = [
+      { id: "api", name: "API", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
+      { id: "shop", name: "Shop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" }
+    ];
+
+    const states = deriveProfileStates(profiles, [viteEntryWithoutPath]);
+
+    expect(states.map((state) => [state.profile.id, state.status, state.entry?.pid])).toEqual([
+      ["api", "running", 100],
+      ["shop", "stopped", undefined]
+    ]);
+  });
+
   it("drops duplicate profile IDs and unsafe URL schemes while importing profiles", () => {
     expect(
       sanitizeProjectProfiles([

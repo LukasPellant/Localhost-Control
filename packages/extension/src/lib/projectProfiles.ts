@@ -151,6 +151,41 @@ export const matchProfileForEntry = (entry: PortEntry, profiles: ProjectProfile[
     .filter((match) => match.score > 0)
     .sort((left, right) => right.score - left.score || left.profile.name.localeCompare(right.profile.name))[0];
 
+const entryKey = (entry: PortEntry): string => `${entry.pid}:${entry.port}:${entry.address}`;
+
+const assignEntriesToProfiles = (profiles: ProjectProfile[], entries: PortEntry[]): Map<string, PortEntry> => {
+  const assignedProfiles = new Set<string>();
+  const assignedEntries = new Set<string>();
+  const assignments = new Map<string, PortEntry>();
+  const candidates = profiles
+    .flatMap((profile) =>
+      entries.map((entry) => ({
+        profile,
+        entry,
+        score: scoreProfileForEntry(entry, profile)
+      }))
+    )
+    .filter((candidate) => candidate.score > 0)
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.profile.name.localeCompare(right.profile.name) ||
+        left.profile.id.localeCompare(right.profile.id) ||
+        left.entry.pid - right.entry.pid ||
+        left.entry.port - right.entry.port
+    );
+
+  candidates.forEach(({ profile, entry }) => {
+    const key = entryKey(entry);
+    if (assignedProfiles.has(profile.id) || assignedEntries.has(key)) return;
+    assignedProfiles.add(profile.id);
+    assignedEntries.add(key);
+    assignments.set(profile.id, entry);
+  });
+
+  return assignments;
+};
+
 const profileHealthLabel = (entry: PortEntry | undefined): string => {
   if (!entry) return "No running port";
   if (entry.statusCode) return `Observed HTTP ${entry.statusCode}`;
@@ -164,12 +199,10 @@ const profileStatus = (profile: ProjectProfile, entry: PortEntry | undefined): P
   return "running";
 };
 
-export const deriveProfileStates = (profiles: ProjectProfile[], entries: PortEntry[]): ProfileState[] =>
-  profiles.map((profile) => {
-    const entry = entries
-      .map((candidate) => ({ entry: candidate, score: scoreProfileForEntry(candidate, profile) }))
-      .filter((match) => match.score > 0)
-      .sort((left, right) => right.score - left.score)[0]?.entry;
+export const deriveProfileStates = (profiles: ProjectProfile[], entries: PortEntry[]): ProfileState[] => {
+  const assignedEntries = assignEntriesToProfiles(profiles, entries);
+  return profiles.map((profile) => {
+    const entry = assignedEntries.get(profile.id);
     return {
       profile,
       status: profileStatus(profile, entry),
@@ -177,3 +210,4 @@ export const deriveProfileStates = (profiles: ProjectProfile[], entries: PortEnt
       healthLabel: profileHealthLabel(entry)
     };
   });
+};
