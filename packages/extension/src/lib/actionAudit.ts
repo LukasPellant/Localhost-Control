@@ -3,6 +3,7 @@ export type ActionAuditKind =
   | "start-workspace"
   | "stop-process"
   | "browser-cleanup"
+  | "hard-reload-tabs"
   | "open-private-window"
   | "open-mobile-preview"
   | "open-project-folder";
@@ -27,6 +28,7 @@ const allowedActions = new Set<ActionAuditKind>([
   "start-workspace",
   "stop-process",
   "browser-cleanup",
+  "hard-reload-tabs",
   "open-private-window",
   "open-mobile-preview",
   "open-project-folder"

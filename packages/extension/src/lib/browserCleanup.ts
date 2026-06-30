@@ -26,6 +26,14 @@ export type BrowserMobilePreviewResult = {
   reason?: "unavailable" | "failed";
 };
 
+export type BrowserTabReloadResult = {
+  reloaded: boolean;
+  count: number;
+  message: string;
+  origin: string;
+  reason?: "unavailable" | "permission-denied" | "failed";
+};
+
 const previewPresets = {
   phone: { label: "phone", width: 390, height: 844 },
   tablet: { label: "tablet", width: 768, height: 1024 },
@@ -60,6 +68,106 @@ export const originFromLocalhostUrl = (value: string): string => {
     throw new Error("Only localhost browser data can be cleared.");
   }
   return url.origin;
+};
+
+const localhostHostPermissionPattern = (origin: string): string => {
+  const url = new URL(origin);
+  const hostname = url.hostname.toLowerCase();
+  const host = hostname.endsWith(".localhost") ? "*.localhost" : hostname === "::1" || hostname === "[::1]" ? "[::1]" : hostname;
+  return `${url.protocol}//${host}/*`;
+};
+
+const hasLocalhostHostPermission = async (origin: string): Promise<boolean> => {
+  const api = getExtensionApi();
+  const permissions = api?.permissions;
+  if (!permissions?.request && !permissions?.contains) return true;
+
+  const origins = [localhostHostPermissionPattern(origin)];
+  if (permissions.contains) {
+    if (hasPromiseExtensionApi()) {
+      try {
+        if (await permissions.contains({ origins })) return true;
+      } catch {
+        return false;
+      }
+    } else {
+      const alreadyGranted = await new Promise<boolean>((resolve) => {
+        permissions.contains?.({ origins }, (granted) => resolve(!api?.runtime?.lastError && Boolean(granted)));
+      });
+      if (alreadyGranted) return true;
+    }
+  }
+
+  if (!permissions.request) return false;
+
+  if (hasPromiseExtensionApi()) {
+    try {
+      return Boolean(await permissions.request({ origins }));
+    } catch {
+      return false;
+    }
+  }
+
+  return new Promise((resolve) => {
+    permissions.request?.({ origins }, (granted) => resolve(!api?.runtime?.lastError && Boolean(granted)));
+  });
+};
+
+const queryTabsByUrlPattern = async (urlPattern: string): Promise<Array<{ id?: number; url?: string }>> => {
+  const api = getExtensionApi();
+  const tabs = api?.tabs;
+  if (!tabs?.query) return [];
+
+  if (hasPromiseExtensionApi()) {
+    return (await tabs.query({ url: [urlPattern] })) ?? [];
+  }
+
+  return new Promise((resolve, reject) => {
+    try {
+      const result = tabs.query?.({ url: [urlPattern] }, (items) => {
+        const runtimeError = api?.runtime?.lastError?.message;
+        if (runtimeError) {
+          reject(new Error(runtimeError));
+          return;
+        }
+        resolve(items ?? []);
+      });
+      if (result instanceof Promise) {
+        result.then((items) => resolve(items ?? [])).catch(reject);
+      }
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+
+const reloadTabById = async (tabId: number): Promise<void> => {
+  const api = getExtensionApi();
+  const tabs = api?.tabs;
+  if (!tabs?.reload) return;
+
+  if (hasPromiseExtensionApi()) {
+    await tabs.reload(tabId, { bypassCache: true });
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    try {
+      const result = tabs.reload?.(tabId, { bypassCache: true }, () => {
+        const runtimeError = api?.runtime?.lastError?.message;
+        if (runtimeError) {
+          reject(new Error(runtimeError));
+          return;
+        }
+        resolve();
+      });
+      if (result instanceof Promise) {
+        result.then(() => resolve()).catch(reject);
+      }
+    } catch (error) {
+      reject(error);
+    }
+  });
 };
 
 export const clearBrowserDataForUrl = async (value: string, mode: BrowserCleanupMode = "all"): Promise<BrowserCleanupResult> => {
@@ -172,6 +280,72 @@ export const openMobilePreviewForUrl = async (value: string, preset: BrowserPrev
   };
 };
 
+export const reloadLocalhostTabsForUrl = async (value: string): Promise<BrowserTabReloadResult> => {
+  const origin = originFromLocalhostUrl(value);
+  const tabs = getExtensionApi()?.tabs;
+
+  if (!tabs?.query || !tabs.reload) {
+    return {
+      reloaded: false,
+      count: 0,
+      message: "Hard reload tab API is unavailable.",
+      origin,
+      reason: "unavailable"
+    };
+  }
+
+  if (!(await hasLocalhostHostPermission(origin))) {
+    return {
+      reloaded: false,
+      count: 0,
+      message: `Hard reload needs permission for ${origin}.`,
+      origin,
+      reason: "permission-denied"
+    };
+  }
+
+  let queriedTabs: Array<{ id?: number; url?: string }> = [];
+  try {
+    queriedTabs = await queryTabsByUrlPattern(localhostHostPermissionPattern(origin));
+  } catch (error) {
+    return tabReloadFailureResult(origin, error);
+  }
+
+  const matchingTabIds = queriedTabs.flatMap((tab) => {
+    if (!tab.id || !tab.url) return [];
+    try {
+      return new URL(tab.url).origin === origin ? [tab.id] : [];
+    } catch {
+      return [];
+    }
+  });
+
+  try {
+    await Promise.all(matchingTabIds.map((tabId) => reloadTabById(tabId)));
+  } catch (error) {
+    return tabReloadFailureResult(origin, error);
+  }
+
+  const runtimeError = getExtensionApi()?.runtime?.lastError?.message;
+  if (runtimeError) return tabReloadFailureResult(origin, runtimeError);
+
+  if (!matchingTabIds.length) {
+    return {
+      reloaded: true,
+      count: 0,
+      message: `No open tabs found for ${origin}.`,
+      origin
+    };
+  }
+
+  return {
+    reloaded: true,
+    count: matchingTabIds.length,
+    message: `Hard reloaded ${matchingTabIds.length} ${matchingTabIds.length === 1 ? "tab" : "tabs"} for ${origin}.`,
+    origin
+  };
+};
+
 const cleanupFailureResult = (origin: string, error: unknown): BrowserCleanupResult => {
   const message = error instanceof Error ? error.message : String(error);
   const permissionDenied = /permission|denied|not allowed|not permitted/i.test(message);
@@ -201,6 +375,17 @@ const mobilePreviewFailureResult = (origin: string, url: string, error: unknown)
     message: `Mobile preview failed for ${origin}: ${message}`,
     origin,
     url,
+    reason: "failed"
+  };
+};
+
+const tabReloadFailureResult = (origin: string, error: unknown): BrowserTabReloadResult => {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    reloaded: false,
+    count: 0,
+    message: `Hard reload failed for ${origin}: ${message}`,
+    origin,
     reason: "failed"
   };
 };

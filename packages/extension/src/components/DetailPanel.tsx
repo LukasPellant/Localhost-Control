@@ -23,6 +23,7 @@ type DetailPanelProps = {
   onCopyProfileLogs(profile: ProjectProfile): void;
   onTerminal(entry: PortEntry): void;
   onCleanup(entry: PortEntry, mode?: BrowserCleanupMode): void;
+  onHardReload(entry: PortEntry): void;
   onOpenPrivate(entry: PortEntry): void;
   onOpenMobilePreview(entry: PortEntry, preset: BrowserPreviewPreset): void;
   onOpenProjectFolder(entry: PortEntry): void;
@@ -50,6 +51,7 @@ export const DetailPanel = ({
   onCopyProfileLogs,
   onTerminal,
   onCleanup,
+  onHardReload,
   onOpenPrivate,
   onOpenMobilePreview,
   onOpenProjectFolder,
@@ -262,6 +264,10 @@ export const DetailPanel = ({
                 <button type="button" onClick={() => onCleanup(entry, "cache")} aria-label={`Reset app cache ${cleanupOrigin}`}>
                   <RefreshCw size={14} />
                   Reset cache
+                </button>
+                <button type="button" onClick={() => onHardReload(entry)} aria-label={`Hard reload tabs ${cleanupOrigin}`}>
+                  <RefreshCw size={14} />
+                  Hard reload
                 </button>
                 <button type="button" onClick={() => onOpenPrivate(entry)} aria-label={`Open private window ${cleanupOrigin}`}>
                   <EyeOff size={14} />

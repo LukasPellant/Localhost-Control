@@ -11,6 +11,7 @@ import {
   clearBrowserDataForUrl,
   openMobilePreviewForUrl,
   openPrivateWindowForUrl,
+  reloadLocalhostTabsForUrl,
   type BrowserCleanupMode,
   type BrowserPreviewPreset
 } from "./lib/browserCleanup";
@@ -841,6 +842,23 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const hardReloadTabsForEntry = async (entry: PortEntry) => {
+    const url = entry.url ?? `http://127.0.0.1:${entry.port}`;
+    try {
+      const result = await reloadLocalhostTabsForUrl(url);
+      if (result.reloaded) {
+        void recordAction({
+          action: "hard-reload-tabs",
+          target: result.origin,
+          detail: `${result.count} ${result.count === 1 ? "tab" : "tabs"}`
+        });
+      }
+      setMessage(result.message);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const openMobilePreviewForEntry = async (entry: PortEntry, preset: BrowserPreviewPreset = "phone") => {
     const url = entry.url ?? `http://127.0.0.1:${entry.port}`;
     try {
@@ -1234,6 +1252,7 @@ export const App = ({ client }: AppProps) => {
         onCopyProfileLogs={(profile) => void copyProfileLogs(profile)}
         onTerminal={(entry) => void openTerminalForEntry(entry)}
         onCleanup={(entry, mode) => void cleanupBrowserDataForEntry(entry, mode)}
+        onHardReload={(entry) => void hardReloadTabsForEntry(entry)}
         onOpenPrivate={(entry) => void openPrivateWindowForEntry(entry)}
         onOpenMobilePreview={(entry, preset) => void openMobilePreviewForEntry(entry, preset)}
         onOpenProjectFolder={(entry) => void openProjectFolderForEntry(entry)}

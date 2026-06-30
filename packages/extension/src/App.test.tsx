@@ -2411,6 +2411,34 @@ describe("App", () => {
     expect(await screen.findByText("Cleared cache storage and service workers for http://127.0.0.1:5173.")).toBeInTheDocument();
   });
 
+  it("hard reloads open tabs for the selected localhost origin", async () => {
+    const query = vi.fn(async () => [
+      { id: 11, url: "http://127.0.0.1:5173/" },
+      { id: 12, url: "http://127.0.0.1:5173/admin" },
+      { id: 13, url: "http://127.0.0.1:5174/" }
+    ]);
+    const reload = vi.fn(async () => undefined);
+    (globalThis as { browser?: unknown }).browser = {
+      permissions: { contains: vi.fn(async () => true) },
+      tabs: { query, reload }
+    };
+
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByLabelText("Port 5173 details")).getByRole("button", { name: /hard reload tabs http:\/\/127\.0\.0\.1:5173/i }));
+
+    await waitFor(() => expect(query).toHaveBeenCalledWith({ url: ["http://127.0.0.1/*"] }));
+    expect(reload).toHaveBeenNthCalledWith(1, 11, { bypassCache: true });
+    expect(reload).toHaveBeenNthCalledWith(2, 12, { bypassCache: true });
+    expect(await screen.findByText("Hard reloaded 2 tabs for http://127.0.0.1:5173.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
+    const manager = await screen.findByLabelText("Settings manager");
+    expect(manager).toHaveTextContent("Hard reloaded tabs");
+    expect(manager).not.toHaveTextContent("Cleaned browser data");
+  });
+
   it("shows install help when native host is unavailable", async () => {
     render(<App client={{ ...client, scan: vi.fn(async () => Promise.reject(new Error("Specified native messaging host not found."))) }} />);
 

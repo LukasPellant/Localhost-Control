@@ -15,6 +15,8 @@ type StorageAreaApi = {
 
 type TabsApi = {
   create(properties: { url: string }): Promise<unknown> | void;
+  query?(queryInfo: { url?: string[] }, callback?: (tabs: Array<{ id?: number; url?: string }>) => void): Promise<Array<{ id?: number; url?: string }>> | void;
+  reload?(tabId: number, reloadProperties?: { bypassCache?: boolean }, callback?: () => void): Promise<void> | void;
 };
 
 type WindowsApi = {

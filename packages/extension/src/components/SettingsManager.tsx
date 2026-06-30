@@ -61,6 +61,7 @@ const auditActionLabels: Record<ActionAuditKind, string> = {
   "start-workspace": "Started workspace",
   "stop-process": "Stopped process",
   "browser-cleanup": "Cleaned browser data",
+  "hard-reload-tabs": "Hard reloaded tabs",
   "open-private-window": "Opened private window",
   "open-mobile-preview": "Opened mobile preview",
   "open-project-folder": "Opened project folder"
