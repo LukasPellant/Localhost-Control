@@ -121,6 +121,8 @@ const isTrustedProjectPath = (settings: Settings, projectPath: string): boolean 
 const isTrustedStartableProjectProfile = (settings: Settings, profile: ProjectProfile): profile is StartableProjectProfile =>
   isStartableProjectProfile(profile) && isTrustedProjectPath(settings, profile.projectPath);
 const delay = (ms: number): Promise<void> => new Promise((resolve) => window.setTimeout(resolve, ms));
+const hasSameProfileIds = (left: string[], right: string[]): boolean =>
+  left.length === right.length && left.every((profileId) => right.includes(profileId));
 const checkingProfileHealthResult = (profile: ProjectProfile): ProfileHealthResult => ({
   profileId: profile.id,
   state: "checking",
@@ -286,9 +288,7 @@ export const App = ({ client }: AppProps) => {
   const hasWorkspaceForCurrentProfiles = useMemo(() => {
     const profileIds = settings.projectProfiles.map((profile) => profile.id);
     if (profileIds.length < 2) return false;
-    return settings.projectWorkspaces.some(
-      (workspace) => workspace.profileIds.length === profileIds.length && workspace.profileIds.every((profileId, index) => profileId === profileIds[index])
-    );
+    return settings.projectWorkspaces.some((workspace) => hasSameProfileIds(workspace.profileIds, profileIds));
   }, [settings.projectProfiles, settings.projectWorkspaces]);
   const selectedDoctorReport = useMemo(
     () => (selectedEntry ? analyzePortDoctor(selectedEntry, entries, settings.projectProfiles, selectedProfile?.id) : undefined),

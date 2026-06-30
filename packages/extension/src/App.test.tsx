@@ -930,7 +930,7 @@ describe("App", () => {
           { id: "shop", name: "Example Shop", projectPath: "D:\\Projects\\ExampleShop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
           { id: "api", name: "Local API", expectedPort: 17321, mainUrl: "http://127.0.0.1:17321" }
         ],
-        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api"] }]
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["api", "shop"] }]
       })
     );
 
