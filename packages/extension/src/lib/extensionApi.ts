@@ -41,7 +41,7 @@ type BrowsingDataApi = {
 };
 
 type PermissionsApi = {
-  contains?(permissions: { origins?: string[] }): Promise<boolean> | void;
+  contains?(permissions: { origins?: string[] }, callback?: (granted: boolean) => void): Promise<boolean> | void;
   request?(permissions: { origins?: string[] }, callback?: (granted: boolean) => void): Promise<boolean> | void;
 };
 

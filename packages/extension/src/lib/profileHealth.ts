@@ -42,17 +42,55 @@ const hostPermissionPattern = (value: string): string => {
   return `${url.protocol}//${host}/*`;
 };
 
+const healthBlockedResult = (profile: ProjectProfile): ProfileHealthResult => ({
+  profileId: profile.id,
+  state: "blocked",
+  label: "Health check blocked",
+  checkedAt: nowIso(),
+  message: `${profile.name} health check is limited to localhost URLs.`
+});
+
+const healthPermissionDeniedResult = (profile: ProjectProfile): ProfileHealthResult => ({
+  profileId: profile.id,
+  state: "blocked",
+  label: "Health permission denied",
+  checkedAt: nowIso(),
+  message: `${profile.name} health check needs permission for ${new URL(profile.healthUrl ?? "").origin}.`
+});
+
 const requestOriginPermission = async (healthUrl: string): Promise<boolean> => {
-  const permissions = getExtensionApi()?.permissions;
-  if (!permissions?.request) return true;
+  const api = getExtensionApi();
+  const permissions = api?.permissions;
+  if (!permissions?.request && !permissions?.contains) return true;
 
   const origins = [hostPermissionPattern(healthUrl)];
+  if (permissions.contains) {
+    if (hasPromiseExtensionApi()) {
+      try {
+        if (await permissions.contains({ origins })) return true;
+      } catch {
+        return false;
+      }
+    } else {
+      const alreadyGranted = await new Promise<boolean>((resolve) => {
+        permissions.contains?.({ origins }, (granted) => resolve(!api?.runtime?.lastError && Boolean(granted)));
+      });
+      if (alreadyGranted) return true;
+    }
+  }
+
+  if (!permissions.request) return false;
+
   if (hasPromiseExtensionApi()) {
-    return Boolean(await permissions.request({ origins }));
+    try {
+      return Boolean(await permissions.request({ origins }));
+    } catch {
+      return false;
+    }
   }
 
   return new Promise((resolve) => {
-    permissions.request?.({ origins }, (granted) => resolve(granted));
+    permissions.request?.({ origins }, (granted) => resolve(!api?.runtime?.lastError && Boolean(granted)));
   });
 };
 
@@ -60,36 +98,34 @@ export type ProfileHealthOptions = {
   timeoutMs?: number;
 };
 
+export const preflightProfileHealthCheck = async (profile: ProjectProfile): Promise<ProfileHealthResult | undefined> => {
+  if (!profile.healthUrl || !isLocalHttpUrl(profile.healthUrl)) {
+    return healthBlockedResult(profile);
+  }
+
+  if (!(await requestOriginPermission(profile.healthUrl))) {
+    return healthPermissionDeniedResult(profile);
+  }
+
+  return undefined;
+};
+
 export const checkProfileHealth = async (
   profile: ProjectProfile,
   fetcher: FetchLike = fetch,
   options: ProfileHealthOptions = {}
 ): Promise<ProfileHealthResult> => {
-  if (!profile.healthUrl || !isLocalHttpUrl(profile.healthUrl)) {
-    return {
-      profileId: profile.id,
-      state: "blocked",
-      label: "Health check blocked",
-      checkedAt: nowIso(),
-      message: `${profile.name} health check is limited to localhost URLs.`
-    };
-  }
+  const preflightResult = await preflightProfileHealthCheck(profile);
+  if (preflightResult) return preflightResult;
 
-  if (!(await requestOriginPermission(profile.healthUrl))) {
-    return {
-      profileId: profile.id,
-      state: "blocked",
-      label: "Health permission denied",
-      checkedAt: nowIso(),
-      message: `${profile.name} health check needs permission for ${new URL(profile.healthUrl).origin}.`
-    };
-  }
+  const healthUrl = profile.healthUrl;
+  if (!healthUrl) return healthBlockedResult(profile);
 
   const timeoutMs = options.timeoutMs ?? 3500;
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetcher(profile.healthUrl, { cache: "no-store", redirect: "manual", signal: controller.signal });
+    const response = await fetcher(healthUrl, { cache: "no-store", redirect: "manual", signal: controller.signal });
     const state = response.ok ? "healthy" : "unhealthy";
     return {
       profileId: profile.id,

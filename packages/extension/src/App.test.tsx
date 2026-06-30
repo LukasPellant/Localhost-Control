@@ -309,6 +309,40 @@ describe("App", () => {
     expect(profiles).toHaveTextContent("Healthy 204");
   });
 
+  it("requests profile health permission before starting the saved command", async () => {
+    const requestPermission = vi.fn(async () => false);
+    (globalThis as { browser?: unknown }).browser = {
+      permissions: { request: requestPermission }
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "docs",
+            name: "Docs",
+            projectPath: "D:\\Projects\\ManualDocs",
+            startCommand: "pnpm docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321",
+            healthUrl: "http://127.0.0.1:4321/health"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /start profile docs/i }));
+
+    await waitFor(() => expect(requestPermission).toHaveBeenCalledWith({ origins: ["http://127.0.0.1/*"] }));
+    expect(client.openTerminal).not.toHaveBeenCalled();
+    expect(await screen.findByText("Docs health check needs permission for http://127.0.0.1:4321.")).toBeInTheDocument();
+    expect(profiles).toHaveTextContent("Health permission denied");
+  });
+
   it("does not offer profile start when the saved command is not safe to run", async () => {
     window.localStorage.setItem(
       "localhost-control-settings",
@@ -715,6 +749,48 @@ describe("App", () => {
       executeCommand: true
     });
     expect(await screen.findByText("Started workspace Daily stack: 2 commands")).toBeInTheDocument();
+  });
+
+  it("requests workspace health permissions before starting workspace commands", async () => {
+    const requestPermission = vi.fn(async () => false);
+    (globalThis as { browser?: unknown }).browser = {
+      permissions: { request: requestPermission }
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "docs",
+            name: "Docs",
+            projectPath: "D:\\Projects\\Docs",
+            startCommand: "pnpm docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321",
+            healthUrl: "http://127.0.0.1:4321/health"
+          },
+          {
+            id: "api",
+            name: "API",
+            projectPath: "D:\\Projects\\Api",
+            startCommand: "pnpm api",
+            expectedPort: 17321,
+            mainUrl: "http://127.0.0.1:17321"
+          }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["docs", "api"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    fireEvent.click(within(workspaces).getByRole("button", { name: /start workspace daily stack/i }));
+
+    await waitFor(() => expect(requestPermission).toHaveBeenCalledWith({ origins: ["http://127.0.0.1/*"] }));
+    expect(client.openTerminal).not.toHaveBeenCalled();
+    expect(await screen.findByText("Docs health check needs permission for http://127.0.0.1:4321.")).toBeInTheDocument();
   });
 
   it("does not start a workspace without safe saved commands", async () => {

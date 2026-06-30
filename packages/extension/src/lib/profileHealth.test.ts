@@ -59,6 +59,42 @@ describe("profile health checks", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it("treats callback-style browser permission errors as denied health permission", async () => {
+    const fetcher = vi.fn();
+    (globalThis as { chrome?: unknown }).chrome = {
+      runtime: { lastError: { message: "Permission prompt failed" } },
+      permissions: {
+        request: vi.fn((_permissions, callback: (granted: boolean) => void) => callback(true))
+      }
+    };
+
+    await expect(checkProfileHealth(profile, fetcher)).resolves.toMatchObject({
+      profileId: "shop",
+      state: "blocked",
+      label: "Health permission denied"
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+    delete (globalThis as { chrome?: unknown }).chrome;
+  });
+
+  it("uses existing optional origin permission without requesting again", async () => {
+    const fetcher = vi.fn(async () => ({ ok: true, status: 200, statusText: "OK" }));
+    const request = vi.fn(async () => false);
+    (globalThis as { browser?: unknown }).browser = {
+      permissions: {
+        contains: vi.fn(async () => true),
+        request
+      }
+    };
+
+    await expect(checkProfileHealth(profile, fetcher)).resolves.toMatchObject({
+      state: "healthy",
+      label: "Healthy 200"
+    });
+    expect(request).not.toHaveBeenCalled();
+    delete (globalThis as { browser?: unknown }).browser;
+  });
+
   it("times out slow health checks", async () => {
     vi.useFakeTimers();
     const fetcher = vi.fn(

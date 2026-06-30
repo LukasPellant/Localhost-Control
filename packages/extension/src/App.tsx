@@ -13,7 +13,7 @@ import { getExtensionApi } from "./lib/extensionApi";
 import { type HostClient } from "./lib/hostClient";
 import { analyzePortDoctor, formatPortDoctorAdvice, type PortDoctorReport } from "./lib/portDoctor";
 import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
-import { checkProfileHealth, type ProfileHealthResult } from "./lib/profileHealth";
+import { checkProfileHealth, preflightProfileHealthCheck, type ProfileHealthResult } from "./lib/profileHealth";
 import { deriveProfileStates, matchProfileForEntry, type ProfileState, type ProjectProfile } from "./lib/projectProfiles";
 import { formatProfileLogs } from "./lib/profileLogs";
 import { deriveWorkspaceStates, type ProjectWorkspace } from "./lib/projectWorkspaces";
@@ -547,6 +547,8 @@ export const App = ({ client }: AppProps) => {
     }
 
     try {
+      if (profile.healthUrl && !(await preflightHealthForProfileStart(profile))) return;
+
       const result = await client.openTerminal({
         projectHint: profile.projectPath,
         commandLine: profile.startCommand,
@@ -590,6 +592,14 @@ export const App = ({ client }: AppProps) => {
     if (profileHealthRequestSeqRef.current[profile.id] !== requestSeq) return;
     setProfileHealthResults((current) => ({ ...current, [profile.id]: result }));
     setMessage(result.message);
+  };
+
+  const preflightHealthForProfileStart = async (profile: ProjectProfile): Promise<boolean> => {
+    const result = await preflightProfileHealthCheck(profile);
+    if (!result) return true;
+    setProfileHealthResults((current) => ({ ...current, [profile.id]: result }));
+    setMessage(result.message);
+    return false;
   };
 
   const waitForProfileReady = async (profile: ProjectProfile) => {
@@ -678,6 +688,10 @@ export const App = ({ client }: AppProps) => {
     }
 
     try {
+      for (const profile of startableProfiles) {
+        if (profile.healthUrl && !(await preflightHealthForProfileStart(profile))) return;
+      }
+
       for (const profile of startableProfiles) {
         const result = await client.openTerminal({
           projectHint: profile.projectPath,
