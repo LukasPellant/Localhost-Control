@@ -57,6 +57,27 @@ describe("settings bundle import/export", () => {
     expect(bundle.settings.actionAudit).toEqual([]);
   });
 
+  it("omits local profile logs from portable settings exports", () => {
+    const profile = savedSettings.projectProfiles[0]!;
+    const bundleText = exportSettingsBundle(
+      {
+        ...savedSettings,
+        projectProfiles: [
+          {
+            ...profile,
+            logLines: ["Authorization: Bearer abc123", "ERROR failed checkout"]
+          }
+        ]
+      },
+      "2026-06-30T08:00:00.000Z"
+    );
+    const bundle = JSON.parse(bundleText) as { settings: Settings };
+
+    expect(bundle.settings.projectProfiles[0]).not.toHaveProperty("logLines");
+    expect(bundleText).not.toContain("abc123");
+    expect(bundleText).not.toContain("ERROR failed checkout");
+  });
+
   it("imports and sanitizes a versioned settings bundle", () => {
     const result = importSettingsBundle(
       JSON.stringify({

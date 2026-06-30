@@ -46,12 +46,20 @@ const importSummary = (settings: Settings): string =>
     "workspaces"
   )}`;
 
+const portableSettingsForExport = (settings: Settings): Settings => {
+  const sanitized = sanitizeSettings({ ...settings, actionAudit: [] });
+  return {
+    ...sanitized,
+    projectProfiles: sanitized.projectProfiles.map(({ logLines: _logLines, ...profile }) => profile)
+  };
+};
+
 export const exportSettingsBundle = (settings: Settings, exportedAt = new Date().toISOString()): string => {
   const bundle: SettingsBundle = {
     schema: SETTINGS_BUNDLE_SCHEMA,
     version: SETTINGS_BUNDLE_VERSION,
     exportedAt,
-    settings: sanitizeSettings({ ...settings, actionAudit: [] })
+    settings: portableSettingsForExport(settings)
   };
 
   return JSON.stringify(bundle, null, 2);
