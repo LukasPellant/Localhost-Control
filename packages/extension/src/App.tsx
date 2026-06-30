@@ -7,6 +7,7 @@ import { PortList } from "./components/PortList";
 import { SafeActionDialog } from "./components/SafeActionDialog";
 import { SettingsManager } from "./components/SettingsManager";
 import { clearBrowserDataForUrl } from "./lib/browserCleanup";
+import { formatDevContext } from "./lib/devContext";
 import { getExtensionApi } from "./lib/extensionApi";
 import { type HostClient } from "./lib/hostClient";
 import { analyzePortDoctor } from "./lib/portDoctor";
@@ -342,6 +343,24 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const copyDevContextForEntry = async (entry: PortEntry) => {
+    const profile = profileForEntry(entry);
+    try {
+      await copyText(
+        formatDevContext({
+          entry,
+          profile,
+          profileHealth: profile ? profileHealthResults[profile.id] : undefined,
+          doctorReport: analyzePortDoctor(entry, entries, settings.projectProfiles, profile?.id),
+          staleSignal: detectStaleProcess(entry, profile)
+        })
+      );
+      setMessage(`Copied dev context for ${profile?.name ?? `port ${entry.port}`}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const exportSettings = () => {
     const blob = new Blob([exportSettingsBundle(settings)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -615,6 +634,7 @@ export const App = ({ client }: AppProps) => {
         onKill={requestKillEntry}
         onOpen={openEntry}
         onCopy={(entry) => void copyEntry(entry)}
+        onCopyDevContext={(entry) => void copyDevContextForEntry(entry)}
         onTerminal={(entry) => void openTerminalForEntry(entry)}
         onCleanup={(entry) => void cleanupBrowserDataForEntry(entry)}
         onCopyProfileCommand={(profile) => void copyProfileCommand(profile)}

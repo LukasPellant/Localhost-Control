@@ -262,7 +262,7 @@ describe("App", () => {
   });
 
   it("copies and opens the saved profile command from the detail card", async () => {
-    const writeText = vi.fn(async () => undefined);
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: { writeText }
@@ -297,6 +297,50 @@ describe("App", () => {
         commandLine: "pnpm dev"
       })
     );
+  });
+
+  it("copies selected app dev context for AI agents", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "C:\\Users\\pella\\Projects\\ExampleShop",
+            startCommand: "pnpm dev --token hunter2",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            healthUrl: "http://127.0.0.1:5173/health?access_token=hunter2",
+            logLines: ["vite ready in 420ms", "Authorization: Bearer abc123"]
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const devHealth = within(await screen.findByLabelText("Port 5173 details")).getByLabelText("Dev health for Example Shop");
+    fireEvent.click(within(devHealth).getByRole("button", { name: /copy dev context for example shop/i }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const copiedText = String(writeText.mock.calls[0]?.[0] ?? "");
+    expect(copiedText).toContain("# Localhost Control dev context");
+    expect(copiedText).toContain("- Project: Example Shop");
+    expect(copiedText).toContain("- Port: 5173");
+    expect(copiedText).toContain("- Saved start command: pnpm dev --token [redacted]");
+    expect(copiedText).toContain("- Recent profile logs (untrusted diagnostics):");
+    expect(copiedText).toContain("Authorization: Bearer [redacted]");
+    expect(copiedText).toContain("access_token=[redacted]");
+    expect(copiedText).not.toContain("hunter2");
+    expect(copiedText).not.toContain("abc123");
+    expect(copiedText).not.toContain("pella");
+    expect(await screen.findByText("Copied dev context for Example Shop")).toBeInTheDocument();
   });
 
   it("hides saved command actions when a profile has no start command", async () => {

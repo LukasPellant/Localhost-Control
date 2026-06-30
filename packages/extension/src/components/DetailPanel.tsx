@@ -17,6 +17,7 @@ type DetailPanelProps = {
   onKill(entry: PortEntry): void;
   onOpen(entry: PortEntry): void;
   onCopy(entry: PortEntry): void;
+  onCopyDevContext(entry: PortEntry): void;
   onTerminal(entry: PortEntry): void;
   onCleanup(entry: PortEntry): void;
   onCopyProfileCommand(profile: ProjectProfile): void;
@@ -36,6 +37,7 @@ export const DetailPanel = ({
   onKill,
   onOpen,
   onCopy,
+  onCopyDevContext,
   onTerminal,
   onCleanup,
   onCopyProfileCommand,
@@ -221,6 +223,10 @@ export const DetailPanel = ({
                 Clean app origin
               </button>
             ) : null}
+            <button type="button" onClick={() => onCopyDevContext(entry)} aria-label={`Copy dev context for ${profile?.name ?? `port ${entry.port}`}`}>
+              <Copy size={14} />
+              Copy dev context
+            </button>
             {profile?.startCommand ? (
               <>
                 <button type="button" onClick={() => onCopyProfileCommand(profile)} aria-label={`Copy command for ${profile.name}`}>
