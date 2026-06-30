@@ -79,10 +79,7 @@ pnpm host:uninstall -- --browser chrome
 - [ ] Run `pnpm build`.
 - [ ] Run `pnpm extension:package:chrome`.
 - [ ] Run `pnpm extension:package:firefox`.
-- [ ] Confirm the Chrome ZIP root `manifest.json` uses Manifest V3.
-- [ ] Confirm the Chrome ZIP root `manifest.json` permissions are only `nativeMessaging`, `sidePanel`, `storage`, and `browsingData`.
-- [ ] Confirm the Firefox ZIP root `manifest.json` uses `sidebar_action`, not `side_panel` or `background.service_worker`.
+- [ ] Run `pnpm extension:verify`.
 - [ ] Run `web-ext lint` against an extracted Firefox ZIP.
-- [ ] Confirm each ZIP contains `manifest.json` at the archive root.
 - [ ] Confirm the production bundle does not contain demo project names or paths.
 - [ ] Confirm the native host has been tested with the final extension ID.

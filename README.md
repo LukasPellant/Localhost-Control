@@ -110,7 +110,7 @@ Build the upload ZIP with:
 pnpm extension:package:chrome
 ```
 
-The script rebuilds the extension and writes `dist\chrome-store\localhost-control-<version>-chrome-store.zip`. Upload that ZIP in the Chrome Web Store Developer Dashboard. The native host is installed separately through the Windows, macOS, or Linux installer; mention that in the Store test instructions.
+The script rebuilds the extension, writes `dist\chrome-store\localhost-control-<version>-chrome-store.zip`, and validates the finished archive before reporting success. Upload that ZIP in the Chrome Web Store Developer Dashboard. The native host is installed separately through the Windows, macOS, or Linux installer; mention that in the Store test instructions.
 
 Build the Firefox ZIP with:
 
@@ -118,7 +118,13 @@ Build the Firefox ZIP with:
 pnpm extension:package:firefox
 ```
 
-It writes `dist\firefox-addons\localhost-control-<version>-firefox.zip`.
+It writes `dist\firefox-addons\localhost-control-<version>-firefox.zip` and validates the finished archive before reporting success.
+
+To re-check existing Chrome and Firefox ZIPs without rebuilding, run:
+
+```powershell
+pnpm extension:verify
+```
 
 Store listing notes, permission justifications, privacy answers, and reviewer instructions live in `docs\chrome-store-submission.md`.
 
