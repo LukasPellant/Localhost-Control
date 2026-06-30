@@ -37,7 +37,7 @@ const isString = (value: unknown): value is string => typeof value === "string";
 const isNonEmptyString = (value: unknown): value is string => isString(value) && value.trim().length > 0;
 const isTcpPort = (value: unknown): value is number => Number.isInteger(value) && Number(value) > 0 && Number(value) <= 65535;
 const localhostNames = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1"]);
-const isLocalWebUrl = (value: string): boolean => {
+export const isLocalWebUrl = (value: string): boolean => {
   try {
     const url = new URL(value);
     const hostname = url.hostname.toLowerCase();

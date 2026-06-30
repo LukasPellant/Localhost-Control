@@ -1167,6 +1167,17 @@ button:disabled {
   font-size: 11px;
 }
 
+.settings-manager-profile-form input[aria-invalid="true"] {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.settings-manager-field-error {
+  color: var(--danger);
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .settings-manager-profile-form input,
 .settings-manager-profile-form select {
   height: 28px;

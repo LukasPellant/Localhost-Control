@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Settings } from "../lib/settings";
 import type { ActionAuditEntry, ActionAuditKind } from "../lib/actionAudit";
-import type { ProjectProfile } from "../lib/projectProfiles";
+import { isLocalWebUrl, type ProjectProfile } from "../lib/projectProfiles";
 import { uniqueLocalId } from "../lib/localIds";
 
 type SettingsManagerProps = {
@@ -30,6 +30,9 @@ type ProfileFormState = {
   notes: string;
 };
 
+type ProfileUrlField = "mainUrl" | "healthUrl" | "extraUrl";
+type ProfileFormErrors = Partial<Record<ProfileUrlField, string>>;
+
 const emptyProfileFormState = (): ProfileFormState => ({
   name: "",
   projectPath: "",
@@ -55,6 +58,12 @@ const profileFormState = (profile: ProjectProfile): ProfileFormState => ({
   preferredOpenMode: profile.preferredOpenMode ?? "tab",
   notes: profile.notes ?? ""
 });
+
+const localUrlError = "Use a localhost HTTP(S) URL.";
+const validateProfileUrl = (value: string): string | undefined => {
+  const url = value.trim();
+  return url && !isLocalWebUrl(url) ? localUrlError : undefined;
+};
 
 const auditActionLabels: Record<ActionAuditKind, string> = {
   "start-profile": "Started profile",
@@ -91,6 +100,7 @@ export const SettingsManager = ({
   const [profileFormOpen, setProfileFormOpen] = useState(false);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState<ProfileFormState>(() => emptyProfileFormState());
+  const [profileFormErrors, setProfileFormErrors] = useState<ProfileFormErrors>({});
   const editingProfile = useMemo(
     () => settings.projectProfiles.find((profile) => profile.id === editingProfileId),
     [editingProfileId, settings.projectProfiles]
@@ -110,17 +120,26 @@ export const SettingsManager = ({
 
   const updateProfileField = (field: keyof ProfileFormState, value: string) => {
     setProfileForm((current) => ({ ...current, [field]: value }));
+    if (field === "mainUrl" || field === "healthUrl" || field === "extraUrl") {
+      setProfileFormErrors((current) => {
+        const next = { ...current };
+        delete next[field];
+        return next;
+      });
+    }
   };
 
   const openNewProfileForm = () => {
     setEditingProfileId(null);
     setProfileForm(emptyProfileFormState());
+    setProfileFormErrors({});
     setProfileFormOpen(true);
   };
 
   const openEditProfileForm = (profile: ProjectProfile) => {
     setEditingProfileId(profile.id);
     setProfileForm(profileFormState(profile));
+    setProfileFormErrors({});
     setProfileFormOpen(true);
   };
 
@@ -128,6 +147,7 @@ export const SettingsManager = ({
     setProfileFormOpen(false);
     setEditingProfileId(null);
     setProfileForm(emptyProfileFormState());
+    setProfileFormErrors({});
   };
 
   const submitProfileForm = async () => {
@@ -157,6 +177,17 @@ export const SettingsManager = ({
     const extraUrlLabel = profileForm.extraUrlLabel.trim();
     const extraUrl = profileForm.extraUrl.trim();
     const extraUrlTail = editingProfile?.extraUrls?.slice(1) ?? [];
+    const errors: ProfileFormErrors = {};
+    const mainUrlError = validateProfileUrl(mainUrl);
+    const healthUrlError = validateProfileUrl(healthUrl);
+    const extraUrlError = validateProfileUrl(extraUrl);
+    if (mainUrlError) errors.mainUrl = mainUrlError;
+    if (healthUrlError) errors.healthUrl = healthUrlError;
+    if (extraUrlError) errors.extraUrl = extraUrlError;
+    if (Object.values(errors).some(Boolean)) {
+      setProfileFormErrors(errors);
+      return;
+    }
 
     if (projectPath) profile.projectPath = projectPath;
     if (startCommand) profile.startCommand = startCommand;
@@ -253,19 +284,23 @@ export const SettingsManager = ({
                 <span>Main URL</span>
                 <input
                   aria-label="Main URL"
+                  aria-invalid={profileFormErrors.mainUrl ? true : undefined}
                   value={profileForm.mainUrl}
                   onChange={(event) => updateProfileField("mainUrl", event.target.value)}
                   disabled={saving}
                 />
+                {profileFormErrors.mainUrl ? <small className="settings-manager-field-error">{profileFormErrors.mainUrl}</small> : null}
               </label>
               <label>
                 <span>Health URL</span>
                 <input
                   aria-label="Health URL"
+                  aria-invalid={profileFormErrors.healthUrl ? true : undefined}
                   value={profileForm.healthUrl}
                   onChange={(event) => updateProfileField("healthUrl", event.target.value)}
                   disabled={saving}
                 />
+                {profileFormErrors.healthUrl ? <small className="settings-manager-field-error">{profileFormErrors.healthUrl}</small> : null}
               </label>
               <div className="settings-manager-form-row">
                 <label>
@@ -281,10 +316,12 @@ export const SettingsManager = ({
                   <span>Extra URL</span>
                   <input
                     aria-label="Extra URL"
+                    aria-invalid={profileFormErrors.extraUrl ? true : undefined}
                     value={profileForm.extraUrl}
                     onChange={(event) => updateProfileField("extraUrl", event.target.value)}
                     disabled={saving}
                   />
+                  {profileFormErrors.extraUrl ? <small className="settings-manager-field-error">{profileFormErrors.extraUrl}</small> : null}
                 </label>
               </div>
               <label>

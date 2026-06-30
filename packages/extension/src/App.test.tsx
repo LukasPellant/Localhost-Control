@@ -2139,6 +2139,29 @@ describe("App", () => {
     });
   });
 
+  it("keeps the profile draft open when a settings URL is not local", async () => {
+    render(<App client={client} />);
+
+    expect(await screen.findByLabelText("Detected localhost ports")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
+
+    const manager = await screen.findByLabelText("Settings manager");
+    fireEvent.click(within(manager).getByRole("button", { name: /add profile/i }));
+
+    fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "External Docs" } });
+    fireEvent.change(screen.getByLabelText("Main URL"), { target: { value: "https://example.com" } });
+    fireEvent.click(within(screen.getByLabelText("New profile")).getByRole("button", { name: /save profile/i }));
+
+    expect(await screen.findByText("Use a localhost HTTP(S) URL.")).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "New profile" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Profile name")).toHaveValue("External Docs");
+    expect(screen.getByLabelText("Main URL")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByText("Saved profile External Docs")).not.toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).not.toMatchObject({
+      projectProfiles: [{ name: "External Docs" }]
+    });
+  });
+
   it("edits an existing project profile without changing its id", async () => {
     window.localStorage.setItem(
       "localhost-control-settings",
