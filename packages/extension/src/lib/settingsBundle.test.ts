@@ -71,6 +71,38 @@ describe("settings bundle import/export", () => {
     });
   });
 
+  it("strips external profile URLs from portable settings bundles", () => {
+    const result = importSettingsBundle(
+      JSON.stringify({
+        schema: "localhost-control-settings",
+        version: 1,
+        settings: {
+          projectProfiles: [
+            {
+              id: "shop",
+              name: "Example Shop",
+              mainUrl: "https://example.com",
+              healthUrl: "https://status.example.com/health",
+              extraUrls: [
+                { label: "External", url: "https://docs.example.com" },
+                { label: "Local Admin", url: "https://admin.localhost:5173" }
+              ]
+            }
+          ]
+        }
+      })
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      settings: {
+        ...defaultSettings,
+        projectProfiles: [{ id: "shop", name: "Example Shop", extraUrls: [{ label: "Local Admin", url: "https://admin.localhost:5173" }] }]
+      },
+      summary: "Imported 1 profile and 0 workspaces"
+    });
+  });
+
   it("rejects invalid JSON without producing replacement settings", () => {
     expect(importSettingsBundle("{not-json")).toEqual({
       ok: false,
@@ -99,6 +131,30 @@ describe("settings bundle import/export", () => {
         ...defaultSettings,
         themeMode: "dark",
         projectProfiles: [{ id: "shop", name: "Example Shop" }]
+      },
+      summary: "Imported 1 profile and 0 workspaces"
+    });
+  });
+
+  it("strips external profile URLs from legacy raw settings exports", () => {
+    expect(
+      importSettingsBundle(
+        JSON.stringify({
+          projectProfiles: [
+            {
+              id: "shop",
+              name: "Example Shop",
+              mainUrl: "https://example.com",
+              healthUrl: "http://localhost:5173/health"
+            }
+          ]
+        })
+      )
+    ).toEqual({
+      ok: true,
+      settings: {
+        ...defaultSettings,
+        projectProfiles: [{ id: "shop", name: "Example Shop", healthUrl: "http://localhost:5173/health" }]
       },
       summary: "Imported 1 profile and 0 workspaces"
     });

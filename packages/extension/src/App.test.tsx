@@ -355,7 +355,7 @@ describe("App", () => {
     );
   });
 
-  it("shows blocked health checks without marking a running profile unhealthy", async () => {
+  it("drops external saved health URLs without marking a running profile unhealthy", async () => {
     const fetchHealth = vi.fn();
     vi.stubGlobal("fetch", fetchHealth);
     window.localStorage.setItem(
@@ -377,12 +377,11 @@ describe("App", () => {
     render(<App client={client} />);
 
     const details = await screen.findByLabelText("Port 5173 details");
-    fireEvent.click(within(details).getByRole("button", { name: /check health for example shop/i }));
+    expect(within(details).queryByRole("button", { name: /check health for example shop/i })).not.toBeInTheDocument();
 
-    expect(await screen.findByText("Example Shop health check is limited to localhost URLs.")).toBeInTheDocument();
     const profiles = screen.getByLabelText("Project profiles");
     expect(profiles).toHaveTextContent("running");
-    expect(profiles).toHaveTextContent("Health check blocked");
+    expect(profiles).toHaveTextContent("Observed HTTP 200");
     expect(fetchHealth).not.toHaveBeenCalled();
   });
 
@@ -454,6 +453,44 @@ describe("App", () => {
     expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:5173", "_blank", "noopener,noreferrer");
     expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:17321", "_blank", "noopener,noreferrer");
     expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:4321", "_blank", "noopener,noreferrer");
+  });
+
+  it("does not open or render imported external profile URLs", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            extraUrls: [
+              { label: "Local Admin", url: "http://127.0.0.1:5173/admin" },
+              { label: "External Docs", url: "https://docs.example.com" }
+            ]
+          },
+          { id: "external", name: "External Docs", expectedPort: 4321, mainUrl: "https://example.com" }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "external"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /external docs/i }));
+    expect(openSpy).not.toHaveBeenCalledWith("https://example.com", "_blank", "noopener,noreferrer");
+
+    fireEvent.click(within(await screen.findByLabelText("Project workspaces")).getByRole("button", { name: /open workspace daily stack/i }));
+    expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:5173", "_blank", "noopener,noreferrer");
+    expect(openSpy).not.toHaveBeenCalledWith("https://example.com", "_blank", "noopener,noreferrer");
+
+    const details = screen.getByLabelText("Port 5173 details");
+    expect(within(details).getByRole("link", { name: "Local Admin" })).toHaveAttribute("href", "http://127.0.0.1:5173/admin");
+    expect(within(details).queryByRole("link", { name: "External Docs" })).not.toBeInTheDocument();
   });
 
   it("saves a workspace from the current project profiles", async () => {

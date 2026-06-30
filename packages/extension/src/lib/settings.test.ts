@@ -98,15 +98,22 @@ describe("loadSettings", () => {
     await saveSettings({
       ...defaultSettings,
       projectProfiles: [
-        { id: "shop", name: "Example Shop", mainUrl: "http://127.0.0.1:5173" },
+        {
+          id: "shop",
+          name: "Example Shop",
+          mainUrl: "http://127.0.0.1:5173",
+          healthUrl: "https://status.example.com/health",
+          extraUrls: [{ label: "Admin", url: "https://admin.example.com" }]
+        },
         { id: "shop", name: "Duplicate Shop", mainUrl: "http://127.0.0.1:9999" }
       ],
       projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "missing"] }]
     });
 
-    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toMatchObject({
-      projectProfiles: [{ id: "shop", name: "Example Shop" }],
-      projectWorkspaces: [{ id: "daily", profileIds: ["shop"] }]
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toEqual({
+      ...defaultSettings,
+      projectProfiles: [{ id: "shop", name: "Example Shop", mainUrl: "http://127.0.0.1:5173" }],
+      projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop"] }]
     });
   });
 });

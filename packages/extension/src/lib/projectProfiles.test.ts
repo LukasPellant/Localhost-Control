@@ -86,4 +86,46 @@ describe("project profile matching", () => {
       }
     ]);
   });
+
+  it("keeps profile URLs scoped to localhost origins while importing profiles", () => {
+    expect(
+      sanitizeProjectProfiles([
+        {
+          id: "shop",
+          name: "Example Shop",
+          mainUrl: "https://example.com",
+          healthUrl: "https://status.example.com/health",
+          extraUrls: [
+            { label: "Admin", url: "https://admin.example.com" },
+            { label: "Confusing", url: "http://example.com@127.0.0.1:5173/admin" },
+            { label: "Loopback", url: "https://api.myapp.localhost/admin" },
+            { label: "IPv6", url: "http://[::1]:5173/debug" },
+            { label: "Any host", url: "http://0.0.0.0:5173/metrics" }
+          ]
+        },
+        {
+          id: "docs",
+          name: "Docs",
+          mainUrl: "https://docs.localhost:4321",
+          healthUrl: "http://localhost:4321/health"
+        }
+      ])
+    ).toEqual([
+      {
+        id: "shop",
+        name: "Example Shop",
+        extraUrls: [
+          { label: "Loopback", url: "https://api.myapp.localhost/admin" },
+          { label: "IPv6", url: "http://[::1]:5173/debug" },
+          { label: "Any host", url: "http://0.0.0.0:5173/metrics" }
+        ]
+      },
+      {
+        id: "docs",
+        name: "Docs",
+        mainUrl: "https://docs.localhost:4321",
+        healthUrl: "http://localhost:4321/health"
+      }
+    ]);
+  });
 });

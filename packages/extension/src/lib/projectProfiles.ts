@@ -36,10 +36,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const isString = (value: unknown): value is string => typeof value === "string";
 const isNonEmptyString = (value: unknown): value is string => isString(value) && value.trim().length > 0;
 const isTcpPort = (value: unknown): value is number => Number.isInteger(value) && Number(value) > 0 && Number(value) <= 65535;
-const isSafeWebUrl = (value: string): boolean => {
+const localhostNames = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1"]);
+const isLocalWebUrl = (value: string): boolean => {
   try {
     const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
+    const hostname = url.hostname.toLowerCase();
+    if (url.username || url.password) return false;
+    return (url.protocol === "http:" || url.protocol === "https:") && (localhostNames.has(hostname) || hostname.endsWith(".localhost"));
   } catch {
     return false;
   }
@@ -76,7 +79,7 @@ const sanitizeUrlList = (value: unknown): ProjectProfileUrl[] | undefined => {
   const urls = value.flatMap((item): ProjectProfileUrl[] => {
     if (!isRecord(item) || !isNonEmptyString(item.label) || !isNonEmptyString(item.url)) return [];
     const url = item.url.trim();
-    if (!isSafeWebUrl(url)) return [];
+    if (!isLocalWebUrl(url)) return [];
     return [{ label: item.label.trim(), url }];
   });
   return urls.length ? urls : undefined;
@@ -89,9 +92,9 @@ const sanitizeStringList = (value: unknown): string[] | undefined => {
 };
 
 const optionalString = (value: unknown): string | undefined => (isNonEmptyString(value) ? value.trim() : undefined);
-const optionalWebUrl = (value: unknown): string | undefined => {
+const optionalLocalWebUrl = (value: unknown): string | undefined => {
   const url = optionalString(value);
-  return url && isSafeWebUrl(url) ? url : undefined;
+  return url && isLocalWebUrl(url) ? url : undefined;
 };
 
 export const sanitizeProjectProfiles = (value: unknown): ProjectProfile[] => {
@@ -111,8 +114,8 @@ export const sanitizeProjectProfiles = (value: unknown): ProjectProfile[] => {
     const icon = optionalString(item.icon);
     const projectPath = optionalString(item.projectPath);
     const startCommand = optionalString(item.startCommand);
-    const mainUrl = optionalWebUrl(item.mainUrl);
-    const healthUrl = optionalWebUrl(item.healthUrl);
+    const mainUrl = optionalLocalWebUrl(item.mainUrl);
+    const healthUrl = optionalLocalWebUrl(item.healthUrl);
     const notes = optionalString(item.notes);
     const extraUrls = sanitizeUrlList(item.extraUrls);
     const logLines = sanitizeStringList(item.logLines);

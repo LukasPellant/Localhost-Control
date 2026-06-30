@@ -69,4 +69,20 @@ describe("project workspaces", () => {
       }
     ]);
   });
+
+  it("keeps workspace membership when a stopped profile has no local fallback URL", () => {
+    const localOnlyProfiles: ProjectProfile[] = [
+      { id: "shop", name: "Example Shop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
+      { id: "remote", name: "Remote Docs", expectedPort: 4321 }
+    ];
+    const states = deriveProfileStates(localOnlyProfiles, []);
+    const workspaceStates = deriveWorkspaceStates([{ id: "daily", name: "Daily stack", profileIds: ["shop", "remote"] }], localOnlyProfiles, states);
+
+    expect(workspaceStates[0]).toMatchObject({
+      status: "stopped",
+      openUrls: ["http://127.0.0.1:5173"],
+      totalCount: 2
+    });
+    expect(workspaceStates[0]?.profileStates.map((state) => state.profile.id)).toEqual(["shop", "remote"]);
+  });
 });
