@@ -30,6 +30,11 @@ const arch = args.get("arch") ?? (process.arch === "arm64" ? "arm64" : "amd64");
 const outputDir = path.resolve(args.get("out-dir") ?? path.join(repoRoot, "dist", "native-host"));
 const expectedExtensionId = args.get("extension-id") ?? defaultExtensionId;
 const expectedFirefoxExtensionId = args.get("firefox-extension-id") ?? defaultFirefoxExtensionId;
+const protocolSmoke = args.get("protocol-smoke") ?? "auto";
+
+if (!["auto", "always", "never"].includes(protocolSmoke)) {
+  throw new Error("Unsupported protocol smoke mode. Use auto, always, or never.");
+}
 
 const defaultArtifactPath = () => {
   if (platform === "darwin" && format === "pkg") {
@@ -138,6 +143,43 @@ const requireEntry = (entries, expectedSuffix) => {
 const assertArrayEquals = (actual, expected, message) => {
   if (!Array.isArray(actual) || actual.length !== expected.length || actual.some((value, index) => value !== expected[index])) {
     throw new Error(message);
+  }
+};
+
+const shouldRunProtocolSmoke = () => protocolSmoke === "always" || (protocolSmoke === "auto" && platform === process.platform);
+
+const readNativeMessage = (buffer) => {
+  if (buffer.length < 4) throw new Error("Native host protocol smoke failed: missing response header.");
+  const length = buffer.readUInt32LE(0);
+  const body = buffer.subarray(4, 4 + length);
+  if (body.length !== length) throw new Error("Native host protocol smoke failed: truncated response body.");
+  try {
+    return JSON.parse(body.toString("utf8"));
+  } catch {
+    throw new Error("Native host protocol smoke failed: invalid JSON response.");
+  }
+};
+
+const smokeNativeHostProtocol = async (hostPath) => {
+  if (!shouldRunProtocolSmoke()) return;
+
+  const request = Buffer.from(JSON.stringify({ id: "validate-version", method: "version" }));
+  const frame = Buffer.alloc(4 + request.length);
+  frame.writeUInt32LE(request.length, 0);
+  request.copy(frame, 4);
+
+  const result = spawnSync(hostPath, [], { input: frame, timeout: 5000 });
+  if (result.error) {
+    throw new Error(`Native host protocol smoke failed: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    const stderr = result.stderr?.toString("utf8").trim();
+    throw new Error(`Native host protocol smoke failed: host exited with ${result.status}${stderr ? `\n${stderr}` : ""}`);
+  }
+
+  const response = readNativeMessage(result.stdout ?? Buffer.alloc(0));
+  if (response.id !== "validate-version" || response.result?.version !== packageJson.version || typeof response.result?.platform !== "string") {
+    throw new Error("Native host protocol smoke failed: invalid version response.");
   }
 };
 
@@ -266,6 +308,7 @@ const validateTarballInstall = async (extractRoot, tempRoot) => {
   for (const manifest of manifests) {
     await validateNativeManifestFile(homeDir, manifest.relativePath, manifest.browser, expectedHostPath);
   }
+  await smokeNativeHostProtocol(hostTarget);
 };
 
 const validateTarball = async () => {
@@ -324,6 +367,7 @@ const validateDeb = async () => {
     await validateNativeManifestFile(dataRoot, chromeManifest, "chrome");
     await validateNativeManifestFile(dataRoot, braveManifest, "brave");
     await validateNativeManifestFile(dataRoot, firefoxManifest, "firefox");
+    await smokeNativeHostProtocol(path.join(dataRoot, "usr/lib/localhost-control/localhost-control-host"));
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -350,6 +394,9 @@ const validatePkg = async () => {
     await validateNativeManifestBySuffix(expandedRoot, chromeManifest, "chrome", macosHostPath);
     await validateNativeManifestBySuffix(expandedRoot, braveManifest, "brave", macosHostPath);
     await validateNativeManifestBySuffix(expandedRoot, firefoxManifest, "firefox", macosHostPath);
+    const hostPath = await findFileBySuffix(expandedRoot, hostEntry);
+    if (!hostPath) throw new Error(`Missing package entry: ${hostEntry}`);
+    await smokeNativeHostProtocol(hostPath);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -388,6 +435,7 @@ const validateWindowsZip = async () => {
     if (entries.some((entry) => normalizeEntry(entry).includes("app/native-host"))) {
       throw new Error("Windows zip must package the Rust native host without the Node app payload.");
     }
+    await smokeNativeHostProtocol(path.join(tempRoot, "out", "localhost-control-host.exe"));
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

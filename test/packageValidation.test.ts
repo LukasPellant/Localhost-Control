@@ -64,7 +64,13 @@ describe("validate-native-host-package", () => {
     execFileSync("tar", ["-czf", artifact, "-C", stageDir, "."], { stdio: "pipe" });
     const output = execFileSync(
       process.execPath,
-      [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), `--platform=${platform}`, "--format=tarball", `--artifact=${artifact}`],
+      [
+        path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
+        `--platform=${platform}`,
+        "--format=tarball",
+        "--protocol-smoke=never",
+        `--artifact=${artifact}`
+      ],
       { encoding: "utf8" }
     );
 
@@ -93,10 +99,76 @@ describe("validate-native-host-package", () => {
     expect(() =>
       execFileSync(
         process.execPath,
-        [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), `--platform=${platform}`, "--format=tarball", `--artifact=${artifact}`],
+        [
+          path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
+          `--platform=${platform}`,
+          "--format=tarball",
+          "--protocol-smoke=never",
+          `--artifact=${artifact}`
+        ],
         { encoding: "utf8", stdio: "pipe" }
       )
     ).toThrow(/native messaging manifest/i);
+  });
+
+  it("rejects a same-platform package when the host does not speak the native messaging protocol", () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-package-"));
+
+    if (process.platform === "win32") {
+      const stageDir = path.join(tempRoot, "stage");
+      const artifact = path.join(tempRoot, "host-windows.zip");
+      mkdirSync(path.join(stageDir, "out"), { recursive: true });
+      writeFileSync(path.join(stageDir, "install.ps1"), "$ErrorActionPreference = 'Stop'\n");
+      writeFileSync(path.join(stageDir, "uninstall.ps1"), "$ErrorActionPreference = 'Stop'\n");
+      writeFileSync(path.join(stageDir, "out", "localhost-control-host.exe"), "not-a-host\n");
+      execFileSync(
+        "powershell",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-Command",
+          "Compress-Archive -Path (Join-Path $env:LOCALHOST_CONTROL_STAGE '*') -DestinationPath $env:LOCALHOST_CONTROL_ARTIFACT -Force"
+        ],
+        {
+          stdio: "pipe",
+          env: { ...process.env, LOCALHOST_CONTROL_STAGE: stageDir, LOCALHOST_CONTROL_ARTIFACT: artifact }
+        }
+      );
+
+      expect(() =>
+        execFileSync(
+          process.execPath,
+          [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), "--platform=win32", "--protocol-smoke=always", `--artifact=${artifact}`],
+          { encoding: "utf8", stdio: "pipe" }
+        )
+      ).toThrow(/Native host protocol smoke failed/);
+      return;
+    }
+
+    const platform = process.platform === "darwin" ? "darwin" : "linux";
+    const stageDir = path.join(tempRoot, "stage");
+    const artifact = path.join(tempRoot, `host-${platform}.tar.gz`);
+    mkdirSync(stageDir, { recursive: true });
+    writeFileSync(path.join(stageDir, "localhost-control-host"), "#!/usr/bin/env sh\nexit 0\n");
+    writeFileSync(path.join(stageDir, "install.sh"), readFileSync(path.join(repoRoot, "installer", platform === "darwin" ? "macos" : "linux", "install.sh")));
+    writeFileSync(path.join(stageDir, "uninstall.sh"), "#!/usr/bin/env bash\n");
+    execFileSync("tar", ["-czf", artifact, "-C", stageDir, "."], { stdio: "pipe" });
+
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        [
+          path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
+          `--platform=${platform}`,
+          "--format=tarball",
+          "--protocol-smoke=always",
+          `--artifact=${artifact}`
+        ],
+        { encoding: "utf8", stdio: "pipe" }
+      )
+    ).toThrow(/Native host protocol smoke failed/);
   });
 
   it("accepts a Debian package with metadata, host files, and system manifests", () => {
@@ -134,7 +206,13 @@ describe("validate-native-host-package", () => {
 
     const output = execFileSync(
       process.execPath,
-      [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), "--platform=linux", "--format=deb", `--artifact=${artifact}`],
+      [
+        path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
+        "--platform=linux",
+        "--format=deb",
+        "--protocol-smoke=never",
+        `--artifact=${artifact}`
+      ],
       { encoding: "utf8" }
     );
 
@@ -175,7 +253,7 @@ describe("validate-native-host-package", () => {
 
     const output = execFileSync(
       process.execPath,
-      [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), "--platform=win32", `--artifact=${artifact}`],
+      [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), "--platform=win32", "--protocol-smoke=never", `--artifact=${artifact}`],
       { encoding: "utf8" }
     );
 
@@ -226,7 +304,13 @@ describe("validate-native-host-package", () => {
     expect(() =>
       execFileSync(
         process.execPath,
-        [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), "--platform=linux", "--format=deb", `--artifact=${artifact}`],
+        [
+          path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
+          "--platform=linux",
+          "--format=deb",
+          "--protocol-smoke=never",
+          `--artifact=${artifact}`
+        ],
         { encoding: "utf8", stdio: "pipe" }
       )
     ).toThrow(/postinst/);
@@ -268,7 +352,13 @@ describe("validate-native-host-package", () => {
     expect(() =>
       execFileSync(
         process.execPath,
-        [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), "--platform=linux", "--format=deb", `--artifact=${artifact}`],
+        [
+          path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
+          "--platform=linux",
+          "--format=deb",
+          "--protocol-smoke=never",
+          `--artifact=${artifact}`
+        ],
         { encoding: "utf8", stdio: "pipe" }
       )
     ).toThrow(/native messaging manifest/i);
@@ -317,6 +407,7 @@ describe("validate-native-host-package", () => {
         path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
         "--platform=linux",
         "--format=deb",
+        "--protocol-smoke=never",
         `--artifact=${artifact}`,
         `--extension-id=${ids.chrome}`,
         `--firefox-extension-id=${ids.firefox}`
