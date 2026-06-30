@@ -11,6 +11,7 @@ export const buildFirefoxManifest = (chromeManifest) => {
   manifest.sidebar_action = {
     default_title: manifest.action?.default_title ?? manifest.name,
     default_panel: manifest.side_panel?.default_path ?? "sidepanel.html",
+    open_at_install: false,
     default_icon: icons
   };
   manifest.background = {
