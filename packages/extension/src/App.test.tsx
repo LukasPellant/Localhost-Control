@@ -492,6 +492,7 @@ describe("App", () => {
   });
 
   it("waits for started profile health and reports when it becomes ready", async () => {
+    const createNotification = vi.fn(async () => "localhost-control-health-docs-ready");
     let failFirstCheck: ((error: Error) => void) | undefined;
     const fetchHealth = vi
       .fn()
@@ -503,6 +504,9 @@ describe("App", () => {
       )
       .mockResolvedValueOnce({ ok: true, status: 204, statusText: "No Content" });
     vi.stubGlobal("fetch", fetchHealth);
+    (globalThis as { browser?: unknown }).browser = {
+      notifications: { create: createNotification }
+    };
     window.localStorage.setItem(
       "localhost-control-settings",
       JSON.stringify({
@@ -536,6 +540,58 @@ describe("App", () => {
     expect(await screen.findByText("Docs is ready (204)")).toBeInTheDocument();
     expect(profiles).toHaveTextContent("running");
     expect(profiles).toHaveTextContent("Healthy 204");
+    await waitFor(() =>
+      expect(createNotification).toHaveBeenCalledWith(
+        "localhost-control-health-docs-ready",
+        expect.objectContaining({
+          title: "Docs is ready",
+          message: "Docs is ready (204)"
+        })
+      )
+    );
+  });
+
+  it("notifies when started profile health does not become ready", async () => {
+    const createNotification = vi.fn(async () => "localhost-control-health-docs-failed");
+    const fetchHealth = vi.fn(async () => ({ ok: false, status: 503, statusText: "Service Unavailable" }));
+    vi.stubGlobal("fetch", fetchHealth);
+    (globalThis as { browser?: unknown }).browser = {
+      notifications: { create: createNotification }
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "docs",
+            name: "Docs",
+            projectPath: "D:\\Projects\\ManualDocs",
+            startCommand: "pnpm docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321",
+            healthUrl: "http://127.0.0.1:4321/health"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /start profile docs/i }));
+
+    await waitFor(() => expect(fetchHealth).toHaveBeenCalledTimes(6), { timeout: 5000 });
+    expect(await screen.findByText("Docs did not become healthy: Docs health check failed (503)")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(createNotification).toHaveBeenCalledWith(
+        "localhost-control-health-docs-failed",
+        expect.objectContaining({
+          title: "Docs needs attention",
+          message: "Docs did not become healthy: Docs health check failed (503)"
+        })
+      )
+    );
   });
 
   it("requests profile health permission before starting the saved command", async () => {

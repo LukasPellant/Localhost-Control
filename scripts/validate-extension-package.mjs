@@ -156,7 +156,7 @@ const validateChromeManifest = (manifest) => {
   if (manifest.background?.service_worker !== "background.js") throw new Error("Chrome package must use background.service_worker.");
   if (manifest.background?.type !== "module") throw new Error("Chrome package must keep module background type.");
   if (manifest.browser_specific_settings?.gecko) throw new Error("Chrome package must not include Firefox gecko settings.");
-  assertArrayEquals(manifest.permissions, ["nativeMessaging", "sidePanel", "storage", "browsingData"], "Chrome permissions are incorrect.");
+  assertArrayEquals(manifest.permissions, ["nativeMessaging", "sidePanel", "storage", "browsingData", "notifications"], "Chrome permissions are incorrect.");
 };
 
 const validateFirefoxManifest = (manifest) => {
@@ -177,7 +177,7 @@ const validateFirefoxManifest = (manifest) => {
     ["none"],
     "Firefox data collection declaration is incorrect."
   );
-  assertArrayEquals(manifest.permissions, ["nativeMessaging", "storage", "browsingData"], "Firefox permissions are incorrect.");
+  assertArrayEquals(manifest.permissions, ["nativeMessaging", "storage", "browsingData", "notifications"], "Firefox permissions are incorrect.");
 };
 
 const validatePackage = async () => {

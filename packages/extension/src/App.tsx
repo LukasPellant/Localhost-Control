@@ -22,6 +22,7 @@ import { type HostClient } from "./lib/hostClient";
 import { analyzePortDoctor, formatPortDoctorAdvice, type PortDoctorReport } from "./lib/portDoctor";
 import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
 import { checkProfileHealth, preflightProfileHealthCheck, type ProfileHealthResult } from "./lib/profileHealth";
+import { notifyProfileHealth } from "./lib/profileNotifications";
 import { deriveProfileStates, matchProfileForEntry, type ProfileState, type ProjectProfile } from "./lib/projectProfiles";
 import { formatProfileLogs } from "./lib/profileLogs";
 import { deriveWorkspaceStates, type ProjectWorkspace, type WorkspaceState } from "./lib/projectWorkspaces";
@@ -931,7 +932,9 @@ export const App = ({ client }: AppProps) => {
       lastResult = result;
       setProfileHealthResults((current) => ({ ...current, [profile.id]: result }));
       if (result.state === "healthy") {
-        setMessage(`${profile.name} is ready (${result.statusCode ?? "ok"})`);
+        const readyMessage = `${profile.name} is ready (${result.statusCode ?? "ok"})`;
+        setMessage(readyMessage);
+        void notifyProfileHealth("ready", profile, readyMessage);
         return;
       }
       if (result.state === "blocked") {
@@ -940,7 +943,9 @@ export const App = ({ client }: AppProps) => {
       }
     }
 
-    setMessage(lastResult ? `${profile.name} did not become healthy: ${lastResult.message}` : `${profile.name} did not become healthy.`);
+    const failedMessage = lastResult ? `${profile.name} did not become healthy: ${lastResult.message}` : `${profile.name} did not become healthy.`;
+    setMessage(failedMessage);
+    void notifyProfileHealth("failed", profile, failedMessage);
   };
 
   const saveProfileForEntry = async (entry: PortEntry) => {

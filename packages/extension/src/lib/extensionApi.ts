@@ -54,6 +54,19 @@ type PermissionsApi = {
   request?(permissions: { origins?: string[] }, callback?: (granted: boolean) => void): Promise<boolean> | void;
 };
 
+type NotificationsApi = {
+  create?(
+    notificationId: string,
+    options: {
+      type: "basic";
+      iconUrl: string;
+      title: string;
+      message: string;
+    },
+    callback?: (notificationId?: string) => void
+  ): Promise<string | undefined> | void;
+};
+
 export type ExtensionApi = {
   runtime?: RuntimeApi;
   storage?: {
@@ -63,6 +76,7 @@ export type ExtensionApi = {
   windows?: WindowsApi;
   browsingData?: BrowsingDataApi;
   permissions?: PermissionsApi;
+  notifications?: NotificationsApi;
 };
 
 export const getExtensionApi = (): ExtensionApi | undefined => {

@@ -24,8 +24,8 @@ describe("extension manifest", () => {
     expect(readManifest().version).toBe(readPackageJson().version);
   });
 
-  it("requests only the browser permissions needed for native messaging, cleanup, and the side panel", () => {
-    expect(readManifest().permissions).toEqual(["nativeMessaging", "sidePanel", "storage", "browsingData"]);
+  it("requests only the browser permissions needed for native messaging, cleanup, notifications, and the side panel", () => {
+    expect(readManifest().permissions).toEqual(["nativeMessaging", "sidePanel", "storage", "browsingData", "notifications"]);
   });
 
   it("limits health-check host access to localhost origins", () => {

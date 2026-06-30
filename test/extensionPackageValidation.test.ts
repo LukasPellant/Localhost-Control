@@ -108,7 +108,7 @@ const chromeManifest = () => ({
   side_panel: {
     default_path: "sidepanel.html"
   },
-  permissions: ["nativeMessaging", "sidePanel", "storage", "browsingData"],
+  permissions: ["nativeMessaging", "sidePanel", "storage", "browsingData", "notifications"],
   optional_host_permissions: [
     "http://localhost/*",
     "http://127.0.0.1/*",
