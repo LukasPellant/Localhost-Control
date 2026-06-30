@@ -133,6 +133,26 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Dev apps" })).toHaveClass("active");
   });
 
+  it("copies the current visible scan context", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /copy scan context/i }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    const copied = writeText.mock.calls[0]?.[0] as string;
+    expect(copied).toContain("# Localhost Control scan context");
+    expect(copied).toContain("- Visible ports: 2/6");
+    expect(copied).toContain("- Filter: Dev apps");
+    expect(copied).toContain("- Example Shop: port 5173");
+    expect(copied).toContain("- Docs Preview: port 5181");
+    expect(copied).not.toContain("Local API");
+    expect(await screen.findByText("Copied scan context for 2 visible ports")).toBeInTheDocument();
+  });
+
   it("renders scan results, selects a row, and calls kill for a killable dev server", async () => {
     render(<App client={client} />);
 

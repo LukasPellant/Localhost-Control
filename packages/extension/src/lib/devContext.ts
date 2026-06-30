@@ -1,4 +1,4 @@
-import type { PortEntry } from "@localhost-control/shared";
+import { kindLabel, type PortEntry } from "@localhost-control/shared";
 import { originFromLocalhostUrl } from "./browserCleanup";
 import type { PortDoctorReport } from "./portDoctor";
 import type { ProfileHealthResult } from "./profileHealth";
@@ -15,6 +15,21 @@ export type DevContextInput = {
   profileHealth?: ProfileHealthResult | undefined;
   doctorReport?: PortDoctorReport | undefined;
   staleSignal?: StaleProcessSignal | undefined;
+};
+
+export type ScanContextEntry = {
+  entry: PortEntry;
+  profile?: ProjectProfile | undefined;
+  profileHealth?: ProfileHealthResult | undefined;
+  staleSignal?: StaleProcessSignal | undefined;
+};
+
+export type ScanContextInput = {
+  entries: ScanContextEntry[];
+  totalCount: number;
+  filterLabel: string;
+  query?: string | undefined;
+  scannedAt?: string | undefined;
 };
 
 const MAX_OUTPUT_LENGTH = 16_000;
@@ -95,6 +110,45 @@ const workspaceServiceDetails = (state: ProfileState): string[] => {
     savedCommand ? `  - Saved command: ${sanitizeText(savedCommand)}` : undefined,
     ...logs.map((line) => `  - Log: ${line}`)
   ].filter((line): line is string => Boolean(line));
+};
+
+const scanEntrySummary = ({ entry, profile, profileHealth, staleSignal }: ScanContextEntry): string[] => {
+  const url = sanitizeLocalUrl(entryUrl(entry));
+  const title = profile?.name ?? entry.title ?? `Port ${entry.port}`;
+  const summary = joinParts([
+    `port ${entry.port}`,
+    `PID ${entry.pid}`,
+    entry.processName,
+    kindLabel(entry.detectedKind),
+    entry.confidence,
+    entry.statusCode ? `HTTP ${entry.statusCode}` : undefined,
+    url,
+    formatResources(entry)
+  ]);
+
+  return [
+    `- ${sanitizeText(title) ?? `Port ${entry.port}`}${summary ? `: ${summary}` : ""}`,
+    entry.projectHint ? `  - Project path: ${sanitizeText(entry.projectHint)}` : undefined,
+    entry.commandLine ? `  - Command: ${sanitizeText(entry.commandLine)}` : undefined,
+    profileHealth ? `  - Health: ${sanitizeText(profileHealth.label)}` : undefined,
+    staleSignal ? `  - Signal: ${sanitizeText(joinParts([staleSignal.label, ...staleSignal.reasons]))}` : undefined
+  ].filter((line): line is string => Boolean(line));
+};
+
+export const formatScanContext = ({ entries, totalCount, filterLabel, query, scannedAt }: ScanContextInput): string => {
+  const lines = [
+    "# Localhost Control scan context",
+    "",
+    optionalLine("Visible ports", `${entries.length}/${totalCount}`),
+    optionalLine("Filter", filterLabel),
+    optionalLine("Search", query),
+    optionalLine("Scanned at", scannedAt),
+    "",
+    "## Ports",
+    ...(entries.length ? entries.flatMap(scanEntrySummary) : ["- No visible localhost ports"])
+  ];
+
+  return truncate(lines.filter((line): line is string => line !== undefined).join("\n"), MAX_OUTPUT_LENGTH);
 };
 
 export const formatWorkspaceContext = (state: WorkspaceState): string => {

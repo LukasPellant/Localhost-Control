@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PortEntry } from "@localhost-control/shared";
-import { formatDevContext, formatWorkspaceContext } from "./devContext";
+import { formatDevContext, formatScanContext, formatWorkspaceContext } from "./devContext";
 import type { PortDoctorReport } from "./portDoctor";
 import type { ProfileHealthResult } from "./profileHealth";
 import type { ProjectProfile } from "./projectProfiles";
@@ -61,6 +61,44 @@ const staleSignal: StaleProcessSignal = {
 };
 
 describe("formatDevContext", () => {
+  it("formats the current visible scan as a redacted diagnostics snapshot", () => {
+    const text = formatScanContext({
+      totalCount: 3,
+      filterLabel: "Dev apps",
+      query: "shop",
+      scannedAt: "2026-06-30T10:00:00.000Z",
+      entries: [
+        {
+          entry: {
+            ...entry,
+            commandLine: "node vite --token hunter2",
+            url: "http://127.0.0.1:5173?token=hunter2"
+          },
+          profile,
+          profileHealth,
+          staleSignal
+        }
+      ]
+    });
+
+    expect(text).toContain("# Localhost Control scan context");
+    expect(text).toContain("- Visible ports: 1/3");
+    expect(text).toContain("- Filter: Dev apps");
+    expect(text).toContain("- Search: shop");
+    expect(text).toContain("- Scanned at: 2026-06-30T10:00:00.000Z");
+    expect(text).toContain("## Ports");
+    expect(text).toContain("- Example Shop: port 5173 / PID 100 / node.exe / Vite / high / HTTP 200 / http://127.0.0.1:5173/?token=[redacted] / 12.4% CPU / 298 MB RAM / 2 min uptime");
+    expect(text).toContain("  - Project path: D:\\Projects\\ExampleShop");
+    expect(text).toContain("  - Command: node vite --token [redacted]");
+    expect(text).toContain("  - Health: Healthy 204");
+    expect(text).toContain("  - Signal: Possible stale process / Long uptime / High memory");
+    expect(text).not.toContain("hunter2");
+  });
+
+  it("formats an empty visible scan without throwing", () => {
+    expect(formatScanContext({ entries: [], totalCount: 0, filterLabel: "Dev apps" })).toContain("- No visible localhost ports");
+  });
+
   it("formats selected localhost app context for AI/coding agents", () => {
     expect(formatDevContext({ entry, profile, profileHealth, doctorReport, staleSignal })).toBe(`# Localhost Control dev context
 

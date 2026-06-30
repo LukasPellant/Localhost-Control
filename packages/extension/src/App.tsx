@@ -16,7 +16,7 @@ import {
   type BrowserPreviewPreset
 } from "./lib/browserCleanup";
 import { appendActionAuditEntry, createActionAuditEntry, type ActionAuditInput } from "./lib/actionAudit";
-import { formatDevContext, formatWorkspaceContext } from "./lib/devContext";
+import { formatDevContext, formatScanContext, formatWorkspaceContext } from "./lib/devContext";
 import { getExtensionApi } from "./lib/extensionApi";
 import { type HostClient } from "./lib/hostClient";
 import { analyzePortDoctor, formatPortDoctorAdvice, type PortDoctorReport } from "./lib/portDoctor";
@@ -690,6 +690,31 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const copyScanContext = async () => {
+    try {
+      await copyText(
+        formatScanContext({
+          entries: visibleEntries.map((entry) => {
+            const profile = profileForEntry(entry);
+            return {
+              entry,
+              profile,
+              profileHealth: profile ? profileHealthResults[profile.id] : undefined,
+              staleSignal: detectStaleProcess(entry, profile)
+            };
+          }),
+          totalCount: entries.length,
+          filterLabel: filterLabel(filter),
+          query,
+          scannedAt: scanResult?.scannedAt
+        })
+      );
+      setMessage(`Copied scan context for ${visibleEntries.length} visible ${visibleEntries.length === 1 ? "port" : "ports"}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const copyDoctorAdvice = async (entry: PortEntry, report: PortDoctorReport) => {
     try {
       await copyText(formatPortDoctorAdvice(report));
@@ -1092,6 +1117,10 @@ export const App = ({ client }: AppProps) => {
         <span><strong>{killableCount}</strong> killable</span>
         <span><strong>{protectedCount}</strong> protected</span>
         <span>{scanResult ? new Date(scanResult.scannedAt).toLocaleTimeString() : "not scanned"}</span>
+        <button className="summary-action" type="button" onClick={() => void copyScanContext()} aria-label="Copy scan context">
+          <Copy size={13} />
+          Context
+        </button>
       </section>
 
       <div className="search-row">

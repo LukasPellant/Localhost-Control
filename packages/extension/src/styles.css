@@ -150,7 +150,7 @@ button:disabled {
 
 .summary-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
   gap: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -159,21 +159,33 @@ button:disabled {
   overflow: hidden;
 }
 
-.summary-strip span {
+.summary-strip span,
+.summary-action {
   min-width: 0;
   padding: 8px 7px;
-  border-right: 1px solid var(--border);
+  border: 0;
   text-align: center;
   white-space: nowrap;
-}
-
-.summary-strip span:last-child {
-  border-right: 0;
 }
 
 .summary-strip strong {
   color: var(--text);
   font-weight: 720;
+}
+
+.summary-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+}
+
+.summary-action:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .search-row {
