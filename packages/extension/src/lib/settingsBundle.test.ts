@@ -8,6 +8,7 @@ const savedSettings: Settings = {
   includeSystemPorts: true,
   customPortRange: "3000-9999,17321",
   trustedProjectPaths: ["D:\\Projects\\ExampleShop"],
+  trustedProjectRoots: ["D:\\Projects"],
   blockedProcessNames: ["steam.exe"],
   projectProfiles: [
     {
@@ -31,8 +32,33 @@ describe("settings bundle import/export", () => {
       schema: "localhost-control-settings",
       version: 1,
       exportedAt: "2026-06-30T08:00:00.000Z",
-      settings: savedSettings
+      settings: {
+        ...savedSettings,
+        trustedProjectRoots: [],
+        trustedProjectPaths: [],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            extraUrls: [{ label: "Admin", url: "http://127.0.0.1:5173/admin" }]
+          }
+        ]
+      }
     });
+  });
+
+  it("omits local execution trust from portable settings exports", () => {
+    const bundleText = exportSettingsBundle(savedSettings, "2026-06-30T08:00:00.000Z");
+    const bundle = JSON.parse(bundleText) as { settings: Settings };
+
+    expect(bundle.settings.trustedProjectRoots).toEqual([]);
+    expect(bundle.settings.trustedProjectPaths).toEqual([]);
+    expect(bundle.settings.projectProfiles[0]).not.toHaveProperty("projectPath");
+    expect(bundle.settings.projectProfiles[0]).not.toHaveProperty("startCommand");
+    expect(bundleText).not.toContain("D:\\Projects\\ExampleShop");
+    expect(bundleText).not.toContain("pnpm dev");
   });
 
   it("omits local action audit history from portable settings exports", () => {
@@ -87,10 +113,18 @@ describe("settings bundle import/export", () => {
         settings: {
           includeSystemPorts: true,
           themeMode: "neon",
+          trustedProjectRoots: ["D:\\Projects"],
           trustedProjectPaths: ["D:\\Projects\\ExampleShop"],
           hiddenPorts: [5173, "bad"],
           projectProfiles: [
-            { id: "shop", name: "Example Shop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
+            {
+              id: "shop",
+              name: "Example Shop",
+              projectPath: "D:\\Projects\\ExampleShop",
+              startCommand: "pnpm dev",
+              expectedPort: 5173,
+              mainUrl: "http://127.0.0.1:5173"
+            },
             { id: "broken", name: "", expectedPort: 99999 }
           ],
           projectWorkspaces: [
@@ -106,7 +140,6 @@ describe("settings bundle import/export", () => {
       settings: {
         ...defaultSettings,
         includeSystemPorts: true,
-        trustedProjectPaths: ["D:\\Projects\\ExampleShop"],
         projectProfiles: [{ id: "shop", name: "Example Shop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" }],
         projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop"], notes: "Release loop" }]
       },
@@ -190,7 +223,16 @@ describe("settings bundle import/export", () => {
   });
 
   it("still accepts legacy raw settings exports when they contain recognizable settings keys", () => {
-    expect(importSettingsBundle(JSON.stringify({ themeMode: "dark", projectProfiles: [{ id: "shop", name: "Example Shop" }] }))).toEqual({
+    expect(
+      importSettingsBundle(
+        JSON.stringify({
+          themeMode: "dark",
+          trustedProjectRoots: ["D:\\Projects"],
+          trustedProjectPaths: ["D:\\Projects\\ExampleShop"],
+          projectProfiles: [{ id: "shop", name: "Example Shop", projectPath: "D:\\Projects\\ExampleShop", startCommand: "pnpm dev" }]
+        })
+      )
+    ).toEqual({
       ok: true,
       settings: {
         ...defaultSettings,

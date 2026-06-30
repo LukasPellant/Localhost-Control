@@ -46,12 +46,16 @@ const importSummary = (settings: Settings): string =>
     "workspaces"
   )}`;
 
+const portableSettings = (settings: Settings): Settings => ({
+  ...settings,
+  trustedProjectRoots: [],
+  trustedProjectPaths: [],
+  projectProfiles: settings.projectProfiles.map(({ logLines: _logLines, projectPath: _projectPath, startCommand: _startCommand, ...profile }) => profile)
+});
+
 const portableSettingsForExport = (settings: Settings): Settings => {
   const sanitized = sanitizeSettings({ ...settings, actionAudit: [] });
-  return {
-    ...sanitized,
-    projectProfiles: sanitized.projectProfiles.map(({ logLines: _logLines, ...profile }) => profile)
-  };
+  return portableSettings(sanitized);
 };
 
 export const exportSettingsBundle = (settings: Settings, exportedAt = new Date().toISOString()): string => {
@@ -82,7 +86,7 @@ export const importSettingsBundle = (raw: string): SettingsImportResult => {
     if (parsed.schema !== SETTINGS_BUNDLE_SCHEMA || parsed.version !== SETTINGS_BUNDLE_VERSION || !("settings" in parsed)) {
       return { ok: false, error: "Config import failed: unsupported settings bundle" };
     }
-    const settings = sanitizeSettings({ ...(isRecord(parsed.settings) ? parsed.settings : {}), actionAudit: [] });
+    const settings = portableSettings(sanitizeSettings({ ...(isRecord(parsed.settings) ? parsed.settings : {}), actionAudit: [] }));
     return { ok: true, settings, summary: importSummary(settings) };
   }
 
@@ -90,6 +94,6 @@ export const importSettingsBundle = (raw: string): SettingsImportResult => {
     return { ok: false, error: "Config import failed: unsupported settings bundle" };
   }
 
-  const settings = sanitizeSettings({ ...parsed, actionAudit: [] });
+  const settings = portableSettings(sanitizeSettings({ ...parsed, actionAudit: [] }));
   return { ok: true, settings, summary: importSummary(settings) };
 };
