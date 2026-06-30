@@ -109,7 +109,7 @@ For local native host artifacts, build on the target operating system or pass `-
 
 `pnpm test:run` runs deterministic unit and packaging tests. `pnpm smoke:native-host` runs the Rust native-host test suite.
 
-GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml` and publishes release assets through `.github/workflows/release-native-host.yml`. The workflows run deterministic tests, Rust native-host tests, typecheck, the workspace build, OS-specific packaging, and artifact validation before uploading the Windows `.zip`, macOS `.pkg`/`.tar.gz`, and Linux `.tar.gz`/`.deb` files.
+GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml` and publishes release assets through `.github/workflows/release-native-host.yml`. The workflows run deterministic tests, Rust native-host tests, typecheck, the workspace build, OS-specific packaging, extension store packaging, and artifact validation before uploading the Windows `.zip`, macOS `.pkg`/`.tar.gz`, Linux `.tar.gz`/`.deb`, Chrome store ZIP, and Firefox add-on ZIP files.
 
 ## Chrome Web Store package
 

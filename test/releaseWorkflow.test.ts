@@ -13,7 +13,7 @@ describe("release-native-host workflow", () => {
     const checkoutCount = (workflow.match(/uses: actions\/checkout@v4/g) ?? []).length;
     const pinnedRefCount = (workflow.match(/ref: \$\{\{ inputs\.tag \|\| github\.ref \}\}/g) ?? []).length;
 
-    expect(checkoutCount).toBe(4);
+    expect(checkoutCount).toBe(5);
     expect(pinnedRefCount).toBe(checkoutCount);
   });
 
@@ -22,7 +22,19 @@ describe("release-native-host workflow", () => {
     expect(workflow).toContain("pnpm host:package:windows");
     expect(workflow).toContain("pnpm host:verify:windows");
     expect(workflow).toContain("dist/native-host/localhost-control-native-host-windows-*.zip");
-    expect(workflow).toMatch(/needs:\s*\r?\n\s+- windows\r?\n\s+- linux\r?\n\s+- macos/);
+    expect(workflow).toMatch(/needs:\s*\r?\n\s+- windows\r?\n\s+- linux\r?\n\s+- macos\r?\n\s+- extension/);
+  });
+
+  it("publishes extension store packages with the release", () => {
+    expect(workflow).toContain("name: Extension store packages");
+    expect(workflow).toContain("pnpm extension:package:chrome");
+    expect(workflow).toContain("pnpm extension:package:firefox");
+    expect(workflow).toContain("pnpm extension:verify");
+    expect(workflow).toContain("name: extension-store-packages");
+    expect(workflow).toContain("dist/chrome-store/*.zip");
+    expect(workflow).toContain("dist/firefox-addons/*.zip");
+    expect(workflow).toContain("path: dist/extension-store");
+    expect(workflow).toContain("dist/extension-store/*");
   });
 
   it("includes Windows artifacts in local release verification", () => {

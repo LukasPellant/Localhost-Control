@@ -163,6 +163,44 @@ jobs:
             dist/native-host/localhost-control-native-host-*.pkg
           if-no-files-found: error
 
+  extension:
+    name: Extension store packages
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Package Chrome extension
+        run: pnpm extension:package:chrome
+
+      - name: Package Firefox extension
+        run: pnpm extension:package:firefox
+
+      - name: Verify extension packages
+        run: pnpm extension:verify
+
+      - name: Upload extension release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-store-packages
+          path: |
+            dist/chrome-store/*.zip
+            dist/firefox-addons/*.zip
+          if-no-files-found: error
+
   publish:
     name: Publish GitHub release
     runs-on: ubuntu-latest
@@ -170,6 +208,7 @@ jobs:
       - windows
       - linux
       - macos
+      - extension
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -185,6 +224,12 @@ jobs:
 
       - name: Write checksums
         run: node scripts/write-native-host-checksums.mjs
+
+      - name: Download extension release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-store-packages
+          path: dist/extension-store
 
       - name: Resolve release notes
         env:
@@ -205,7 +250,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          gh release create "$RELEASE_TAG" dist/native-host/* \
+          gh release create "$RELEASE_TAG" dist/native-host/* dist/extension-store/* \
             --title "Localhost Control $RELEASE_TAG" \
             --notes-file dist/release-notes.md \
             --verify-tag
