@@ -4,15 +4,15 @@ Use this file as the source of truth when preparing the Chrome Web Store listing
 
 ## Single Purpose
 
-Localhost Control helps developers inspect local TCP listeners created by development servers and stop stale local processes from a Chromium side panel.
+Localhost Control helps developers inspect local TCP listeners created by development servers, manage saved local project profiles, clean localhost browser state, and stop stale local processes from a Chromium side panel.
 
 ## Suggested Store Summary
 
-Find and stop stale localhost development servers from a clean Chrome side panel.
+Find, check, clean, and stop localhost development servers from a clean Chrome side panel.
 
 ## Suggested Description
 
-Localhost Control is a developer utility for local web development on Windows, macOS, and Linux. It scans localhost TCP listeners, shows useful process metadata such as PID, command, CPU, memory, threads, handles where available, and uptime, and lets you open, copy, or stop known local development servers.
+Localhost Control is a developer utility for local web development on Windows, macOS, and Linux. It scans localhost TCP listeners, shows useful process metadata such as PID, command, CPU, memory, threads, handles where available, and uptime, and lets you open, copy, health-check, clean, or stop known local development servers.
 
 After installing the extension, install the Localhost Control native host for your operating system from GitHub Releases:
 https://github.com/LukasPellant/Localhost-Control/releases
@@ -25,8 +25,10 @@ The extension communicates only with its native messaging host installed on the 
 
 - `nativeMessaging`: required to ask the locally installed native host for process and port metadata, and to stop selected local processes.
 - `sidePanel`: required because the product UI is a persistent Chrome side panel.
-- `storage`: required to save local user preferences such as filters, trusted project paths, hidden ports, and refresh interval.
+- `storage`: required to save local user preferences such as filters, trusted project paths, hidden ports, project profiles, workspaces, and refresh interval.
 - `browsingData`: required to clear cookies, local storage, IndexedDB, cache storage, and service workers only for the selected localhost origin when the user explicitly clicks the cleanup action.
+- `notifications`: required to show a local browser notification when a user-started saved project profile becomes healthy or fails its localhost health check.
+- Optional localhost host permissions: requested only for user-configured localhost health-check URLs and hard-reload tab matching, so the extension can fetch local health endpoints such as `http://127.0.0.1:5173/health` and reload matching localhost tabs.
 
 ## Privacy Practices
 
@@ -34,8 +36,9 @@ The extension communicates only with its native messaging host installed on the 
 - Data collection: none.
 - Data sharing: none.
 - Remote code: none. All extension JavaScript/CSS/assets are packaged in the extension ZIP.
-- Network behavior: HTTP probes are sent only to local listener URLs such as `127.0.0.1`, `0.0.0.0` via loopback, `::1`, or wildcard listeners normalized to loopback.
+- Network behavior: HTTP probes and saved profile health checks are sent only to local listener URLs such as `127.0.0.1`, `0.0.0.0` via loopback, `::1`, `localhost`, or `*.localhost`.
 - Native host data: process names, command lines, project paths, ports, and resource counters are displayed locally in the extension UI and are not transmitted externally by the extension.
+- Browser data access: cleanup actions target only the selected localhost origin and run only after the user clicks the cleanup control.
 
 ## Reviewer Instructions
 
@@ -65,8 +68,17 @@ node -e "require('node:http').createServer((_, res) => res.end('ok')).listen(517
 5. Open the Localhost Control side panel.
 6. Verify the local listener appears with PID/resource metadata.
 7. Verify the Open and Copy URL actions use `http://127.0.0.1:5173`.
-8. Verify Kill stops the disposable local server.
-9. Uninstall the native host after review if desired:
+8. Save a profile for the listener, trust a temporary project path, add `http://127.0.0.1:5173` as the main URL, add `http://127.0.0.1:5173/health` as the health URL, and set this start command:
+
+```powershell
+node -e "require('node:http').createServer((_, res) => res.end('ok')).listen(5173, '127.0.0.1')"
+```
+
+9. Stop the manually started disposable server, then start the saved profile from the side panel and verify the ready notification appears when the localhost health check succeeds.
+10. Stop that profile, temporarily change the saved profile health URL to `http://127.0.0.1:59999/health`, start the saved profile again, and verify the failed notification appears when the localhost health check does not become ready.
+11. Verify cleanup controls clear only the selected localhost origin and that Hard reload reloads matching localhost tabs.
+12. Verify Stop asks for confirmation and stops the disposable local server.
+13. Uninstall the native host after review if desired:
 
 ```powershell
 pnpm host:uninstall -- --browser chrome

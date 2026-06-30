@@ -95,7 +95,7 @@ const chromeManifest = () => ({
   manifest_version: 3,
   name: "Localhost Control",
   version: packageVersion,
-  description: "Find and kill stale localhost development servers from a clean Chromium side panel.",
+  description: "Find, check, clean, and stop localhost development servers from a clean Chromium side panel.",
   action: {
     default_title: "Localhost Control",
     default_icon: expectedIconMap

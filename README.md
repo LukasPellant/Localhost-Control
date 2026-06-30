@@ -1,6 +1,6 @@
 # Localhost Control
 
-Localhost Control is a Chrome, Brave, and Firefox extension for finding stale local dev servers and stopping them without digging through terminals. The native host supports Windows, macOS, and Linux.
+Localhost Control is a Chrome, Brave, and Firefox extension for finding stale local dev servers, checking project health, cleaning localhost browser state, and stopping local process trees without digging through terminals. The native host supports Windows, macOS, and Linux.
 
 It has two pieces:
 
@@ -9,6 +9,15 @@ It has two pieces:
 - `scripts`: packaging, checksum, and native messaging manifest tooling for the Rust host artifacts.
 
 The extension talks only to the native host through browser native messaging. It does not expose a local HTTP server and does not send telemetry.
+
+## Features
+
+- Inspect localhost TCP listeners with PID, command, project path, HTTP status, uptime, and resource metadata where the operating system provides it.
+- Save project profiles with expected ports, local URLs, health checks, notes, and launch commands so the side panel acts as a local command center instead of a raw port list.
+- Stop local dev processes safely by default with terminate-tree actions, with explicit force-tree controls for stubborn processes.
+- Spot possible stale or ghost processes and copy actionable cleanup advice.
+- Open local URLs in desktop, tablet, or phone preview windows, hard-reload matching localhost tabs, and clear selected localhost origin storage on demand.
+- Receive browser notifications when a started profile becomes healthy or fails its health check.
 
 ## Downloads
 
@@ -130,9 +139,11 @@ Store listing notes, permission justifications, privacy answers, and reviewer in
 
 ## Safety Model
 
-The native host marks system processes, low ports, browser processes, PID 4, and Windows executables under `C:\Windows` as protected. Protected rows stay visible but their kill controls are disabled.
+The native host marks system processes, low ports, browser processes, PID 4, and Windows executables under `C:\Windows` as protected. Protected rows stay visible but their stop controls are disabled.
 
-For normal dev servers, the side panel offers one-click force-kill. Unknown low-confidence processes remain killable only after a browser confirmation prompt.
+For normal dev servers, the side panel defaults to a safer process-tree terminate action and keeps force-tree stops as an explicit fallback. Unknown low-confidence processes remain stoppable only after a browser confirmation prompt.
+
+Browser cleanup and hard reload actions are limited to the selected localhost origin. Project health notifications are local browser notifications triggered only after the user starts a saved profile with a localhost health check.
 
 ## Development UI
 

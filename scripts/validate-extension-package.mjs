@@ -160,7 +160,7 @@ const validateChromeManifest = (manifest) => {
 };
 
 const validateFirefoxManifest = (manifest) => {
-  if (manifest.description !== "Find and stop stale localhost development servers from a clean Firefox sidebar.") {
+  if (manifest.description !== "Find, check, clean, and stop localhost development servers from a clean Firefox sidebar.") {
     throw new Error("Firefox package description is incorrect.");
   }
   if ("service_worker" in (manifest.background ?? {})) throw new Error("Firefox package must not include background.service_worker.");
