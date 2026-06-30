@@ -8,6 +8,7 @@ export type BrowserCleanupResult = {
 };
 
 export type BrowserCleanupMode = "all" | "cache";
+export type BrowserPreviewPreset = "phone" | "tablet" | "desktop";
 
 export type BrowserPrivateWindowResult = {
   opened: boolean;
@@ -25,10 +26,11 @@ export type BrowserMobilePreviewResult = {
   reason?: "unavailable" | "failed";
 };
 
-const mobilePreviewSize = {
-  width: 390,
-  height: 844
-} as const;
+const previewPresets = {
+  phone: { label: "phone", width: 390, height: 844 },
+  tablet: { label: "tablet", width: 768, height: 1024 },
+  desktop: { label: "desktop", width: 1280, height: 800 }
+} as const satisfies Record<BrowserPreviewPreset, { label: string; width: number; height: number }>;
 
 const localhostNames = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1"]);
 const cleanupModes = {
@@ -132,9 +134,10 @@ export const openPrivateWindowForUrl = async (value: string): Promise<BrowserPri
   };
 };
 
-export const openMobilePreviewForUrl = async (value: string): Promise<BrowserMobilePreviewResult> => {
+export const openMobilePreviewForUrl = async (value: string, preset: BrowserPreviewPreset = "phone"): Promise<BrowserMobilePreviewResult> => {
   const origin = originFromLocalhostUrl(value);
   const windows = getExtensionApi()?.windows;
+  const preview = previewPresets[preset];
 
   if (!windows?.create) {
     return {
@@ -150,8 +153,8 @@ export const openMobilePreviewForUrl = async (value: string): Promise<BrowserMob
     await windows.create({
       url: value,
       type: "popup",
-      width: mobilePreviewSize.width,
-      height: mobilePreviewSize.height,
+      width: preview.width,
+      height: preview.height,
       focused: true
     });
   } catch (error) {
@@ -163,7 +166,7 @@ export const openMobilePreviewForUrl = async (value: string): Promise<BrowserMob
 
   return {
     opened: true,
-    message: `Opened mobile preview for ${origin}.`,
+    message: `Opened ${preview.label} preview for ${origin}.`,
     origin,
     url: value
   };

@@ -7,7 +7,13 @@ import { PortList } from "./components/PortList";
 import { SafeActionDialog } from "./components/SafeActionDialog";
 import { SettingsManager } from "./components/SettingsManager";
 import { WorkspaceActionDialog } from "./components/WorkspaceActionDialog";
-import { clearBrowserDataForUrl, openMobilePreviewForUrl, openPrivateWindowForUrl, type BrowserCleanupMode } from "./lib/browserCleanup";
+import {
+  clearBrowserDataForUrl,
+  openMobilePreviewForUrl,
+  openPrivateWindowForUrl,
+  type BrowserCleanupMode,
+  type BrowserPreviewPreset
+} from "./lib/browserCleanup";
 import { appendActionAuditEntry, createActionAuditEntry, type ActionAuditInput } from "./lib/actionAudit";
 import { formatDevContext, formatWorkspaceContext } from "./lib/devContext";
 import { getExtensionApi } from "./lib/extensionApi";
@@ -835,14 +841,15 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
-  const openMobilePreviewForEntry = async (entry: PortEntry) => {
+  const openMobilePreviewForEntry = async (entry: PortEntry, preset: BrowserPreviewPreset = "phone") => {
     const url = entry.url ?? `http://127.0.0.1:${entry.port}`;
     try {
-      const result = await openMobilePreviewForUrl(url);
+      const result = await openMobilePreviewForUrl(url, preset);
       if (result.opened) {
         void recordAction({
           action: "open-mobile-preview",
-          target: result.origin
+          target: result.origin,
+          detail: `${preset} preview`
         });
       }
       setMessage(result.message);
@@ -1228,7 +1235,7 @@ export const App = ({ client }: AppProps) => {
         onTerminal={(entry) => void openTerminalForEntry(entry)}
         onCleanup={(entry, mode) => void cleanupBrowserDataForEntry(entry, mode)}
         onOpenPrivate={(entry) => void openPrivateWindowForEntry(entry)}
-        onOpenMobilePreview={(entry) => void openMobilePreviewForEntry(entry)}
+        onOpenMobilePreview={(entry, preset) => void openMobilePreviewForEntry(entry, preset)}
         onOpenProjectFolder={(entry) => void openProjectFolderForEntry(entry)}
         onCopyProfileCommand={(profile) => void copyProfileCommand(profile)}
         onOpenProfileTerminal={(profile) => void openTerminalForProfile(profile)}

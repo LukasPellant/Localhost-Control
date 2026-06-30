@@ -1,7 +1,7 @@
-import { Activity, Copy, EyeOff, ExternalLink, FolderOpen, FolderPlus, Power, RefreshCw, Smartphone, Terminal, Trash2 } from "lucide-react";
+import { Activity, Copy, EyeOff, ExternalLink, FolderOpen, FolderPlus, Monitor, Power, RefreshCw, Smartphone, Tablet, Terminal, Trash2 } from "lucide-react";
 import { kindLabel, type PortEntry } from "@localhost-control/shared";
 import { IconButton } from "./IconButton";
-import { originFromLocalhostUrl, type BrowserCleanupMode } from "../lib/browserCleanup";
+import { originFromLocalhostUrl, type BrowserCleanupMode, type BrowserPreviewPreset } from "../lib/browserCleanup";
 import type { PortDoctorReport } from "../lib/portDoctor";
 import type { ProfileHealthResult } from "../lib/profileHealth";
 import type { ProjectProfile } from "../lib/projectProfiles";
@@ -24,7 +24,7 @@ type DetailPanelProps = {
   onTerminal(entry: PortEntry): void;
   onCleanup(entry: PortEntry, mode?: BrowserCleanupMode): void;
   onOpenPrivate(entry: PortEntry): void;
-  onOpenMobilePreview(entry: PortEntry): void;
+  onOpenMobilePreview(entry: PortEntry, preset: BrowserPreviewPreset): void;
   onOpenProjectFolder(entry: PortEntry): void;
   onCopyProfileCommand(profile: ProjectProfile): void;
   onOpenProfileTerminal(profile: ProjectProfile): void;
@@ -267,9 +267,17 @@ export const DetailPanel = ({
                   <EyeOff size={14} />
                   Open private
                 </button>
-                <button type="button" onClick={() => onOpenMobilePreview(entry)} aria-label={`Open mobile preview ${cleanupOrigin}`}>
+                <button type="button" onClick={() => onOpenMobilePreview(entry, "phone")} aria-label={`Open phone preview ${cleanupOrigin}`}>
                   <Smartphone size={14} />
-                  Mobile preview
+                  Phone
+                </button>
+                <button type="button" onClick={() => onOpenMobilePreview(entry, "tablet")} aria-label={`Open tablet preview ${cleanupOrigin}`}>
+                  <Tablet size={14} />
+                  Tablet
+                </button>
+                <button type="button" onClick={() => onOpenMobilePreview(entry, "desktop")} aria-label={`Open desktop preview ${cleanupOrigin}`}>
+                  <Monitor size={14} />
+                  Desktop
                 </button>
               </>
             ) : null}

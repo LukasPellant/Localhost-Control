@@ -197,7 +197,7 @@ describe("openMobilePreviewForUrl", () => {
     });
   });
 
-  it("opens localhost app URLs in a focused mobile preview popup", async () => {
+  it("opens localhost app URLs in focused responsive preview popups", async () => {
     const create = vi.fn(async () => ({ id: 14 }));
     (globalThis as { browser?: unknown }).browser = {
       windows: { create }
@@ -205,15 +205,39 @@ describe("openMobilePreviewForUrl", () => {
 
     await expect(openMobilePreviewForUrl("http://127.0.0.1:5173/dashboard?device=phone")).resolves.toEqual({
       opened: true,
-      message: "Opened mobile preview for http://127.0.0.1:5173.",
+      message: "Opened phone preview for http://127.0.0.1:5173.",
       origin: "http://127.0.0.1:5173",
       url: "http://127.0.0.1:5173/dashboard?device=phone"
     });
-    expect(create).toHaveBeenCalledWith({
+    expect(create).toHaveBeenNthCalledWith(1, {
       url: "http://127.0.0.1:5173/dashboard?device=phone",
       type: "popup",
       width: 390,
       height: 844,
+      focused: true
+    });
+
+    await expect(openMobilePreviewForUrl("http://127.0.0.1:5173/dashboard", "tablet")).resolves.toMatchObject({
+      opened: true,
+      message: "Opened tablet preview for http://127.0.0.1:5173."
+    });
+    expect(create).toHaveBeenNthCalledWith(2, {
+      url: "http://127.0.0.1:5173/dashboard",
+      type: "popup",
+      width: 768,
+      height: 1024,
+      focused: true
+    });
+
+    await expect(openMobilePreviewForUrl("http://127.0.0.1:5173/dashboard", "desktop")).resolves.toMatchObject({
+      opened: true,
+      message: "Opened desktop preview for http://127.0.0.1:5173."
+    });
+    expect(create).toHaveBeenNthCalledWith(3, {
+      url: "http://127.0.0.1:5173/dashboard",
+      type: "popup",
+      width: 1280,
+      height: 800,
       focused: true
     });
   });

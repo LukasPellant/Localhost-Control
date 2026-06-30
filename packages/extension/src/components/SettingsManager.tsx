@@ -67,6 +67,10 @@ const auditActionLabels: Record<ActionAuditKind, string> = {
 };
 
 const formatAuditEntry = (entry: ActionAuditEntry): string => {
+  if (entry.action === "open-mobile-preview" && entry.detail?.endsWith(" preview")) {
+    return `Opened ${entry.detail}`;
+  }
+
   const detail = entry.detail ? ` - ${entry.detail}` : "";
   return `${auditActionLabels[entry.action]}${detail}`;
 };
