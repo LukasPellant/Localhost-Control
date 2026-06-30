@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, SlidersHorizontal, Square, Terminal, Upload } from "lucide-react";
-import { withAppScope, type KillParams, type PortEntry, type ScanResult } from "@localhost-control/shared";
+import { withAppScope, type KillParams, type KillResult, type PortEntry, type ScanResult } from "@localhost-control/shared";
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
 import { PortList } from "./components/PortList";
 import { SafeActionDialog } from "./components/SafeActionDialog";
 import { SettingsManager } from "./components/SettingsManager";
-import { WorkspaceStopDialog } from "./components/WorkspaceStopDialog";
+import { WorkspaceActionDialog } from "./components/WorkspaceActionDialog";
 import { clearBrowserDataForUrl, type BrowserCleanupMode } from "./lib/browserCleanup";
 import { appendActionAuditEntry, createActionAuditEntry, type ActionAuditInput } from "./lib/actionAudit";
 import { formatDevContext, formatWorkspaceContext } from "./lib/devContext";
@@ -46,6 +46,13 @@ type StartableProjectProfile = ProjectProfile & {
   projectPath: string;
   startCommand: string;
 };
+
+type RestartableProfileEntry = {
+  profile: StartableProjectProfile;
+  entry: PortEntry;
+};
+
+const killClosedPort = (result: KillResult): boolean => result.killed && result.portClosed;
 
 const nativeHostDownloadUrl = (): string => {
   const version = getExtensionApi()?.runtime?.getManifest?.().version;
@@ -138,6 +145,8 @@ export const App = ({ client }: AppProps) => {
   const [hostError, setHostError] = useState<string | null>(null);
   const [pendingKillEntry, setPendingKillEntry] = useState<PortEntry | null>(null);
   const [pendingWorkspaceStop, setPendingWorkspaceStop] = useState<WorkspaceState | null>(null);
+  const [pendingProfileRestart, setPendingProfileRestart] = useState<RestartableProfileEntry | null>(null);
+  const [pendingWorkspaceRestart, setPendingWorkspaceRestart] = useState<WorkspaceState | null>(null);
   const [profileHealthResults, setProfileHealthResults] = useState<Record<string, ProfileHealthResult>>({});
   const [settingsManagerOpen, setSettingsManagerOpen] = useState(false);
   const [settingsActionSaving, setSettingsActionSaving] = useState(false);
@@ -415,6 +424,11 @@ export const App = ({ client }: AppProps) => {
   const stopWorkspaceEntries = (state: WorkspaceState): Array<{ profile: ProjectProfile; entry: PortEntry }> =>
     state.profileStates.flatMap(({ profile, entry }) => (entry?.killable ? [{ profile, entry }] : []));
 
+  const restartWorkspaceEntries = (state: WorkspaceState): RestartableProfileEntry[] =>
+    state.profileStates.flatMap(({ profile, entry }) =>
+      entry?.killable && isTrustedStartableProjectProfile(settings, profile) ? [{ profile, entry }] : []
+    );
+
   const requestStopWorkspace = (state: WorkspaceState) => {
     const stoppableEntries = stopWorkspaceEntries(state);
     if (!stoppableEntries.length) {
@@ -459,6 +473,132 @@ export const App = ({ client }: AppProps) => {
         return;
       }
       setMessage(`Stopped workspace ${state.workspace.name}: ${stoppedCount} ${stoppedCount === 1 ? "profile" : "profiles"}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const requestRestartProfile = (profile: ProjectProfile, entry: PortEntry) => {
+    if (!entry.killable) return;
+    if (!isTrustedStartableProjectProfile(settings, profile)) {
+      setMessage(`Profile ${profile.name} is missing a trusted path or command`);
+      return;
+    }
+    setPendingProfileRestart({ profile, entry });
+  };
+
+  const confirmRestartProfile = async ({ profile, entry }: RestartableProfileEntry) => {
+    if (!entry.killable) return;
+
+    setBusy(true);
+    setPendingProfileRestart(null);
+    setMessage(`Restarting profile ${profile.name}...`);
+    try {
+      if (profile.healthUrl && !(await preflightHealthForProfileStart(profile))) return;
+
+      const killResult = await client.kill({ pid: entry.pid, port: entry.port, mode: "force-tree" });
+      if (!killClosedPort(killResult)) {
+        setMessage(killResult.message);
+        return;
+      }
+      await scan();
+      const result = await client.openTerminal({
+        projectHint: profile.projectPath,
+        commandLine: profile.startCommand,
+        executeCommand: true
+      });
+      if (!result.opened) {
+        setMessage(result.message);
+        return;
+      }
+      await recordAction({ action: "start-profile", target: profile.name, detail: "Restarted after stop" });
+      if (profile.healthUrl) {
+        void waitForProfileReady(profile);
+        return;
+      }
+      setMessage(`Restarted profile ${profile.name}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const requestRestartWorkspace = (state: WorkspaceState) => {
+    const restartableEntries = restartWorkspaceEntries(state);
+    if (!restartableEntries.length) {
+      setMessage(`No running profiles with safe restart commands configured for ${state.workspace.name}`);
+      return;
+    }
+    setPendingWorkspaceRestart(state);
+  };
+
+  const confirmRestartWorkspace = async (state: WorkspaceState) => {
+    const restartableEntries = restartWorkspaceEntries(state);
+    if (!restartableEntries.length) {
+      setPendingWorkspaceRestart(null);
+      setMessage(`No running profiles with safe restart commands configured for ${state.workspace.name}`);
+      return;
+    }
+
+    setBusy(true);
+    setPendingWorkspaceRestart(null);
+    setMessage(`Restarting workspace ${state.workspace.name}...`);
+    const stoppedProfiles: StartableProjectProfile[] = [];
+    const startedProfiles: StartableProjectProfile[] = [];
+    const failures: string[] = [];
+    try {
+      for (const { profile } of restartableEntries) {
+        if (profile.healthUrl && !(await preflightHealthForProfileStart(profile))) return;
+      }
+
+      for (const { profile, entry } of restartableEntries) {
+        try {
+          const killResult = await client.kill({ pid: entry.pid, port: entry.port, mode: "force-tree" });
+          if (killClosedPort(killResult)) {
+            stoppedProfiles.push(profile);
+          } else {
+            failures.push(`${profile.name}: ${killResult.message}`);
+          }
+        } catch (error) {
+          failures.push(`${profile.name}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      await scan();
+      let startedCount = 0;
+      for (const profile of stoppedProfiles) {
+        try {
+          const result = await client.openTerminal({
+            projectHint: profile.projectPath,
+            commandLine: profile.startCommand,
+            executeCommand: true
+          });
+          if (result.opened) {
+            startedCount += 1;
+            startedProfiles.push(profile);
+          } else {
+            failures.push(`${profile.name}: ${result.message}`);
+          }
+        } catch (error) {
+          failures.push(`${profile.name}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      await recordAction({
+        action: "start-workspace",
+        target: state.workspace.name,
+        detail: failures.length
+          ? `Restarted ${startedCount} of ${restartableEntries.length} ${restartableEntries.length === 1 ? "profile" : "profiles"}; ${failures.length} failed`
+          : `Restarted ${startedCount} ${startedCount === 1 ? "profile" : "profiles"}`
+      });
+      const healthProfiles = startedProfiles.filter((profile) => profile.healthUrl);
+      healthProfiles.forEach((profile) => void waitForProfileReady(profile));
+      if (failures.length) {
+        setMessage(`Restarted workspace ${state.workspace.name}: ${startedCount} of ${restartableEntries.length} profiles; ${failures.length} failed`);
+        return;
+      }
+      setMessage(`Restarted workspace ${state.workspace.name}: ${startedCount} ${startedCount === 1 ? "profile" : "profiles"}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -854,6 +994,7 @@ export const App = ({ client }: AppProps) => {
         <section className="workspace-strip" aria-label="Project workspaces">
           {workspaceStates.map((state) => {
             const stoppableEntries = stopWorkspaceEntries(state);
+            const restartableEntries = restartWorkspaceEntries(state);
             return (
               <article className={`workspace-chip ${state.status}`} key={state.workspace.id}>
                 <button className="workspace-summary" type="button" onClick={() => state.openUrls.forEach((url) => openExternalUrl(url))} aria-label={`Open workspace ${state.workspace.name}`}>
@@ -870,6 +1011,12 @@ export const App = ({ client }: AppProps) => {
                     <Terminal size={13} />
                     Start
                   </button>
+                  {restartableEntries.length ? (
+                    <button type="button" onClick={() => requestRestartWorkspace(state)} aria-label={`Restart workspace ${state.workspace.name}`}>
+                      <RefreshCw size={12} />
+                      Restart
+                    </button>
+                  ) : null}
                   {stoppableEntries.length ? (
                     <button type="button" onClick={() => requestStopWorkspace(state)} aria-label={`Stop workspace ${state.workspace.name}`}>
                       <Square size={12} />
@@ -921,6 +1068,18 @@ export const App = ({ client }: AppProps) => {
                     >
                       <Square size={12} />
                       Stop
+                    </button>
+                  ) : null}
+                  {state.entry?.killable && isTrustedStartableProjectProfile(settings, state.profile) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (state.entry?.killable) requestRestartProfile(state.profile, state.entry);
+                      }}
+                      aria-label={`Restart profile ${state.profile.name}`}
+                    >
+                      <RefreshCw size={12} />
+                      Restart
                     </button>
                   ) : null}
                 </div>
@@ -980,12 +1139,32 @@ export const App = ({ client }: AppProps) => {
         />
       ) : null}
 
+      {pendingProfileRestart ? (
+        <SafeActionDialog
+          action="restart"
+          entry={pendingProfileRestart.entry}
+          profile={pendingProfileRestart.profile}
+          onCancel={() => setPendingProfileRestart(null)}
+          onConfirm={() => void confirmRestartProfile(pendingProfileRestart)}
+        />
+      ) : null}
+
       {pendingWorkspaceStop ? (
-        <WorkspaceStopDialog
+        <WorkspaceActionDialog
           workspace={pendingWorkspaceStop.workspace}
           profiles={stopWorkspaceEntries(pendingWorkspaceStop)}
           onCancel={() => setPendingWorkspaceStop(null)}
           onConfirm={() => void confirmStopWorkspace(pendingWorkspaceStop)}
+        />
+      ) : null}
+
+      {pendingWorkspaceRestart ? (
+        <WorkspaceActionDialog
+          action="restart"
+          workspace={pendingWorkspaceRestart.workspace}
+          profiles={restartWorkspaceEntries(pendingWorkspaceRestart)}
+          onCancel={() => setPendingWorkspaceRestart(null)}
+          onConfirm={() => void confirmRestartWorkspace(pendingWorkspaceRestart)}
         />
       ) : null}
 

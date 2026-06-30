@@ -7,6 +7,7 @@ import { formatCpu, formatMemory, formatUptime } from "../lib/resources";
 type SafeActionDialogProps = {
   entry: PortEntry;
   profile?: ProjectProfile | undefined;
+  action?: "stop" | "restart";
   onCancel(): void;
   onConfirm(entry: PortEntry): void;
 };
@@ -19,8 +20,12 @@ const detail = (label: string, value: string | number | undefined, className?: s
     </div>
   );
 
-export const SafeActionDialog = ({ entry, profile, onCancel, onConfirm }: SafeActionDialogProps) => {
+export const SafeActionDialog = ({ entry, profile, action = "stop", onCancel, onConfirm }: SafeActionDialogProps) => {
   const label = profile?.name ?? entry.title ?? `${entry.processName} on ${entry.port}`;
+  const title = action === "restart" ? `Restart ${label}` : `Stop ${label}`;
+  const description =
+    action === "restart" ? "Review the process context before stopping and starting it again." : "Review the process context before forcing it to close.";
+  const confirmLabel = action === "restart" ? "Restart" : "Force stop";
   const cpu = formatCpu(entry.resources);
   const memory = formatMemory(entry.resources?.memoryBytes);
   const uptime = formatUptime(entry.resources);
@@ -57,12 +62,12 @@ export const SafeActionDialog = ({ entry, profile, onCancel, onConfirm }: SafeAc
 
   return (
     <div className="dialog-backdrop">
-      <section ref={dialogRef} className="safe-dialog" role="dialog" aria-modal="true" aria-label={`Stop ${label}`} onKeyDown={keepFocusInDialog}>
+      <section ref={dialogRef} className="safe-dialog" role="dialog" aria-modal="true" aria-label={title} onKeyDown={keepFocusInDialog}>
         <div className="safe-dialog-heading">
           <AlertTriangle size={19} />
           <div>
-            <h2>Stop {label}?</h2>
-            <p>Review the process context before forcing it to close.</p>
+            <h2>{title}?</h2>
+            <p>{description}</p>
           </div>
         </div>
         <dl className="safe-dialog-grid">
@@ -82,7 +87,7 @@ export const SafeActionDialog = ({ entry, profile, onCancel, onConfirm }: SafeAc
             Cancel
           </button>
           <button className="danger-command" type="button" onClick={() => onConfirm(entry)}>
-            Force stop
+            {confirmLabel}
           </button>
         </div>
       </section>

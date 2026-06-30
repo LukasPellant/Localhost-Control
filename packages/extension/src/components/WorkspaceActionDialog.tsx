@@ -4,16 +4,23 @@ import type { PortEntry } from "@localhost-control/shared";
 import type { ProjectProfile } from "../lib/projectProfiles";
 import type { ProjectWorkspace } from "../lib/projectWorkspaces";
 
-type WorkspaceStopDialogProps = {
+type WorkspaceActionDialogProps = {
   workspace: ProjectWorkspace;
   profiles: Array<{ profile: ProjectProfile; entry: PortEntry }>;
+  action?: "stop" | "restart";
   onCancel(): void;
   onConfirm(): void;
 };
 
-export const WorkspaceStopDialog = ({ workspace, profiles, onCancel, onConfirm }: WorkspaceStopDialogProps) => {
+export const WorkspaceActionDialog = ({ workspace, profiles, action = "stop", onCancel, onConfirm }: WorkspaceActionDialogProps) => {
   const dialogRef = useRef<HTMLElement | null>(null);
   const cancelRef = useRef<HTMLButtonElement | null>(null);
+  const title = action === "restart" ? `Restart workspace ${workspace.name}` : `Stop workspace ${workspace.name}`;
+  const description =
+    action === "restart"
+      ? "Review the running profile processes before stopping and starting them again."
+      : "Review the running profile processes before forcing them to close.";
+  const confirmLabel = action === "restart" ? `Restart ${profiles.length}` : `Force stop ${profiles.length}`;
 
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -50,14 +57,14 @@ export const WorkspaceStopDialog = ({ workspace, profiles, onCancel, onConfirm }
         className="safe-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label={`Stop workspace ${workspace.name}`}
+        aria-label={title}
         onKeyDown={keepFocusInDialog}
       >
         <div className="safe-dialog-heading">
           <AlertTriangle size={19} />
           <div>
-            <h2>Stop workspace {workspace.name}?</h2>
-            <p>Review the running profile processes before forcing them to close.</p>
+            <h2>{title}?</h2>
+            <p>{description}</p>
           </div>
         </div>
         <dl className="safe-dialog-grid">
@@ -75,7 +82,7 @@ export const WorkspaceStopDialog = ({ workspace, profiles, onCancel, onConfirm }
             Cancel
           </button>
           <button className="danger-command" type="button" onClick={onConfirm}>
-            Force stop {profiles.length}
+            {confirmLabel}
           </button>
         </div>
       </section>

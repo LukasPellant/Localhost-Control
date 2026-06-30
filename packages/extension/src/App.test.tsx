@@ -291,6 +291,169 @@ describe("App", () => {
     await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));
   });
 
+  it("restarts a running project profile after confirmation", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /restart profile example shop/i }));
+
+    const dialog = screen.getByRole("dialog", { name: /restart example shop/i });
+    expect(within(dialog).getByText("node vite")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /restart/i }));
+
+    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));
+    await waitFor(() =>
+      expect(client.openTerminal).toHaveBeenCalledWith({
+        projectHint: "D:\\Projects\\ExampleShop",
+        commandLine: "pnpm dev",
+        executeCommand: true
+      })
+    );
+    expect(await screen.findByText("Restarted profile Example Shop")).toBeInTheDocument();
+  });
+
+  it("does not stop a profile restart when health permission is denied", async () => {
+    const requestPermission = vi.fn(async () => false);
+    (globalThis as { browser?: unknown }).browser = {
+      permissions: { request: requestPermission }
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            healthUrl: "http://127.0.0.1:5173/health"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /restart profile example shop/i }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: /restart example shop/i })).getByRole("button", { name: /restart/i }));
+
+    await waitFor(() => expect(requestPermission).toHaveBeenCalledWith({ origins: ["http://127.0.0.1/*"] }));
+    expect(client.kill).not.toHaveBeenCalled();
+    expect(client.openTerminal).not.toHaveBeenCalled();
+    expect(await screen.findByText("Example Shop health check needs permission for http://127.0.0.1:5173.")).toBeInTheDocument();
+  });
+
+  it("does not start a profile restart when stopping the old process fails", async () => {
+    vi.mocked(client.kill).mockRejectedValueOnce(new Error("PID 100 is already closed"));
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /restart profile example shop/i }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: /restart example shop/i })).getByRole("button", { name: /restart/i }));
+
+    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));
+    expect(client.openTerminal).not.toHaveBeenCalled();
+    expect(await screen.findByText("PID 100 is already closed")).toBeInTheDocument();
+  });
+
+  it("does not start a profile restart when the old process keeps listening", async () => {
+    vi.mocked(client.kill).mockResolvedValueOnce({
+      killed: false,
+      pid: 100,
+      port: 5173,
+      portClosed: false,
+      message: "Port 5173 is still listening"
+    });
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /restart profile example shop/i }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: /restart example shop/i })).getByRole("button", { name: /restart/i }));
+
+    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));
+    expect(client.openTerminal).not.toHaveBeenCalled();
+    expect(await screen.findByText("Port 5173 is still listening")).toBeInTheDocument();
+  });
+
+  it("does not offer restart for a running profile without a trusted command", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    expect(within(profiles).getByRole("button", { name: /stop profile example shop/i })).toBeInTheDocument();
+    expect(within(profiles).queryByRole("button", { name: /restart profile example shop/i })).not.toBeInTheDocument();
+  });
+
   it("waits for started profile health and reports when it becomes ready", async () => {
     let failFirstCheck: ((error: Error) => void) | undefined;
     const fetchHealth = vi
@@ -816,7 +979,7 @@ describe("App", () => {
     render(<App client={client} />);
 
     const workspaces = await screen.findByLabelText("Project workspaces");
-    fireEvent.click(within(workspaces).getByRole("button", { name: /start workspace daily stack/i }));
+    fireEvent.click(within(workspaces).getByRole("button", { name: /^Start workspace Daily stack$/i }));
 
     await waitFor(() => expect(client.openTerminal).toHaveBeenCalledTimes(1));
     expect(client.openTerminal).toHaveBeenCalledWith({
@@ -872,6 +1035,198 @@ describe("App", () => {
     await waitFor(() => expect(client.kill).toHaveBeenCalledTimes(2));
     expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" });
     expect(client.kill).toHaveBeenCalledWith({ pid: 150, port: 17321, mode: "force-tree" });
+  });
+
+  it("restarts running workspace profiles with trusted commands after confirmation", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects", "C:\\Workspaces"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          },
+          {
+            id: "api",
+            name: "Local API",
+            projectPath: "C:\\Workspaces\\LocalApi",
+            startCommand: "pnpm api",
+            expectedPort: 17321,
+            mainUrl: "http://127.0.0.1:17321"
+          },
+          {
+            id: "docs",
+            name: "Docs",
+            projectPath: "D:\\Projects\\Docs",
+            startCommand: "pnpm docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321"
+          }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api", "docs"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    fireEvent.click(within(workspaces).getByRole("button", { name: /restart workspace daily stack/i }));
+
+    const dialog = screen.getByRole("dialog", { name: /restart workspace daily stack/i });
+    expect(within(dialog).getByText("Example Shop")).toBeInTheDocument();
+    expect(within(dialog).getByText("Local API")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Docs")).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /restart 2/i }));
+
+    await waitFor(() => expect(client.kill).toHaveBeenCalledTimes(2));
+    expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" });
+    expect(client.kill).toHaveBeenCalledWith({ pid: 150, port: 17321, mode: "force-tree" });
+    await waitFor(() => expect(client.openTerminal).toHaveBeenCalledTimes(2));
+    expect(client.openTerminal).toHaveBeenCalledWith({
+      projectHint: "D:\\Projects\\ExampleShop",
+      commandLine: "pnpm dev",
+      executeCommand: true
+    });
+    expect(client.openTerminal).toHaveBeenCalledWith({
+      projectHint: "C:\\Workspaces\\LocalApi",
+      commandLine: "pnpm api",
+      executeCommand: true
+    });
+    expect(await screen.findByText("Restarted workspace Daily stack: 2 profiles")).toBeInTheDocument();
+  });
+
+  it("does not stop workspace profiles when restart health permission is denied", async () => {
+    const requestPermission = vi.fn(async () => false);
+    (globalThis as { browser?: unknown }).browser = {
+      permissions: { request: requestPermission }
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            healthUrl: "http://127.0.0.1:5173/health"
+          },
+          {
+            id: "api",
+            name: "Local API",
+            projectPath: "D:\\Projects\\LocalApi",
+            startCommand: "pnpm api",
+            expectedPort: 17321,
+            mainUrl: "http://127.0.0.1:17321"
+          }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    fireEvent.click(within(workspaces).getByRole("button", { name: /restart workspace daily stack/i }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: /restart workspace daily stack/i })).getByRole("button", { name: /restart 2/i }));
+
+    await waitFor(() => expect(requestPermission).toHaveBeenCalledWith({ origins: ["http://127.0.0.1/*"] }));
+    expect(client.kill).not.toHaveBeenCalled();
+    expect(client.openTerminal).not.toHaveBeenCalled();
+    expect(await screen.findByText("Example Shop health check needs permission for http://127.0.0.1:5173.")).toBeInTheDocument();
+  });
+
+  it("does not restart workspace profiles when the old process keeps listening", async () => {
+    vi.mocked(client.kill)
+      .mockResolvedValueOnce({ killed: false, pid: 100, port: 5173, portClosed: false, message: "Port 5173 is still listening" })
+      .mockResolvedValueOnce({ killed: true, pid: 150, port: 17321, portClosed: true, message: "Killed 150" });
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects", "C:\\Workspaces"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          },
+          {
+            id: "api",
+            name: "Local API",
+            projectPath: "C:\\Workspaces\\LocalApi",
+            startCommand: "pnpm api",
+            expectedPort: 17321,
+            mainUrl: "http://127.0.0.1:17321"
+          }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    fireEvent.click(within(workspaces).getByRole("button", { name: /restart workspace daily stack/i }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: /restart workspace daily stack/i })).getByRole("button", { name: /restart 2/i }));
+
+    await waitFor(() => expect(client.kill).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(client.openTerminal).toHaveBeenCalledTimes(1));
+    expect(client.openTerminal).toHaveBeenCalledWith({
+      projectHint: "C:\\Workspaces\\LocalApi",
+      commandLine: "pnpm api",
+      executeCommand: true
+    });
+    expect(client.openTerminal).not.toHaveBeenCalledWith({
+      projectHint: "D:\\Projects\\ExampleShop",
+      commandLine: "pnpm dev",
+      executeCommand: true
+    });
+    expect(await screen.findByText("Restarted workspace Daily stack: 1 of 2 profiles; 1 failed")).toBeInTheDocument();
+  });
+
+  it("does not wait for workspace restart health when opening the new terminal fails", async () => {
+    const fetchHealth = vi.fn(async () => ({ ok: true, status: 204, statusText: "No Content" }));
+    vi.stubGlobal("fetch", fetchHealth);
+    vi.mocked(client.openTerminal).mockResolvedValueOnce({ opened: false, message: "No supported terminal was found." });
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            healthUrl: "http://127.0.0.1:5173/health"
+          }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    fireEvent.click(within(workspaces).getByRole("button", { name: /restart workspace daily stack/i }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: /restart workspace daily stack/i })).getByRole("button", { name: /restart 1/i }));
+
+    await waitFor(() => expect(client.openTerminal).toHaveBeenCalledTimes(1));
+    expect(fetchHealth).not.toHaveBeenCalled();
+    expect(await screen.findByText("Restarted workspace Daily stack: 0 of 1 profiles; 1 failed")).toBeInTheDocument();
   });
 
   it("keeps stopping remaining workspace profiles when one stop fails", async () => {
@@ -978,7 +1333,7 @@ describe("App", () => {
     render(<App client={client} />);
 
     const workspaces = await screen.findByLabelText("Project workspaces");
-    fireEvent.click(within(workspaces).getByRole("button", { name: /start workspace daily stack/i }));
+    fireEvent.click(within(workspaces).getByRole("button", { name: /^Start workspace Daily stack$/i }));
 
     await waitFor(() => expect(requestPermission).toHaveBeenCalledWith({ origins: ["http://127.0.0.1/*"] }));
     expect(client.openTerminal).not.toHaveBeenCalled();
@@ -1000,7 +1355,7 @@ describe("App", () => {
     render(<App client={client} />);
 
     const workspaces = await screen.findByLabelText("Project workspaces");
-    fireEvent.click(within(workspaces).getByRole("button", { name: /start workspace daily stack/i }));
+    fireEvent.click(within(workspaces).getByRole("button", { name: /^Start workspace Daily stack$/i }));
 
     expect(client.openTerminal).not.toHaveBeenCalled();
     expect(await screen.findByText("No stopped profiles with safe start commands configured for Daily stack")).toBeInTheDocument();
