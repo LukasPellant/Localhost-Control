@@ -40,3 +40,8 @@ export const unblockProcessName = (settings: Settings, processName: string): Set
   ...settings,
   blockedProcessNames: settings.blockedProcessNames.filter((item) => item.toLowerCase() !== processName.toLowerCase())
 });
+
+export const clearActionAudit = (settings: Settings): Settings => ({
+  ...settings,
+  actionAudit: []
+});

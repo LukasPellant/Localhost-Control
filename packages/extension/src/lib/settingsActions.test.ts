@@ -5,6 +5,7 @@ import {
   removeProjectWorkspace,
   removeTrustedProjectRoot,
   removeTrustedProjectPath,
+  clearActionAudit,
   unblockProcessName,
   unhidePort
 } from "./settingsActions";
@@ -23,7 +24,8 @@ const settings: Settings = {
   projectWorkspaces: [
     { id: "daily", name: "Daily stack", profileIds: ["shop", "api"] },
     { id: "docs-only", name: "Docs only", profileIds: ["docs"] }
-  ]
+  ],
+  actionAudit: [{ id: "start-shop", action: "start-profile", target: "Example Shop", createdAt: "2026-06-30T08:00:00.000Z" }]
 };
 
 describe("settings actions", () => {
@@ -56,6 +58,7 @@ describe("settings actions", () => {
     expect(removeTrustedProjectRoot(settings, "d:/developmentd").trustedProjectRoots).toEqual([]);
     expect(unhidePort(settings, 5173).hiddenPorts).toEqual([17321]);
     expect(unblockProcessName(settings, "PREVIEW-SERVICE.EXE").blockedProcessNames).toEqual(["steam.exe"]);
+    expect(clearActionAudit(settings).actionAudit).toEqual([]);
   });
 
   it("removes trusted roots and paths independently when they share a value", () => {

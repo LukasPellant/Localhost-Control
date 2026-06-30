@@ -255,6 +255,11 @@ describe("App", () => {
     );
     expect(openSpy).not.toHaveBeenCalledWith("http://127.0.0.1:4321", "_blank", "noopener,noreferrer");
     expect(await screen.findByText("Started profile Docs")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /manage settings/i }));
+    const manager = await screen.findByLabelText("Settings manager");
+    expect(manager).toHaveTextContent("Recent Actions");
+    expect(manager).toHaveTextContent("Docs");
+    expect(manager).toHaveTextContent("Started profile");
   });
 
   it("waits for started profile health and reports when it becomes ready", async () => {

@@ -1,4 +1,5 @@
 import type { Settings } from "../lib/settings";
+import type { ActionAuditEntry, ActionAuditKind } from "../lib/actionAudit";
 
 type SettingsManagerProps = {
   settings: Settings;
@@ -9,6 +10,19 @@ type SettingsManagerProps = {
   onRemoveTrustedPath(path: string): void;
   onUnhidePort(port: number): void;
   onUnblockProcess(processName: string): void;
+  onClearAudit(): void;
+};
+
+const auditActionLabels: Record<ActionAuditKind, string> = {
+  "start-profile": "Started profile",
+  "start-workspace": "Started workspace",
+  "stop-process": "Stopped process",
+  "browser-cleanup": "Cleaned browser data"
+};
+
+const formatAuditEntry = (entry: ActionAuditEntry): string => {
+  const detail = entry.detail ? ` - ${entry.detail}` : "";
+  return `${auditActionLabels[entry.action]}${detail}`;
 };
 
 export const SettingsManager = ({
@@ -19,7 +33,8 @@ export const SettingsManager = ({
   onRemoveTrustedRoot,
   onRemoveTrustedPath,
   onUnhidePort,
-  onUnblockProcess
+  onUnblockProcess,
+  onClearAudit
 }: SettingsManagerProps) => {
   const trustedPaths = [
     ...settings.trustedProjectRoots.map((path) => ({ key: `root-${path}`, kind: "root" as const, path })),
@@ -31,7 +46,8 @@ export const SettingsManager = ({
     settings.trustedProjectRoots.length +
     settings.trustedProjectPaths.length +
     settings.hiddenPorts.length +
-    settings.blockedProcessNames.length;
+    settings.blockedProcessNames.length +
+    settings.actionAudit.length;
 
   return (
     <section id="settings-manager" className="settings-manager" aria-label="Settings manager" tabIndex={-1}>
@@ -151,6 +167,35 @@ export const SettingsManager = ({
             ))
           ) : (
             <span className="settings-manager-empty">No blocked processes</span>
+          )}
+        </div>
+        <div className="settings-manager-group">
+          <span className="settings-manager-label">Recent Actions</span>
+          {settings.actionAudit.length ? (
+            <>
+              <div className="settings-manager-row">
+                <span>
+                  <strong>{settings.actionAudit.length} recorded actions</strong>
+                </span>
+                <button type="button" disabled={saving} onClick={onClearAudit} aria-label="Clear action audit">
+                  Clear
+                </button>
+              </div>
+              {settings.actionAudit
+                .slice()
+                .reverse()
+                .slice(0, 6)
+                .map((entry) => (
+                  <div className="settings-manager-row" key={entry.id}>
+                    <span>
+                      <strong>{entry.target}</strong>
+                      <small>{formatAuditEntry(entry)}</small>
+                    </span>
+                  </div>
+                ))}
+            </>
+          ) : (
+            <span className="settings-manager-empty">No recent actions</span>
           )}
         </div>
       </div>

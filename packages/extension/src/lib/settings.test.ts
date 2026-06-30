@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { defaultSettings, loadSettings, saveSettings } from "./settings";
+import { defaultSettings, loadSettings, saveActionAudit, saveSettings } from "./settings";
 
 afterEach(() => {
   window.localStorage.clear();
@@ -79,6 +79,19 @@ describe("loadSettings", () => {
     });
   });
 
+  it("loads local action audit history from its own storage key", async () => {
+    window.localStorage.setItem("localhost-control-settings", JSON.stringify({ themeMode: "dark" }));
+    window.localStorage.setItem(
+      "localhost-control-action-audit",
+      JSON.stringify([{ id: "start-shop", action: "start-profile", target: "Example Shop", createdAt: "2026-06-30T08:00:00.000Z" }])
+    );
+
+    await expect(loadSettings()).resolves.toMatchObject({
+      themeMode: "dark",
+      actionAudit: [{ id: "start-shop", action: "start-profile", target: "Example Shop", createdAt: "2026-06-30T08:00:00.000Z" }]
+    });
+  });
+
   it("falls back to defaults when extension storage cannot be read", async () => {
     (globalThis as { browser?: unknown }).browser = {
       storage: {
@@ -115,5 +128,22 @@ describe("loadSettings", () => {
       projectProfiles: [{ id: "shop", name: "Example Shop", mainUrl: "http://127.0.0.1:5173" }],
       projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop"] }]
     });
+  });
+
+  it("writes action audit without rewriting the portable settings payload", async () => {
+    await saveSettings({
+      ...defaultSettings,
+      themeMode: "dark",
+      actionAudit: [{ id: "start-shop", action: "start-profile", target: "Example Shop", createdAt: "2026-06-30T08:00:00.000Z" }]
+    });
+    await saveActionAudit([{ id: "start-shop", action: "start-profile", target: "Example Shop", createdAt: "2026-06-30T08:00:00.000Z" }]);
+
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toMatchObject({
+      themeMode: "dark",
+      actionAudit: []
+    });
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-action-audit") ?? "[]")).toEqual([
+      { id: "start-shop", action: "start-profile", target: "Example Shop", createdAt: "2026-06-30T08:00:00.000Z" }
+    ]);
   });
 });

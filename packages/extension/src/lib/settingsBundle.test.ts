@@ -35,6 +35,28 @@ describe("settings bundle import/export", () => {
     });
   });
 
+  it("omits local action audit history from portable settings exports", () => {
+    const bundle = JSON.parse(
+      exportSettingsBundle(
+        {
+          ...savedSettings,
+          actionAudit: [
+            {
+              id: "start-shop",
+              action: "start-profile",
+              target: "Example Shop",
+              detail: "Waiting for health check",
+              createdAt: "2026-06-30T08:00:00.000Z"
+            }
+          ]
+        },
+        "2026-06-30T08:00:00.000Z"
+      )
+    ) as { settings: Settings };
+
+    expect(bundle.settings.actionAudit).toEqual([]);
+  });
+
   it("imports and sanitizes a versioned settings bundle", () => {
     const result = importSettingsBundle(
       JSON.stringify({
@@ -68,6 +90,28 @@ describe("settings bundle import/export", () => {
         projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop"], notes: "Release loop" }]
       },
       summary: "Imported 1 profile and 1 workspace"
+    });
+  });
+
+  it("strips imported action audit history from wrapped and legacy settings", () => {
+    const auditEntry = { id: "start-shop", action: "start-profile", target: "Example Shop", createdAt: "2026-06-30T08:00:00.000Z" };
+
+    expect(
+      importSettingsBundle(
+        JSON.stringify({
+          schema: "localhost-control-settings",
+          version: 1,
+          settings: { themeMode: "dark", actionAudit: [auditEntry] }
+        })
+      )
+    ).toEqual({
+      ok: true,
+      settings: { ...defaultSettings, themeMode: "dark", actionAudit: [] },
+      summary: "Imported 0 profiles and 0 workspaces"
+    });
+    expect(importSettingsBundle(JSON.stringify({ actionAudit: [auditEntry] }))).toEqual({
+      ok: false,
+      error: "Config import failed: unsupported settings bundle"
     });
   });
 

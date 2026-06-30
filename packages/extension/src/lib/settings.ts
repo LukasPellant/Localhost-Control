@@ -1,4 +1,5 @@
 import { getExtensionApi } from "./extensionApi";
+import { sanitizeActionAudit, type ActionAuditEntry } from "./actionAudit";
 import { sanitizeProjectProfiles, type ProjectProfile } from "./projectProfiles";
 import { sanitizeProjectWorkspaces, type ProjectWorkspace } from "./projectWorkspaces";
 
@@ -16,9 +17,11 @@ export type Settings = {
   blockedProcessNames: string[];
   projectProfiles: ProjectProfile[];
   projectWorkspaces: ProjectWorkspace[];
+  actionAudit: ActionAuditEntry[];
 };
 
 const key = "localhost-control-settings";
+const actionAuditKey = "localhost-control-action-audit";
 
 const isSettingsPatch = (value: unknown): value is Partial<Settings> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -45,7 +48,8 @@ export const sanitizeSettings = (value: unknown): Settings => {
     trustedProjectPaths: isStringArray(value.trustedProjectPaths) ? value.trustedProjectPaths : defaultSettings.trustedProjectPaths,
     blockedProcessNames: isStringArray(value.blockedProcessNames) ? value.blockedProcessNames : defaultSettings.blockedProcessNames,
     projectProfiles,
-    projectWorkspaces: sanitizeProjectWorkspaces(value.projectWorkspaces, projectProfiles)
+    projectWorkspaces: sanitizeProjectWorkspaces(value.projectWorkspaces, projectProfiles),
+    actionAudit: sanitizeActionAudit(value.actionAudit)
   };
 };
 
@@ -61,6 +65,16 @@ const parseStoredSettings = (raw: string | null): Settings => {
   }
 };
 
+const parseStoredActionAudit = (raw: string | null): ActionAuditEntry[] => {
+  if (!raw) return [];
+
+  try {
+    return sanitizeActionAudit(JSON.parse(raw) as unknown);
+  } catch {
+    return [];
+  }
+};
+
 export const defaultSettings: Settings = {
   includeSystemPorts: false,
   httpProbe: true,
@@ -72,25 +86,32 @@ export const defaultSettings: Settings = {
   trustedProjectPaths: [],
   blockedProcessNames: ["steam.exe", "discord.exe", "battle.net.exe", "agent.exe", "nordvpn-service.exe", "ntkdaemon.exe", "qbittorrent.exe"],
   projectProfiles: [],
-  projectWorkspaces: []
+  projectWorkspaces: [],
+  actionAudit: []
 };
 
 export const loadSettings = async (): Promise<Settings> => {
   const storage = getExtensionApi()?.storage?.local;
   if (storage) {
     try {
-      const result = await storage.get(key);
-      return sanitizeSettings(result[key]);
+      const [settingsResult, actionAuditResult] = await Promise.all([storage.get(key), storage.get(actionAuditKey)]);
+      return {
+        ...sanitizeSettings(settingsResult[key]),
+        actionAudit: sanitizeActionAudit(actionAuditResult[actionAuditKey])
+      };
     } catch {
       return defaultSettings;
     }
   }
 
-  return parseStoredSettings(window.localStorage.getItem(key));
+  return {
+    ...parseStoredSettings(window.localStorage.getItem(key)),
+    actionAudit: parseStoredActionAudit(window.localStorage.getItem(actionAuditKey))
+  };
 };
 
 export const saveSettings = async (settings: Settings): Promise<void> => {
-  const safeSettings = sanitizeSettings(settings);
+  const safeSettings = { ...sanitizeSettings(settings), actionAudit: [] };
   const storage = getExtensionApi()?.storage?.local;
   if (storage) {
     await storage.set({ [key]: safeSettings });
@@ -98,4 +119,15 @@ export const saveSettings = async (settings: Settings): Promise<void> => {
   }
 
   window.localStorage.setItem(key, JSON.stringify(safeSettings));
+};
+
+export const saveActionAudit = async (actionAudit: ActionAuditEntry[]): Promise<void> => {
+  const safeActionAudit = sanitizeActionAudit(actionAudit);
+  const storage = getExtensionApi()?.storage?.local;
+  if (storage) {
+    await storage.set({ [actionAuditKey]: safeActionAudit });
+    return;
+  }
+
+  window.localStorage.setItem(actionAuditKey, JSON.stringify(safeActionAudit));
 };

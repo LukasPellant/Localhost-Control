@@ -7,6 +7,7 @@ import { PortList } from "./components/PortList";
 import { SafeActionDialog } from "./components/SafeActionDialog";
 import { SettingsManager } from "./components/SettingsManager";
 import { clearBrowserDataForUrl, type BrowserCleanupMode } from "./lib/browserCleanup";
+import { appendActionAuditEntry, createActionAuditEntry, type ActionAuditInput } from "./lib/actionAudit";
 import { formatDevContext } from "./lib/devContext";
 import { getExtensionApi } from "./lib/extensionApi";
 import { type HostClient } from "./lib/hostClient";
@@ -15,12 +16,13 @@ import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
 import { checkProfileHealth, type ProfileHealthResult } from "./lib/profileHealth";
 import { deriveProfileStates, matchProfileForEntry, type ProfileState, type ProjectProfile } from "./lib/projectProfiles";
 import { deriveWorkspaceStates, type ProjectWorkspace } from "./lib/projectWorkspaces";
-import { defaultSettings, loadSettings, saveSettings, type Settings } from "./lib/settings";
+import { defaultSettings, loadSettings, saveActionAudit, saveSettings, type Settings } from "./lib/settings";
 import {
   removeProjectProfile,
   removeProjectWorkspace,
   removeTrustedProjectRoot,
   removeTrustedProjectPath,
+  clearActionAudit,
   unblockProcessName,
   unhidePort
 } from "./lib/settingsActions";
@@ -142,6 +144,8 @@ export const App = ({ client }: AppProps) => {
   const [settingsManagerOpen, setSettingsManagerOpen] = useState(false);
   const [settingsActionSaving, setSettingsActionSaving] = useState(false);
   const settingsActionSavingRef = useRef(false);
+  const settingsRef = useRef(settings);
+  const auditSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const profileHealthRequestSeqRef = useRef<Record<string, number>>({});
   const openedDownloadForError = useRef(false);
   const importFileRef = useRef<HTMLInputElement | null>(null);
@@ -168,6 +172,10 @@ export const App = ({ client }: AppProps) => {
   useEffect(() => {
     void loadSettings().then(setSettings);
   }, []);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   useEffect(() => {
     const applyTheme = () => {
@@ -298,11 +306,13 @@ export const App = ({ client }: AppProps) => {
   const patchSettings = async (patch: Partial<Settings>): Promise<boolean> => {
     const previous = settings;
     const next = { ...settings, ...patch };
+    settingsRef.current = next;
     setSettings(next);
     try {
       await saveSettings(next);
       return true;
     } catch (error) {
+      settingsRef.current = previous;
       setSettings(previous);
       setMessage(error instanceof Error ? error.message : String(error));
       return false;
@@ -311,11 +321,14 @@ export const App = ({ client }: AppProps) => {
 
   const replaceSettings = async (next: Settings): Promise<boolean> => {
     const previous = settings;
-    setSettings(next);
+    const nextWithAudit = { ...next, actionAudit: previous.actionAudit };
+    settingsRef.current = nextWithAudit;
+    setSettings(nextWithAudit);
     try {
-      await saveSettings(next);
+      await saveSettings(nextWithAudit);
       return true;
     } catch (error) {
+      settingsRef.current = previous;
       setSettings(previous);
       setMessage(error instanceof Error ? error.message : String(error));
       return false;
@@ -333,6 +346,32 @@ export const App = ({ client }: AppProps) => {
     } finally {
       settingsActionSavingRef.current = false;
       setSettingsActionSaving(false);
+    }
+  };
+
+  const recordAction = (input: ActionAuditInput) => {
+    const next = appendActionAuditEntry(settingsRef.current, createActionAuditEntry(input));
+    settingsRef.current = next;
+    setSettings(next);
+    auditSaveQueueRef.current = auditSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveActionAudit(settingsRef.current.actionAudit));
+    void auditSaveQueueRef.current.catch(() => undefined);
+  };
+
+  const clearAuditHistory = async () => {
+    const previous = settingsRef.current;
+    const next = clearActionAudit(previous);
+    settingsRef.current = next;
+    setSettings(next);
+    try {
+      await saveActionAudit([]);
+      setMessage("Cleared action audit");
+      window.setTimeout(() => document.getElementById("settings-manager")?.focus(), 0);
+    } catch (error) {
+      settingsRef.current = previous;
+      setSettings(previous);
+      setMessage(error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -362,6 +401,11 @@ export const App = ({ client }: AppProps) => {
     try {
       const result = await client.kill(params);
       await scan();
+      await recordAction({
+        action: "stop-process",
+        target: `${entry.processName} on port ${entry.port}`,
+        detail: `PID ${entry.pid}`
+      });
       setMessage(result.message);
     } catch (error) {
       setScanResult(previousResult);
@@ -486,9 +530,11 @@ export const App = ({ client }: AppProps) => {
         return;
       }
       if (profile.healthUrl) {
+        void recordAction({ action: "start-profile", target: profile.name, detail: "Waiting for health check" });
         void waitForProfileReady(profile);
         return;
       }
+      void recordAction({ action: "start-profile", target: profile.name });
       setMessage(`Started profile ${profile.name}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
@@ -499,6 +545,11 @@ export const App = ({ client }: AppProps) => {
     const url = entry.url ?? `http://127.0.0.1:${entry.port}`;
     try {
       const result = await clearBrowserDataForUrl(url, mode);
+      void recordAction({
+        action: "browser-cleanup",
+        target: new URL(url).origin,
+        detail: mode === "cache" ? "Cache and service workers" : "Origin storage"
+      });
       setMessage(result.message);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
@@ -611,6 +662,11 @@ export const App = ({ client }: AppProps) => {
           return;
         }
       }
+      void recordAction({
+        action: "start-workspace",
+        target: state.workspace.name,
+        detail: `${startableProfiles.length} ${startableProfiles.length === 1 ? "profile" : "profiles"}`
+      });
       const healthProfiles = startableProfiles.filter((profile) => profile.healthUrl);
       healthProfiles.forEach((profile) => void waitForProfileReady(profile));
       setMessage(
@@ -814,6 +870,7 @@ export const App = ({ client }: AppProps) => {
           onRemoveTrustedPath={(path) => void applySettingsAction(removeTrustedProjectPath(settings, path), `Removed trusted path ${path}`)}
           onUnhidePort={(port) => void applySettingsAction(unhidePort(settings, port), `Unhid port ${port}`)}
           onUnblockProcess={(processName) => void applySettingsAction(unblockProcessName(settings, processName), `Unblocked process ${processName}`)}
+          onClearAudit={() => void clearAuditHistory()}
         />
       ) : null}
 

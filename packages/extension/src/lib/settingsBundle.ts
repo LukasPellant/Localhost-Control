@@ -51,7 +51,7 @@ export const exportSettingsBundle = (settings: Settings, exportedAt = new Date()
     schema: SETTINGS_BUNDLE_SCHEMA,
     version: SETTINGS_BUNDLE_VERSION,
     exportedAt,
-    settings: sanitizeSettings(settings)
+    settings: sanitizeSettings({ ...settings, actionAudit: [] })
   };
 
   return JSON.stringify(bundle, null, 2);
@@ -74,7 +74,7 @@ export const importSettingsBundle = (raw: string): SettingsImportResult => {
     if (parsed.schema !== SETTINGS_BUNDLE_SCHEMA || parsed.version !== SETTINGS_BUNDLE_VERSION || !("settings" in parsed)) {
       return { ok: false, error: "Config import failed: unsupported settings bundle" };
     }
-    const settings = sanitizeSettings(parsed.settings);
+    const settings = sanitizeSettings({ ...(isRecord(parsed.settings) ? parsed.settings : {}), actionAudit: [] });
     return { ok: true, settings, summary: importSummary(settings) };
   }
 
@@ -82,6 +82,6 @@ export const importSettingsBundle = (raw: string): SettingsImportResult => {
     return { ok: false, error: "Config import failed: unsupported settings bundle" };
   }
 
-  const settings = sanitizeSettings(parsed);
+  const settings = sanitizeSettings({ ...parsed, actionAudit: [] });
   return { ok: true, settings, summary: importSummary(settings) };
 };
