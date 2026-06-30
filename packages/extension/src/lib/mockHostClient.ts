@@ -127,7 +127,7 @@ export const createMockHostClient = (): HostClient => {
       return { opened: true, message: `Opened project folder ${params.projectPath}` };
     },
     async version() {
-      return { version: "0.1.5", platform: "win32" };
+      return { version: "0.1.6", platform: "win32" };
     }
   };
 };

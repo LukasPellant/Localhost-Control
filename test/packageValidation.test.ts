@@ -189,7 +189,7 @@ describe("validate-native-host-package", () => {
       mkdirSync(directory, { recursive: true });
     }
 
-    writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.5", "Architecture: amd64", ""].join("\n"));
+    writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.6", "Architecture: amd64", ""].join("\n"));
     writeFileSync(path.join(controlDir, "postinst"), "#!/usr/bin/env sh\nchmod 755 /usr/lib/localhost-control/localhost-control-host\n");
     writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
     writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("chrome"));
@@ -287,7 +287,7 @@ describe("validate-native-host-package", () => {
       mkdirSync(directory, { recursive: true });
     }
 
-    writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.5", "Architecture: amd64", ""].join("\n"));
+    writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.6", "Architecture: amd64", ""].join("\n"));
     writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
     writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
     writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
@@ -334,7 +334,7 @@ describe("validate-native-host-package", () => {
       mkdirSync(directory, { recursive: true });
     }
 
-    writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.5", "Architecture: amd64", ""].join("\n"));
+    writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.6", "Architecture: amd64", ""].join("\n"));
     writeFileSync(path.join(controlDir, "postinst"), "#!/usr/bin/env sh\nchmod 755 /usr/lib/localhost-control/localhost-control-host\n");
     writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
     writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
@@ -386,7 +386,7 @@ describe("validate-native-host-package", () => {
       mkdirSync(directory, { recursive: true });
     }
 
-    writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.5", "Architecture: amd64", ""].join("\n"));
+    writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.6", "Architecture: amd64", ""].join("\n"));
     writeFileSync(path.join(controlDir, "postinst"), "#!/usr/bin/env sh\nchmod 755 /usr/lib/localhost-control/localhost-control-host\n");
     writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
     writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("chrome", ids));
