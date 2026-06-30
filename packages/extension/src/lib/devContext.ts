@@ -151,6 +151,35 @@ export const formatScanContext = ({ entries, totalCount, filterLabel, query, sca
   return truncate(lines.filter((line): line is string => line !== undefined).join("\n"), MAX_OUTPUT_LENGTH);
 };
 
+export const formatProfileContext = ({ profile, status, healthLabel, entry }: ProfileState): string => {
+  const lines = [
+    "# Localhost Control profile context",
+    "",
+    optionalLine("Profile", profile.name),
+    optionalLine("Status", status),
+    optionalLine("Health", healthLabel),
+    optionalLine("Expected port", profile.expectedPort),
+    optionalSanitizedLine("Main URL", sanitizeLocalUrl(profile.mainUrl)),
+    optionalSanitizedLine("Health URL", sanitizeLocalUrl(profile.healthUrl)),
+    optionalLine("Project path", profile.projectPath),
+    optionalLine("Start command", profile.startCommand),
+    optionalLine("Notes", profile.notes),
+    entry ? "" : undefined,
+    entry ? "## Running process" : undefined,
+    entry ? optionalLine("Port", entry.port) : undefined,
+    entry ? optionalLine("PID", entry.pid) : undefined,
+    entry ? optionalLine("Process", entry.processName) : undefined,
+    entry ? optionalLine("Kind", kindLabel(entry.detectedKind)) : undefined,
+    entry ? optionalLine("HTTP status", entry.statusCode) : undefined,
+    entry ? optionalSanitizedLine("URL", sanitizeLocalUrl(entryUrl(entry))) : undefined,
+    entry ? optionalLine("Command", entry.commandLine) : undefined,
+    entry ? optionalLine("Resources", formatResources(entry)) : undefined,
+    ...formatRecentLogs(profile)
+  ];
+
+  return truncate(lines.filter((line): line is string => line !== undefined).join("\n"), MAX_OUTPUT_LENGTH);
+};
+
 export const formatWorkspaceContext = (state: WorkspaceState): string => {
   const openUrls = state.openUrls
     .map((url) => sanitizeLocalUrl(url))

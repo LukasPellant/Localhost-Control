@@ -153,6 +153,48 @@ describe("App", () => {
     expect(await screen.findByText("Copied scan context for 2 visible ports")).toBeInTheDocument();
   });
 
+  it("copies a saved profile context from the profile chip", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "docs",
+            name: "Docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321?token=hunter2",
+            healthUrl: "http://127.0.0.1:4321/health?access_token=hunter2",
+            projectPath: "D:\\Projects\\Docs",
+            startCommand: "pnpm docs --token hunter2",
+            notes: "Docs preview"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /copy profile context docs/i }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    const copied = writeText.mock.calls[0]?.[0] as string;
+    expect(copied).toContain("# Localhost Control profile context");
+    expect(copied).toContain("- Profile: Docs");
+    expect(copied).toContain("- Status: stopped");
+    expect(copied).toContain("- Health: No running port");
+    expect(copied).toContain("- Expected port: 4321");
+    expect(copied).toContain("- Main URL: http://127.0.0.1:4321/?token=[redacted]");
+    expect(copied).toContain("- Health URL: http://127.0.0.1:4321/health?access_token=[redacted]");
+    expect(copied).toContain("- Project path: D:\\Projects\\Docs");
+    expect(copied).toContain("- Start command: pnpm docs --token [redacted]");
+    expect(copied).toContain("- Notes: Docs preview");
+    expect(copied).not.toContain("hunter2");
+    expect(await screen.findByText("Copied profile context for Docs")).toBeInTheDocument();
+  });
+
   it("renders scan results, selects a row, and calls kill for a killable dev server", async () => {
     render(<App client={client} />);
 
@@ -1735,7 +1777,7 @@ describe("App", () => {
     render(<App client={client} />);
 
     const profiles = await screen.findByLabelText("Project profiles");
-    fireEvent.click(within(profiles).getByRole("button", { name: /external docs/i }));
+    fireEvent.click(within(profiles).getByRole("button", { name: /open profile external docs/i }));
     expect(openSpy).not.toHaveBeenCalledWith("https://example.com", "_blank", "noopener,noreferrer");
 
     fireEvent.click(within(await screen.findByLabelText("Project workspaces")).getByRole("button", { name: /open workspace daily stack/i }));

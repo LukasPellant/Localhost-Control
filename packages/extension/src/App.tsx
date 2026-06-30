@@ -16,7 +16,7 @@ import {
   type BrowserPreviewPreset
 } from "./lib/browserCleanup";
 import { appendActionAuditEntry, createActionAuditEntry, type ActionAuditInput } from "./lib/actionAudit";
-import { formatDevContext, formatScanContext, formatWorkspaceContext } from "./lib/devContext";
+import { formatDevContext, formatProfileContext, formatScanContext, formatWorkspaceContext } from "./lib/devContext";
 import { getExtensionApi } from "./lib/extensionApi";
 import { type HostClient } from "./lib/hostClient";
 import { analyzePortDoctor, formatPortDoctorAdvice, type PortDoctorReport } from "./lib/portDoctor";
@@ -690,6 +690,15 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const copyProfileContext = async (state: ProfileState) => {
+    try {
+      await copyText(formatProfileContext(state));
+      setMessage(`Copied profile context for ${state.profile.name}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const copyScanContext = async () => {
     try {
       await copyText(
@@ -1214,40 +1223,42 @@ export const App = ({ client }: AppProps) => {
                 <span className="profile-status">{state.status}</span>
                 <span className="profile-health">{state.healthLabel}</span>
               </button>
-              {(state.status === "stopped" && isTrustedStartableProjectProfile(settings, state.profile)) || state.entry?.killable ? (
-                <div className="profile-actions">
-                  {state.status === "stopped" && isTrustedStartableProjectProfile(settings, state.profile) ? (
-                    <button type="button" onClick={() => void startProfile(state.profile)} aria-label={`Start profile ${state.profile.name}`}>
-                      <Terminal size={13} />
-                      Start
-                    </button>
-                  ) : null}
-                  {state.entry?.killable ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (state.entry?.killable) requestKillEntry(state.entry);
-                      }}
-                      aria-label={`Stop profile ${state.profile.name}`}
-                    >
-                      <Square size={12} />
-                      Stop
-                    </button>
-                  ) : null}
-                  {state.entry?.killable && isTrustedStartableProjectProfile(settings, state.profile) ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (state.entry?.killable) requestRestartProfile(state.profile, state.entry);
-                      }}
-                      aria-label={`Restart profile ${state.profile.name}`}
-                    >
-                      <RefreshCw size={12} />
-                      Restart
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
+              <div className="profile-actions">
+                <button type="button" onClick={() => void copyProfileContext(state)} aria-label={`Copy profile context ${state.profile.name}`}>
+                  <Copy size={13} />
+                  Context
+                </button>
+                {state.status === "stopped" && isTrustedStartableProjectProfile(settings, state.profile) ? (
+                  <button type="button" onClick={() => void startProfile(state.profile)} aria-label={`Start profile ${state.profile.name}`}>
+                    <Terminal size={13} />
+                    Start
+                  </button>
+                ) : null}
+                {state.entry?.killable ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (state.entry?.killable) requestKillEntry(state.entry);
+                    }}
+                    aria-label={`Stop profile ${state.profile.name}`}
+                  >
+                    <Square size={12} />
+                    Stop
+                  </button>
+                ) : null}
+                {state.entry?.killable && isTrustedStartableProjectProfile(settings, state.profile) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (state.entry?.killable) requestRestartProfile(state.profile, state.entry);
+                    }}
+                    aria-label={`Restart profile ${state.profile.name}`}
+                  >
+                    <RefreshCw size={12} />
+                    Restart
+                  </button>
+                ) : null}
+              </div>
             </article>
           ))}
           {settings.projectProfiles.length >= 2 && !hasWorkspaceForCurrentProfiles ? (

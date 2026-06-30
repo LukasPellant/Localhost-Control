@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PortEntry } from "@localhost-control/shared";
-import { formatDevContext, formatScanContext, formatWorkspaceContext } from "./devContext";
+import { formatDevContext, formatProfileContext, formatScanContext, formatWorkspaceContext } from "./devContext";
 import type { PortDoctorReport } from "./portDoctor";
 import type { ProfileHealthResult } from "./profileHealth";
 import type { ProjectProfile } from "./projectProfiles";
@@ -97,6 +97,32 @@ describe("formatDevContext", () => {
 
   it("formats an empty visible scan without throwing", () => {
     expect(formatScanContext({ entries: [], totalCount: 0, filterLabel: "Dev apps" })).toContain("- No visible localhost ports");
+  });
+
+  it("formats a saved profile context even when the profile is stopped", () => {
+    const text = formatProfileContext({
+      profile: {
+        ...profile,
+        startCommand: "pnpm dev --token hunter2",
+        mainUrl: "http://127.0.0.1:5173?token=hunter2",
+        healthUrl: "http://127.0.0.1:5173/health?access_token=hunter2",
+        expectedPort: 5173,
+        notes: "Release smoke"
+      },
+      status: "stopped",
+      healthLabel: "No running port"
+    });
+
+    expect(text).toContain("# Localhost Control profile context");
+    expect(text).toContain("- Profile: Example Shop");
+    expect(text).toContain("- Status: stopped");
+    expect(text).toContain("- Health: No running port");
+    expect(text).toContain("- Expected port: 5173");
+    expect(text).toContain("- Main URL: http://127.0.0.1:5173/?token=[redacted]");
+    expect(text).toContain("- Health URL: http://127.0.0.1:5173/health?access_token=[redacted]");
+    expect(text).toContain("- Start command: pnpm dev --token [redacted]");
+    expect(text).toContain("- Notes: Release smoke");
+    expect(text).not.toContain("hunter2");
   });
 
   it("formats selected localhost app context for AI/coding agents", () => {
