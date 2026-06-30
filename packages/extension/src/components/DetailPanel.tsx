@@ -30,6 +30,7 @@ type DetailPanelProps = {
   onOpenProfileTerminal(profile: ProjectProfile): void;
   onCheckProfileHealth(profile: ProjectProfile): void;
   onCopyDoctorAdvice(entry: PortEntry, report: PortDoctorReport): void;
+  onCopyStaleAdvice(entry: PortEntry, signal: StaleProcessSignal): void;
   onSaveProfile(entry: PortEntry): void;
   onTrustProject(entry: PortEntry): void;
   onHideProcess(entry: PortEntry): void;
@@ -56,6 +57,7 @@ export const DetailPanel = ({
   onOpenProfileTerminal,
   onCheckProfileHealth,
   onCopyDoctorAdvice,
+  onCopyStaleAdvice,
   onSaveProfile,
   onTrustProject,
   onHideProcess
@@ -233,6 +235,13 @@ export const DetailPanel = ({
                   {staleSignal.label}
                   {" / "}
                   {staleSignal.reasons.join(" / ")}
+                  {staleSignal.advice.length ? (
+                    <span className="stale-advice">
+                      {staleSignal.advice.map((item) => (
+                        <span key={item}>{item}</span>
+                      ))}
+                    </span>
+                  ) : null}
                 </dd>
               </div>
             ) : null}
@@ -285,6 +294,26 @@ export const DetailPanel = ({
                 <Copy size={14} />
                 Copy doctor advice
               </button>
+            ) : null}
+            {staleSignal?.advice.length ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onKill(entry)}
+                  aria-label={`Review stop for ${staleSignal.label.toLowerCase()} on port ${entry.port}`}
+                >
+                  <Power size={14} />
+                  Review stop
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCopyStaleAdvice(entry, staleSignal)}
+                  aria-label={`Copy stale advice for port ${entry.port}`}
+                >
+                  <Copy size={14} />
+                  Copy stale advice
+                </button>
+              </>
             ) : null}
             {profile?.startCommand ? (
               <>

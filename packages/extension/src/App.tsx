@@ -31,7 +31,7 @@ import {
   upsertProjectProfile
 } from "./lib/settingsActions";
 import { exportSettingsBundle, importSettingsBundle } from "./lib/settingsBundle";
-import { detectStaleProcess } from "./lib/staleProcesses";
+import { detectStaleProcess, formatStaleProcessAdvice, type StaleProcessSignal } from "./lib/staleProcesses";
 import "./styles.css";
 
 const filters: FilterId[] = ["web", "custom", "all", "node", "python", "unknown", "protected"];
@@ -691,6 +691,15 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const copyStaleAdvice = async (entry: PortEntry, signal: StaleProcessSignal) => {
+    try {
+      await copyText(formatStaleProcessAdvice(entry, signal));
+      setMessage(`Copied stale advice for port ${entry.port}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const copyProfileLogs = async (profile: ProjectProfile) => {
     try {
       await copyText(formatProfileLogs(profile));
@@ -1225,6 +1234,7 @@ export const App = ({ client }: AppProps) => {
         onOpenProfileTerminal={(profile) => void openTerminalForProfile(profile)}
         onCheckProfileHealth={(profile) => void checkHealthForProfile(profile)}
         onCopyDoctorAdvice={(entry, report) => void copyDoctorAdvice(entry, report)}
+        onCopyStaleAdvice={(entry, signal) => void copyStaleAdvice(entry, signal)}
         onSaveProfile={(entry) => void saveProfileForEntry(entry)}
         onTrustProject={(entry) => void trustProject(entry)}
         onHideProcess={(entry) => void hideProcess(entry)}

@@ -2518,6 +2518,11 @@ describe("App", () => {
   });
 
   it("surfaces ghost process candidates in the list and detail panel", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
     const staleEntry: PortEntry = {
       port: 8990,
       address: "::",
@@ -2547,7 +2552,23 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Unknown" }));
     const row = await screen.findByRole("button", { name: /select port 8990/i });
     expect(row).toHaveTextContent("Possible ghost process");
-    expect(screen.getByLabelText("Dev health for port 8990")).toHaveTextContent("Long uptime");
-    expect(screen.getByLabelText("Dev health for port 8990")).toHaveTextContent("High memory");
+    const devHealth = screen.getByLabelText("Dev health for port 8990");
+    expect(devHealth).toHaveTextContent("Long uptime");
+    expect(devHealth).toHaveTextContent("High memory");
+    expect(devHealth).toHaveTextContent("If this listener is unexpected, review and stop it safely, then refresh the scan.");
+    expect(devHealth).toHaveTextContent("Save a profile or trust the project if this listener is expected.");
+
+    fireEvent.click(within(devHealth).getByRole("button", { name: /copy stale advice for port 8990/i }));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    expect(String(writeText.mock.calls[0]?.[0] ?? "")).toContain("Possible ghost process on port 8990");
+    expect(String(writeText.mock.calls[0]?.[0] ?? "")).toContain("review and stop it safely");
+    expect(await screen.findByText("Copied stale advice for port 8990")).toBeInTheDocument();
+
+    fireEvent.click(within(devHealth).getByRole("button", { name: /review stop for possible ghost process on port 8990/i }));
+    const dialog = screen.getByRole("dialog", { name: /stop preview-service\.exe on 8990/i });
+    expect(dialog).toHaveTextContent("preview-service --local --port 8990");
+    fireEvent.click(within(dialog).getByRole("button", { name: /^stop$/i }));
+
+    await waitFor(() => expect(staleClient.kill).toHaveBeenCalledWith({ pid: 900, port: 8990, mode: "terminate-tree" }));
   });
 });

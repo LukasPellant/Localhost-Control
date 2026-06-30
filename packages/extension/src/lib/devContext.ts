@@ -61,7 +61,7 @@ const formatDoctor = (report: PortDoctorReport | undefined): string | undefined 
 };
 
 const formatStaleSignal = (signal: StaleProcessSignal | undefined): string | undefined =>
-  signal ? joinParts([signal.label, ...signal.reasons]) : undefined;
+  signal ? joinParts([signal.label, ...signal.reasons, ...signal.advice.map((item) => `Advice: ${item}`)]) : undefined;
 
 const formatResources = (entry: PortEntry): string | undefined =>
   joinParts([formatCpu(entry.resources), formatMemory(entry.resources?.memoryBytes), formatUptime(entry.resources)]);

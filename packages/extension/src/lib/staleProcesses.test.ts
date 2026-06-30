@@ -25,7 +25,11 @@ describe("stale process detection", () => {
     expect(signal).toEqual({
       severity: "high",
       label: "Possible stale process",
-      reasons: ["Long uptime", "High memory", "No project profile", "Low confidence"]
+      reasons: ["Long uptime", "High memory", "No project profile", "Low confidence"],
+      advice: [
+        "If this listener is unexpected, review and stop it safely, then refresh the scan.",
+        "Hide this process name if it is a known local background service."
+      ]
     });
   });
 
@@ -61,7 +65,12 @@ describe("stale process detection", () => {
     expect(signal).toEqual({
       severity: "high",
       label: "Possible ghost process",
-      reasons: ["Long uptime", "High memory", "No project profile", "Low confidence"]
+      reasons: ["Long uptime", "High memory", "No project profile", "Low confidence"],
+      advice: [
+        "If this listener is unexpected, review and stop it safely, then refresh the scan.",
+        "Save a profile or trust the project if this listener is expected.",
+        "Hide this process name if it is a known local background service."
+      ]
     });
   });
 
@@ -78,7 +87,12 @@ describe("stale process detection", () => {
     expect(signal).toEqual({
       severity: "high",
       label: "Possible stale process",
-      reasons: ["High memory", "No project profile", "Low confidence"]
+      reasons: ["High memory", "No project profile", "Low confidence"],
+      advice: [
+        "If this listener is unexpected, review and stop it safely, then refresh the scan.",
+        "Save a profile or trust the project if this listener is expected.",
+        "Hide this process name if it is a known local background service."
+      ]
     });
   });
 });

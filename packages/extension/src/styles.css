@@ -736,14 +736,16 @@ button:disabled {
   white-space: nowrap;
 }
 
-.dev-health-grid .doctor-advice {
+.dev-health-grid .doctor-advice,
+.dev-health-grid .stale-advice {
   display: grid;
   gap: 3px;
   margin-top: 5px;
   white-space: normal;
 }
 
-.dev-health-grid .doctor-advice span {
+.dev-health-grid .doctor-advice span,
+.dev-health-grid .stale-advice span {
   overflow-wrap: anywhere;
 }
 

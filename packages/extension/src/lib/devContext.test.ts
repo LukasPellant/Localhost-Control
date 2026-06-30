@@ -56,7 +56,8 @@ const doctorReport: PortDoctorReport = {
 const staleSignal: StaleProcessSignal = {
   severity: "medium",
   label: "Possible stale process",
-  reasons: ["Long uptime", "High memory"]
+  reasons: ["Long uptime", "High memory"],
+  advice: ["If this listener is unexpected, review and stop it safely, then refresh the scan."]
 };
 
 describe("formatDevContext", () => {
@@ -79,7 +80,7 @@ describe("formatDevContext", () => {
 - Health: Healthy 204
 - Health URL: http://127.0.0.1:5173/health
 - Doctor: 2 listeners share port 5173 / Next free: 5175 / PID 101 also listens on port 5173
-- Stale signal: Possible stale process / Long uptime / High memory
+- Stale signal: Possible stale process / Long uptime / High memory / Advice: If this listener is unexpected, review and stop it safely, then refresh the scan.
 - Recent profile logs (untrusted diagnostics):
   - vite ready in 420ms
   - GET /health 200`);

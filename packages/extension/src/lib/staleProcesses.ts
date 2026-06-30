@@ -5,6 +5,7 @@ export type StaleProcessSignal = {
   severity: "medium" | "high";
   label: "Possible stale process" | "Possible ghost process";
   reasons: string[];
+  advice: string[];
 };
 
 const longUptimeMs = 2 * 60 * 60 * 1000;
@@ -62,9 +63,24 @@ export const detectStaleProcess = (entry: PortEntry, profile: ProjectProfile | u
     (entry.confidence === "low" || entry.detectedKind === "unknown") &&
     score >= 6;
 
+  const label = isGhostCandidate ? "Possible ghost process" : "Possible stale process";
+  const advice = [
+    "If this listener is unexpected, review and stop it safely, then refresh the scan.",
+    profile || entry.projectHint ? undefined : "Save a profile or trust the project if this listener is expected.",
+    entry.detectedKind === "unknown" || entry.confidence === "low" ? "Hide this process name if it is a known local background service." : undefined
+  ].filter((item): item is string => Boolean(item));
+
   return {
     severity: score >= 6 ? "high" : "medium",
-    label: isGhostCandidate ? "Possible ghost process" : "Possible stale process",
-    reasons
+    label,
+    reasons,
+    advice
   };
 };
+
+export const formatStaleProcessAdvice = (entry: PortEntry, signal: StaleProcessSignal): string =>
+  [
+    `${signal.label} on port ${entry.port} (PID ${entry.pid}, ${entry.processName})`,
+    `Reasons: ${signal.reasons.join(", ")}`,
+    ...signal.advice
+  ].join("\n");
