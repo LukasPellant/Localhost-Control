@@ -58,8 +58,8 @@ describe("validate-native-host-package", () => {
 
     mkdirSync(stageDir, { recursive: true });
     writeFileSync(path.join(stageDir, "localhost-control-host"), "#!/usr/bin/env sh\n");
-    writeFileSync(path.join(stageDir, "install.sh"), "#!/usr/bin/env sh\n");
-    writeFileSync(path.join(stageDir, "uninstall.sh"), "#!/usr/bin/env sh\n");
+    writeFileSync(path.join(stageDir, "install.sh"), readFileSync(path.join(repoRoot, "installer", platform === "darwin" ? "macos" : "linux", "install.sh")));
+    writeFileSync(path.join(stageDir, "uninstall.sh"), "#!/usr/bin/env bash\n");
 
     execFileSync("tar", ["-czf", artifact, "-C", stageDir, "."], { stdio: "pipe" });
     const output = execFileSync(
@@ -69,6 +69,34 @@ describe("validate-native-host-package", () => {
     );
 
     expect(output).toContain("Validated");
+  });
+
+  it.each([
+    { platform: "linux", fileName: "host-linux.tar.gz" },
+    { platform: "darwin", fileName: "host-macos.tar.gz" }
+  ])("rejects a $platform tarball when install.sh does not generate native messaging manifests", ({ platform, fileName }) => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-package-"));
+    const stageDir = path.join(tempRoot, "stage");
+    const artifact = path.join(tempRoot, fileName);
+    const badInstallScript =
+      platform === "darwin"
+        ? "#!/usr/bin/env bash\nset -euo pipefail\nmkdir -p \"$HOME/Library/Application Support/Localhost Control\"\ncp ./localhost-control-host \"$HOME/Library/Application Support/Localhost Control/localhost-control-host\"\n"
+        : "#!/usr/bin/env bash\nset -euo pipefail\nmkdir -p \"$HOME/.local/lib/localhost-control\"\ncp ./localhost-control-host \"$HOME/.local/lib/localhost-control/localhost-control-host\"\n";
+
+    mkdirSync(stageDir, { recursive: true });
+    writeFileSync(path.join(stageDir, "localhost-control-host"), "#!/usr/bin/env sh\n");
+    writeFileSync(path.join(stageDir, "install.sh"), badInstallScript);
+    writeFileSync(path.join(stageDir, "uninstall.sh"), "#!/usr/bin/env bash\n");
+
+    execFileSync("tar", ["-czf", artifact, "-C", stageDir, "."], { stdio: "pipe" });
+
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        [path.join(repoRoot, "scripts", "validate-native-host-package.mjs"), `--platform=${platform}`, "--format=tarball", `--artifact=${artifact}`],
+        { encoding: "utf8", stdio: "pipe" }
+      )
+    ).toThrow(/native messaging manifest/i);
   });
 
   it("accepts a Debian package with metadata, host files, and system manifests", () => {

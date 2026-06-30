@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
@@ -51,14 +52,22 @@ const defaultArtifactPath = () => {
 
 const artifact = path.resolve(args.get("artifact") ?? defaultArtifactPath());
 
-const run = (command, commandArgs, env = {}) => {
-  const result = spawnSync(command, commandArgs, { encoding: "utf8", env: { ...process.env, ...env } });
+const run = (command, commandArgs, env = {}, cwd = undefined) => {
+  const result = spawnSync(command, commandArgs, { cwd, encoding: "utf8", env: { ...process.env, ...env } });
   if (result.status !== 0) {
     const details = [result.stdout, result.stderr].filter(Boolean).join("\n");
     throw new Error(`${command} ${commandArgs.join(" ")} failed${details ? `\n${details}` : ""}`);
   }
   return result.stdout;
 };
+
+let cachedBashFlavor;
+const bashFlavor = () => {
+  cachedBashFlavor ??= run("bash", ["-c", "uname -s"]).trim().toLowerCase();
+  return cachedBashFlavor;
+};
+
+const shellQuote = (value) => `'${String(value).replace(/'/g, "'\\''")}'`;
 
 const extractArArchive = (buffer) => {
   if (buffer.subarray(0, 8).toString() !== "!<arch>\n") {
@@ -93,6 +102,29 @@ const extractTarGz = async (buffer, tempRoot, fileName, outputDir) => {
   await writeFile(archivePath, buffer);
   await mkdir(outputDir, { recursive: true });
   run("tar", ["-xzf", archivePath, "-C", outputDir]);
+};
+
+const removeTempRoot = async (tempRoot) => {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await rm(tempRoot, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (!["EBUSY", "ENOTEMPTY", "EPERM"].includes(error?.code)) throw error;
+      await delay(100 * (attempt + 1));
+    }
+  }
+};
+
+const toBashPath = (filePath) => {
+  if (process.platform !== "win32") return filePath;
+  const normalized = filePath.replace(/\\/g, "/");
+  const match = /^([A-Za-z]):\/(.*)$/.exec(normalized);
+  if (!match) return normalized;
+  const [, drive, rest] = match;
+  return bashFlavor().includes("mingw") || bashFlavor().includes("msys") || bashFlavor().includes("cygwin")
+    ? `/${drive.toLowerCase()}/${rest}`
+    : `/mnt/${drive.toLowerCase()}/${rest}`;
 };
 
 const normalizeEntry = (entry) => entry.trim().replace(/\\/g, "/").replace(/^\.\//, "");
@@ -163,7 +195,80 @@ const validateNativeManifestPath = async (fullPath, relativePath, browser, expec
   );
 };
 
-const validateTarball = () => {
+const validateTarballInstall = async (extractRoot, tempRoot) => {
+  const installScript = await findFileBySuffix(extractRoot, "install.sh");
+  if (!installScript) throw new Error("Missing package entry: install.sh");
+
+  const packageRoot = path.dirname(installScript);
+  const homeDir = path.join(tempRoot, "home");
+  await mkdir(homeDir, { recursive: true });
+  const bashHome = toBashPath(homeDir);
+
+  run(
+    "bash",
+    [
+      "-c",
+      [
+        `export HOME=${shellQuote(bashHome)}`,
+        `export EXTENSION_ID=${shellQuote(expectedExtensionId)}`,
+        `export FIREFOX_EXTENSION_ID=${shellQuote(expectedFirefoxExtensionId)}`,
+        "bash ./install.sh"
+      ].join("; ")
+    ],
+    {},
+    packageRoot
+  );
+
+  const hostTarget =
+    platform === "darwin"
+      ? path.join(homeDir, "Library/Application Support/Localhost Control/localhost-control-host")
+      : path.join(homeDir, ".local/lib/localhost-control/localhost-control-host");
+  const expectedHostPath =
+    platform === "darwin"
+      ? `${bashHome}/Library/Application Support/Localhost Control/localhost-control-host`
+      : `${bashHome}/.local/lib/localhost-control/localhost-control-host`;
+
+  await access(hostTarget).catch(() => {
+    throw new Error("Tarball installer did not install localhost-control-host.");
+  });
+
+  const manifests =
+    platform === "darwin"
+      ? [
+          {
+            relativePath: "Library/Application Support/Google/Chrome/NativeMessagingHosts/com.localhost_control.host.json",
+            browser: "chrome"
+          },
+          {
+            relativePath: "Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.localhost_control.host.json",
+            browser: "brave"
+          },
+          {
+            relativePath: "Library/Application Support/Mozilla/NativeMessagingHosts/com.localhost_control.host.json",
+            browser: "firefox"
+          }
+        ]
+      : [
+          {
+            relativePath: ".config/google-chrome/NativeMessagingHosts/com.localhost_control.host.json",
+            browser: "chrome"
+          },
+          {
+            relativePath: ".config/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.localhost_control.host.json",
+            browser: "brave"
+          },
+          {
+            relativePath: ".mozilla/native-messaging-hosts/com.localhost_control.host.json",
+            browser: "firefox"
+          }
+        ];
+
+  for (const manifest of manifests) {
+    await validateNativeManifestFile(homeDir, manifest.relativePath, manifest.browser, expectedHostPath);
+  }
+};
+
+const validateTarball = async () => {
   const entries = run("tar", ["-tzf", artifact]).split(/\r?\n/).filter(Boolean);
   requireEntry(entries, "localhost-control-host");
   if ((platform === "linux" || platform === "darwin") && entries.some((entry) => normalizeEntry(entry).includes("app/native-host"))) {
@@ -171,6 +276,15 @@ const validateTarball = () => {
   }
   requireEntry(entries, "install.sh");
   requireEntry(entries, "uninstall.sh");
+
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "localhost-control-tarball-"));
+  try {
+    const extractRoot = path.join(tempRoot, "package");
+    await extractTarGz(await readFile(artifact), tempRoot, "package.tar.gz", extractRoot);
+    await validateTarballInstall(extractRoot, tempRoot);
+  } finally {
+    await removeTempRoot(tempRoot);
+  }
 };
 
 const validateDeb = async () => {
@@ -279,7 +393,7 @@ const validateWindowsZip = async () => {
   }
 };
 
-if ((platform === "linux" || platform === "darwin") && format === "tarball") validateTarball();
+if ((platform === "linux" || platform === "darwin") && format === "tarball") await validateTarball();
 else if (platform === "linux" && format === "deb") await validateDeb();
 else if (platform === "darwin" && format === "pkg") await validatePkg();
 else if (platform === "win32" && format === "zip") await validateWindowsZip();
