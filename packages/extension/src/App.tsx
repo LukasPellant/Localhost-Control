@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, SlidersHorizontal, Upload } from "lucide-react";
+import { Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, SlidersHorizontal, Terminal, Upload } from "lucide-react";
 import { withAppScope, type KillParams, type PortEntry, type ScanResult } from "@localhost-control/shared";
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
@@ -34,6 +34,11 @@ const nativeHostReleasesUrl = "https://github.com/LukasPellant/Localhost-Control
 
 type AppProps = {
   client: HostClient;
+};
+
+type StartableProjectProfile = ProjectProfile & {
+  projectPath: string;
+  startCommand: string;
 };
 
 const isMissingNativeHostError = (message: string): boolean =>
@@ -92,6 +97,8 @@ const settingsExportSummary = (settings: Settings): string =>
   `Exported settings with ${settings.projectProfiles.length} ${settings.projectProfiles.length === 1 ? "profile" : "profiles"} and ${
     settings.projectWorkspaces.length
   } ${settings.projectWorkspaces.length === 1 ? "workspace" : "workspaces"}`;
+const isStartableProjectProfile = (profile: ProjectProfile): profile is StartableProjectProfile =>
+  Boolean(profile.projectPath && profile.startCommand);
 
 export const App = ({ client }: AppProps) => {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
@@ -494,6 +501,28 @@ export const App = ({ client }: AppProps) => {
     setMessage(`Saved workspace ${name}`);
   };
 
+  const startWorkspace = async (state: (typeof workspaceStates)[number]) => {
+    const startableProfiles = state.profileStates
+      .map(({ profile }) => profile)
+      .filter(isStartableProjectProfile);
+    if (!startableProfiles.length) {
+      setMessage(`No safe start commands configured for ${state.workspace.name}`);
+      return;
+    }
+
+    try {
+      for (const profile of startableProfiles) {
+        await client.openTerminal({
+          projectHint: profile.projectPath,
+          commandLine: profile.startCommand
+        });
+      }
+      setMessage(`Started workspace ${state.workspace.name}: ${startableProfiles.length} ${startableProfiles.length === 1 ? "command" : "commands"}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const trustProject = async (entry: PortEntry) => {
     if (!entry.projectHint || settings.trustedProjectPaths.includes(entry.projectHint)) return;
     if (!(await patchSettings({ trustedProjectPaths: [...settings.trustedProjectPaths, entry.projectHint] }))) return;
@@ -576,11 +605,17 @@ export const App = ({ client }: AppProps) => {
         <section className="workspace-strip" aria-label="Project workspaces">
           {workspaceStates.map((state) => (
             <article className={`workspace-chip ${state.status}`} key={state.workspace.id}>
-              <button type="button" onClick={() => state.openUrls.forEach(openExternalUrl)} aria-label={`Open workspace ${state.workspace.name}`}>
+              <button className="workspace-summary" type="button" onClick={() => state.openUrls.forEach(openExternalUrl)} aria-label={`Open workspace ${state.workspace.name}`}>
                 <span className="workspace-name">{state.workspace.name}</span>
                 <span className="workspace-health">{state.healthLabel}</span>
                 {state.workspace.notes ? <span className="workspace-notes">{state.workspace.notes}</span> : null}
               </button>
+              <div className="workspace-actions">
+                <button type="button" onClick={() => void startWorkspace(state)} aria-label={`Start workspace ${state.workspace.name}`}>
+                  <Terminal size={13} />
+                  Start
+                </button>
+              </div>
             </article>
           ))}
         </section>

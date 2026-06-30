@@ -499,6 +499,77 @@ describe("App", () => {
     expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:4321", "_blank", "noopener,noreferrer");
   });
 
+  it("starts workspace profiles that have a saved project path and start command", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          },
+          {
+            id: "api",
+            name: "Local API",
+            projectPath: "D:\\Projects\\LocalApi",
+            startCommand: "pnpm api",
+            expectedPort: 17321,
+            mainUrl: "http://127.0.0.1:17321"
+          },
+          {
+            id: "docs",
+            name: "Docs",
+            startCommand: "pnpm docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321"
+          }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api", "docs"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    fireEvent.click(within(workspaces).getByRole("button", { name: /start workspace daily stack/i }));
+
+    await waitFor(() => expect(client.openTerminal).toHaveBeenCalledTimes(2));
+    expect(client.openTerminal).toHaveBeenNthCalledWith(1, {
+      projectHint: "D:\\Projects\\ExampleShop",
+      commandLine: "pnpm dev"
+    });
+    expect(client.openTerminal).toHaveBeenNthCalledWith(2, {
+      projectHint: "D:\\Projects\\LocalApi",
+      commandLine: "pnpm api"
+    });
+    expect(await screen.findByText("Started workspace Daily stack: 2 commands")).toBeInTheDocument();
+  });
+
+  it("does not start a workspace without safe saved commands", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          { id: "shop", name: "Example Shop", projectPath: "D:\\Projects\\ExampleShop", expectedPort: 5173, mainUrl: "http://127.0.0.1:5173" },
+          { id: "api", name: "Local API", startCommand: "pnpm api", expectedPort: 17321, mainUrl: "http://127.0.0.1:17321" }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "api"] }]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    fireEvent.click(within(workspaces).getByRole("button", { name: /start workspace daily stack/i }));
+
+    expect(client.openTerminal).not.toHaveBeenCalled();
+    expect(await screen.findByText("No safe start commands configured for Daily stack")).toBeInTheDocument();
+  });
+
   it("does not open or render imported external profile URLs", async () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     window.localStorage.setItem(
