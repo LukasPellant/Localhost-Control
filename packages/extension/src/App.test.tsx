@@ -153,10 +153,44 @@ describe("App", () => {
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByText("node vite")).toBeInTheDocument();
     expect(within(dialog).getAllByText("D:\\Projects\\ExampleShop").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: /force stop/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^stop$/i }));
+
+    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "terminate-tree" }));
+    expect(await screen.findByText(/Killed 100/i)).toBeInTheDocument();
+  });
+
+  it("keeps force stop explicit in the stop confirmation", async () => {
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByLabelText("Detected localhost ports")).getByRole("button", { name: /kill port 5173/i }));
+    const dialog = screen.getByRole("dialog", { name: /stop example shop/i });
+    expect(within(dialog).getByRole("button", { name: /^stop$/i })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /force stop/i }));
 
     await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));
-    expect(await screen.findByText(/Killed 100/i)).toBeInTheDocument();
+  });
+
+  it("does not audit a safe stop until the target port closes", async () => {
+    vi.mocked(client.kill).mockResolvedValueOnce({
+      killed: false,
+      pid: 100,
+      port: 5173,
+      portClosed: false,
+      message: "Port 5173 is still listening"
+    });
+
+    render(<App client={client} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByLabelText("Detected localhost ports")).getByRole("button", { name: /kill port 5173/i }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: /stop example shop/i })).getByRole("button", { name: /^stop$/i }));
+
+    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "terminate-tree" }));
+    expect(await screen.findByText("Port 5173 is still listening")).toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-action-audit") ?? "[]")).toEqual([]);
   });
 
   it("keeps keyboard focus inside the destructive stop confirmation", async () => {
@@ -169,8 +203,10 @@ describe("App", () => {
 
     const dialog = screen.getByRole("dialog", { name: /stop example shop/i });
     const cancelButton = within(dialog).getByRole("button", { name: /cancel/i });
+    const stopButton = within(dialog).getByRole("button", { name: /^stop$/i });
     const forceStopButton = within(dialog).getByRole("button", { name: /force stop/i });
     expect(cancelButton).toHaveFocus();
+    expect(stopButton).toBeInTheDocument();
 
     fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
     expect(forceStopButton).toHaveFocus();
@@ -287,9 +323,9 @@ describe("App", () => {
 
     const dialog = screen.getByRole("dialog", { name: /stop example shop/i });
     expect(within(dialog).getByText("node vite")).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("button", { name: /force stop/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^stop$/i }));
 
-    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));
+    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "terminate-tree" }));
   });
 
   it("restarts a running project profile after confirmation", async () => {
@@ -317,9 +353,9 @@ describe("App", () => {
 
     const dialog = screen.getByRole("dialog", { name: /restart example shop/i });
     expect(within(dialog).getByText("node vite")).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("button", { name: /restart/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^restart$/i }));
 
-    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));
+    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "terminate-tree" }));
     await waitFor(() =>
       expect(client.openTerminal).toHaveBeenCalledWith({
         projectHint: "D:\\Projects\\ExampleShop",
@@ -357,7 +393,7 @@ describe("App", () => {
 
     const profiles = await screen.findByLabelText("Project profiles");
     fireEvent.click(within(profiles).getByRole("button", { name: /restart profile example shop/i }));
-    fireEvent.click(within(screen.getByRole("dialog", { name: /restart example shop/i })).getByRole("button", { name: /restart/i }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: /restart example shop/i })).getByRole("button", { name: /^restart$/i }));
 
     await waitFor(() => expect(requestPermission).toHaveBeenCalledWith({ origins: ["http://127.0.0.1/*"] }));
     expect(client.kill).not.toHaveBeenCalled();
@@ -388,9 +424,9 @@ describe("App", () => {
 
     const profiles = await screen.findByLabelText("Project profiles");
     fireEvent.click(within(profiles).getByRole("button", { name: /restart profile example shop/i }));
-    fireEvent.click(within(screen.getByRole("dialog", { name: /restart example shop/i })).getByRole("button", { name: /restart/i }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: /restart example shop/i })).getByRole("button", { name: /^restart$/i }));
 
-    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));
+    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "terminate-tree" }));
     expect(client.openTerminal).not.toHaveBeenCalled();
     expect(await screen.findByText("PID 100 is already closed")).toBeInTheDocument();
   });
@@ -424,9 +460,9 @@ describe("App", () => {
 
     const profiles = await screen.findByLabelText("Project profiles");
     fireEvent.click(within(profiles).getByRole("button", { name: /restart profile example shop/i }));
-    fireEvent.click(within(screen.getByRole("dialog", { name: /restart example shop/i })).getByRole("button", { name: /restart/i }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: /restart example shop/i })).getByRole("button", { name: /^restart$/i }));
 
-    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" }));
+    await waitFor(() => expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "terminate-tree" }));
     expect(client.openTerminal).not.toHaveBeenCalled();
     expect(await screen.findByText("Port 5173 is still listening")).toBeInTheDocument();
   });
@@ -1209,8 +1245,8 @@ describe("App", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /restart 2/i }));
 
     await waitFor(() => expect(client.kill).toHaveBeenCalledTimes(2));
-    expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" });
-    expect(client.kill).toHaveBeenCalledWith({ pid: 150, port: 17321, mode: "force-tree" });
+    expect(client.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "terminate-tree" });
+    expect(client.kill).toHaveBeenCalledWith({ pid: 150, port: 17321, mode: "terminate-tree" });
     await waitFor(() => expect(client.openTerminal).toHaveBeenCalledTimes(2));
     expect(client.openTerminal).toHaveBeenCalledWith({
       projectHint: "D:\\Projects\\ExampleShop",
@@ -1282,7 +1318,7 @@ describe("App", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /restart failed 1/i }));
 
     await waitFor(() => expect(unhealthyClient.kill).toHaveBeenCalledTimes(1));
-    expect(unhealthyClient.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "force-tree" });
+    expect(unhealthyClient.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "terminate-tree" });
     await waitFor(() => expect(unhealthyClient.openTerminal).toHaveBeenCalledTimes(1));
     expect(unhealthyClient.openTerminal).toHaveBeenCalledWith({
       projectHint: "D:\\Projects\\ExampleShop",

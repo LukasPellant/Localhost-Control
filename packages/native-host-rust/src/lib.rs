@@ -710,9 +710,22 @@ pub fn resolve_kill_target(
     }
 }
 
+fn is_supported_kill_mode(mode: &str) -> bool {
+    matches!(mode, "terminate-tree" | "force-tree")
+}
+
+#[cfg(windows)]
+fn windows_taskkill_args(pid: u32, mode: &str) -> Vec<String> {
+    let mut args = vec!["/PID".to_string(), pid.to_string(), "/T".to_string()];
+    if mode == "force-tree" {
+        args.push("/F".to_string());
+    }
+    args
+}
+
 #[cfg(windows)]
 fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
-    if params.mode != "force-tree" {
+    if !is_supported_kill_mode(&params.mode) {
         return Ok(json!({
             "killed": false,
             "pid": params.pid,
@@ -737,8 +750,9 @@ fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
         }));
     }
 
+    let args = windows_taskkill_args(params.pid, &params.mode);
     let output = Command::new("taskkill")
-        .args(["/PID", &params.pid.to_string(), "/T", "/F"])
+        .args(args)
         .creation_flags_no_window()
         .output()
         .map_err(|error| error.to_string())?;
@@ -755,8 +769,17 @@ fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
+fn unix_signals_for_kill_mode(mode: &str) -> Vec<&'static str> {
+    match mode {
+        "terminate-tree" => vec!["TERM"],
+        "force-tree" => vec!["TERM", "KILL"],
+        _ => Vec::new(),
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
-    if params.mode != "force-tree" {
+    if !is_supported_kill_mode(&params.mode) {
         return Ok(json!({
             "killed": false,
             "pid": params.pid,
@@ -782,12 +805,13 @@ fn kill_process_tree(params: &KillParams) -> Result<Value, String> {
     }
 
     let pids = collect_unix_process_tree(params.pid);
-    for pid in &pids {
-        let _ = send_unix_signal(*pid, "TERM");
-    }
-    std::thread::sleep(Duration::from_millis(250));
-    for pid in &pids {
-        let _ = send_unix_signal(*pid, "KILL");
+    for (index, signal) in unix_signals_for_kill_mode(&params.mode).iter().enumerate() {
+        if index > 0 {
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        for pid in &pids {
+            let _ = send_unix_signal(*pid, signal);
+        }
     }
     let port_closed = wait_for_listener_closed(params.pid, params.port, Duration::from_secs(3));
     Ok(build_kill_result(
@@ -1753,6 +1777,26 @@ next    42126 pella   10u  IPv4 0x123456789abcdec      0t0  TCP localhost:3000 (
         assert_eq!(result["killed"], false);
         assert_eq!(result["portClosed"], false);
         assert_eq!(result["message"], "permission denied");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn terminate_tree_omits_windows_force_flag() {
+        assert_eq!(
+            super::windows_taskkill_args(1234, "terminate-tree"),
+            vec!["/PID".to_string(), "1234".to_string(), "/T".to_string()]
+        );
+        assert_eq!(
+            super::windows_taskkill_args(1234, "force-tree"),
+            vec!["/PID".to_string(), "1234".to_string(), "/T".to_string(), "/F".to_string()]
+        );
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn terminate_tree_sends_only_term_signal() {
+        assert_eq!(super::unix_signals_for_kill_mode("terminate-tree"), vec!["TERM"]);
+        assert_eq!(super::unix_signals_for_kill_mode("force-tree"), vec!["TERM", "KILL"]);
     }
 
     #[cfg(target_os = "linux")]

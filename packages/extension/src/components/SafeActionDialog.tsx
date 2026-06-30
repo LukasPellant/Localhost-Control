@@ -1,6 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { AlertTriangle } from "lucide-react";
-import type { PortEntry } from "@localhost-control/shared";
+import type { PortEntry, StopMode } from "@localhost-control/shared";
 import type { ProjectProfile } from "../lib/projectProfiles";
 import { formatCpu, formatMemory, formatUptime } from "../lib/resources";
 
@@ -9,7 +9,7 @@ type SafeActionDialogProps = {
   profile?: ProjectProfile | undefined;
   action?: "stop" | "restart";
   onCancel(): void;
-  onConfirm(entry: PortEntry): void;
+  onConfirm(entry: PortEntry, mode: StopMode): void;
 };
 
 const detail = (label: string, value: string | number | undefined, className?: string) =>
@@ -24,8 +24,11 @@ export const SafeActionDialog = ({ entry, profile, action = "stop", onCancel, on
   const label = profile?.name ?? entry.title ?? `${entry.processName} on ${entry.port}`;
   const title = action === "restart" ? `Restart ${label}` : `Stop ${label}`;
   const description =
-    action === "restart" ? "Review the process context before stopping and starting it again." : "Review the process context before forcing it to close.";
-  const confirmLabel = action === "restart" ? "Restart" : "Force stop";
+    action === "restart"
+      ? "Review the process context before asking it to stop, then starting it again."
+      : "Review the process context before asking it to stop.";
+  const confirmLabel = action === "restart" ? "Restart" : "Stop";
+  const forceLabel = action === "restart" ? "Force restart" : "Force stop";
   const cpu = formatCpu(entry.resources);
   const memory = formatMemory(entry.resources?.memoryBytes);
   const uptime = formatUptime(entry.resources);
@@ -86,8 +89,11 @@ export const SafeActionDialog = ({ entry, profile, action = "stop", onCancel, on
           <button ref={cancelRef} type="button" onClick={onCancel}>
             Cancel
           </button>
-          <button className="danger-command" type="button" onClick={() => onConfirm(entry)}>
+          <button className="primary-command" type="button" onClick={() => onConfirm(entry, "terminate-tree")}>
             {confirmLabel}
+          </button>
+          <button className="danger-command" type="button" onClick={() => onConfirm(entry, "force-tree")}>
+            {forceLabel}
           </button>
         </div>
       </section>

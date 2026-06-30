@@ -13,8 +13,10 @@ export type ScanParams = {
 export type KillParams = {
   pid: number;
   port: number;
-  mode: "force-tree";
+  mode: StopMode;
 };
+
+export type StopMode = "terminate-tree" | "force-tree";
 
 export type TerminalParams = {
   projectHint?: string;

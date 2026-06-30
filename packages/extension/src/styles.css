@@ -934,17 +934,27 @@ button:disabled {
 
 .safe-dialog-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
   gap: 7px;
 }
 
 .safe-dialog-actions button {
+  min-width: 0;
   height: 32px;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--control);
   color: var(--muted);
   font-weight: 680;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.safe-dialog-actions .primary-command {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, var(--control));
+  color: var(--accent);
 }
 
 .safe-dialog-actions .danger-command {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, SlidersHorizontal, Square, Terminal, Upload } from "lucide-react";
-import { withAppScope, type KillParams, type KillResult, type PortEntry, type ScanResult } from "@localhost-control/shared";
+import { withAppScope, type KillParams, type KillResult, type PortEntry, type ScanResult, type StopMode } from "@localhost-control/shared";
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
 import { PortList } from "./components/PortList";
@@ -402,12 +402,12 @@ export const App = ({ client }: AppProps) => {
     setPendingKillEntry(entry);
   };
 
-  const confirmKillEntry = async (entry: PortEntry) => {
+  const confirmKillEntry = async (entry: PortEntry, mode: StopMode = "terminate-tree") => {
     if (!entry.killable) return;
 
     setBusy(true);
     setPendingKillEntry(null);
-    const params: KillParams = { pid: entry.pid, port: entry.port, mode: "force-tree" };
+    const params: KillParams = { pid: entry.pid, port: entry.port, mode };
     const previousResult = scanResult;
     setScanResult((current) =>
       current
@@ -423,11 +423,13 @@ export const App = ({ client }: AppProps) => {
     try {
       const result = await client.kill(params);
       await scan();
-      await recordAction({
-        action: "stop-process",
-        target: `${entry.processName} on port ${entry.port}`,
-        detail: `PID ${entry.pid}`
-      });
+      if (killClosedPort(result)) {
+        await recordAction({
+          action: "stop-process",
+          target: `${entry.processName} on port ${entry.port}`,
+          detail: `PID ${entry.pid}`
+        });
+      }
       setMessage(result.message);
     } catch (error) {
       setScanResult(previousResult);
@@ -513,7 +515,7 @@ export const App = ({ client }: AppProps) => {
     setPendingProfileRestart({ profile, entry });
   };
 
-  const confirmRestartProfile = async ({ profile, entry }: RestartableProfileEntry) => {
+  const confirmRestartProfile = async ({ profile, entry }: RestartableProfileEntry, mode: StopMode = "terminate-tree") => {
     if (!entry.killable) return;
 
     setBusy(true);
@@ -522,7 +524,7 @@ export const App = ({ client }: AppProps) => {
     try {
       if (profile.healthUrl && !(await preflightHealthForProfileStart(profile))) return;
 
-      const killResult = await client.kill({ pid: entry.pid, port: entry.port, mode: "force-tree" });
+      const killResult = await client.kill({ pid: entry.pid, port: entry.port, mode });
       if (!killClosedPort(killResult)) {
         setMessage(killResult.message);
         return;
@@ -584,7 +586,7 @@ export const App = ({ client }: AppProps) => {
 
       for (const { profile, entry } of restartableEntries) {
         try {
-          const killResult = await client.kill({ pid: entry.pid, port: entry.port, mode: "force-tree" });
+          const killResult = await client.kill({ pid: entry.pid, port: entry.port, mode: "terminate-tree" });
           if (killClosedPort(killResult)) {
             stoppedProfiles.push(profile);
           } else {
@@ -1233,7 +1235,7 @@ export const App = ({ client }: AppProps) => {
           entry={pendingKillEntry}
           profile={profileForEntry(pendingKillEntry)}
           onCancel={() => setPendingKillEntry(null)}
-          onConfirm={(entry) => void confirmKillEntry(entry)}
+          onConfirm={(entry, mode) => void confirmKillEntry(entry, mode)}
         />
       ) : null}
 
@@ -1243,7 +1245,7 @@ export const App = ({ client }: AppProps) => {
           entry={pendingProfileRestart.entry}
           profile={pendingProfileRestart.profile}
           onCancel={() => setPendingProfileRestart(null)}
-          onConfirm={() => void confirmRestartProfile(pendingProfileRestart)}
+          onConfirm={(_entry, mode) => void confirmRestartProfile(pendingProfileRestart, mode)}
         />
       ) : null}
 

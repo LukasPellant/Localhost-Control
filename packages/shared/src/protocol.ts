@@ -25,7 +25,7 @@ const hasScanParams = (value: unknown): boolean => {
 
 const hasKillParams = (value: unknown): boolean => {
   if (!isObject(value)) return false;
-  return isPositiveInteger(value.pid) && isTcpPort(value.port) && value.mode === "force-tree";
+  return isPositiveInteger(value.pid) && isTcpPort(value.port) && (value.mode === "terminate-tree" || value.mode === "force-tree");
 };
 
 const hasTerminalParams = (value: unknown): boolean => {
