@@ -33,8 +33,12 @@ export const buildNativeHostManifest = ({ browser = "chrome", hostPath, extensio
 export const resolveNativeMessagingManifestTargets = (platform, scope, homeDir = os.homedir()) => {
   if (platform === "darwin") {
     const root = scope === "system" ? "/Library" : path.posix.join(homeDir, "Library");
+    const chromeRoot =
+      scope === "system"
+        ? path.posix.join(root, "Google", "Chrome")
+        : path.posix.join(root, "Application Support", "Google", "Chrome");
     return [
-      { browser: "chrome", path: path.posix.join(root, "Application Support", "Google", "Chrome", "NativeMessagingHosts", `${HOST_NAME}.json`) },
+      { browser: "chrome", path: path.posix.join(chromeRoot, "NativeMessagingHosts", `${HOST_NAME}.json`) },
       { browser: "brave", path: path.posix.join(root, "Application Support", "BraveSoftware", "Brave-Browser", "NativeMessagingHosts", `${HOST_NAME}.json`) },
       { browser: "firefox", path: path.posix.join(root, "Application Support", "Mozilla", "NativeMessagingHosts", `${HOST_NAME}.json`) }
     ];

@@ -166,6 +166,18 @@ describe("validate-extension-package", () => {
     expect(result.stderr).toContain("Chrome package must include side_panel.default_path.");
   });
 
+  it("rejects Firefox packages without a toolbar action", () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-extension-"));
+    const artifact = path.join(tempRoot, "firefox-without-action.zip");
+    const manifest = buildFirefoxManifest(chromeManifest());
+    delete manifest.action;
+    writeZip(artifact, packageEntries(manifest));
+
+    const result = runValidator("firefox", artifact);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("Firefox package must include action for the toolbar button.");
+  });
+
   it("rejects Firefox packages with Chrome-only background keys even when they are empty", () => {
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-extension-"));
     const artifact = path.join(tempRoot, "firefox-with-empty-chrome-background-keys.zip");

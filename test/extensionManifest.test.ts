@@ -31,7 +31,9 @@ describe("buildFirefoxManifest", () => {
     expect(manifest.optional_host_permissions).toContain("http://localhost/*");
     expect(manifest.optional_host_permissions).toContain("https://*.localhost/*");
     expect(manifest).not.toHaveProperty("side_panel");
-    expect(manifest).not.toHaveProperty("action");
+    expect(manifest.action).toMatchObject({
+      default_title: "Localhost Control"
+    });
     expect(manifest).toMatchObject({
       background: {
         scripts: ["background.js"]

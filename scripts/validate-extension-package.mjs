@@ -166,7 +166,8 @@ const validateFirefoxManifest = (manifest) => {
   if ("service_worker" in (manifest.background ?? {})) throw new Error("Firefox package must not include background.service_worker.");
   if ("type" in (manifest.background ?? {})) throw new Error("Firefox package must not include background.type.");
   assertArrayEquals(manifest.background?.scripts, ["background.js"], "Firefox package must use background.scripts.");
-  if ("action" in manifest) throw new Error("Firefox package must not include action.");
+  if (!manifest.action) throw new Error("Firefox package must include action for the toolbar button.");
+  requireIconMap(manifest.action.default_icon, sourceChromeManifest.action.default_icon, "Firefox action");
   if ("side_panel" in manifest) throw new Error("Firefox package must not include side_panel.");
   if (manifest.sidebar_action?.default_panel !== "sidepanel.html") throw new Error("Firefox package must include sidebar_action.default_panel.");
   if (manifest.sidebar_action?.open_at_install !== false) throw new Error("Firefox sidebar must not open at install.");

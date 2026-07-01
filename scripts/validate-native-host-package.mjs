@@ -38,13 +38,13 @@ if (!["auto", "always", "never"].includes(protocolSmoke)) {
 
 const defaultArtifactPath = () => {
   if (platform === "darwin" && format === "pkg") {
-    return path.join(outputDir, `localhost-control-native-host-${packageJson.version}.pkg`);
+    return path.join(outputDir, `localhost-control-native-host-macos-universal-${packageJson.version}.pkg`);
   }
   if (platform === "darwin" && format === "tarball") {
-    return path.join(outputDir, `localhost-control-native-host-macos-${packageJson.version}.tar.gz`);
+    return path.join(outputDir, `localhost-control-native-host-macos-universal-${packageJson.version}.tar.gz`);
   }
   if (platform === "linux" && format === "tarball") {
-    return path.join(outputDir, `localhost-control-native-host-linux-${packageJson.version}.tar.gz`);
+    return path.join(outputDir, `localhost-control-native-host-linux-${arch}-${packageJson.version}.tar.gz`);
   }
   if (platform === "win32" && format === "zip") {
     return path.join(outputDir, `localhost-control-native-host-windows-${packageJson.version}.zip`);
@@ -389,7 +389,7 @@ const validateDeb = async () => {
 const validatePkg = async () => {
   const entries = run("pkgutil", ["--payload-files", artifact]).split(/\r?\n/).filter(Boolean);
   const hostEntry = "Library/Application Support/Localhost Control/localhost-control-host";
-  const chromeManifest = `Library/Application Support/Google/Chrome/NativeMessagingHosts/${hostName}.json`;
+  const chromeManifest = `Library/Google/Chrome/NativeMessagingHosts/${hostName}.json`;
   const braveManifest = `Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/${hostName}.json`;
   const firefoxManifest = `Library/Application Support/Mozilla/NativeMessagingHosts/${hostName}.json`;
   requireEntry(entries, hostEntry);

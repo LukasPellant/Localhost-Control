@@ -25,11 +25,28 @@ describe("release-native-host workflow", () => {
     expect(workflow).toMatch(/needs:\s*\r?\n\s+- windows\r?\n\s+- linux\r?\n\s+- macos\r?\n\s+- extension/);
   });
 
+  it("builds Linux release assets for amd64 and arm64 with matching artifact names", () => {
+    expect(workflow).toContain("name: Linux release assets (${{ matrix.arch }})");
+    expect(workflow).toContain("runner: ubuntu-latest");
+    expect(workflow).toContain("runner: ubuntu-24.04-arm");
+    expect(workflow).toContain("node scripts/package-native-host.mjs --platform=linux --format=tarball --arch=${{ matrix.arch }}");
+    expect(workflow).toContain("dist/native-host/localhost-control-native-host-linux-${{ matrix.arch }}-*.tar.gz");
+    expect(workflow).toContain("dist/native-host/localhost-control-native-host_*_${{ matrix.arch }}.deb");
+  });
+
+  it("builds universal macOS release assets with correct names", () => {
+    expect(workflow).toContain("rustup target add aarch64-apple-darwin x86_64-apple-darwin");
+    expect(workflow).toContain("pnpm host:package:mac");
+    expect(workflow).toContain("dist/native-host/localhost-control-native-host-macos-universal-*.tar.gz");
+    expect(workflow).toContain("dist/native-host/localhost-control-native-host-macos-universal-*.pkg");
+  });
+
   it("publishes extension store packages with the release", () => {
     expect(workflow).toContain("name: Extension store packages");
     expect(workflow).toContain("pnpm extension:package:chrome");
     expect(workflow).toContain("pnpm extension:package:firefox");
     expect(workflow).toContain("pnpm extension:verify");
+    expect(workflow).toContain("pnpm extension:lint:firefox");
     expect(workflow).toContain("name: extension-store-packages");
     expect(workflow).toContain("dist/chrome-store/*.zip");
     expect(workflow).toContain("dist/firefox-addons/*.zip");
@@ -43,8 +60,9 @@ describe("release-native-host workflow", () => {
     expect(workflow).toContain("fail_on_unmatched_files: true");
   });
 
-  it("includes Windows artifacts in local release verification", () => {
-    expect(packageJson.scripts["host:verify:release-local"]).toContain("pnpm host:verify:windows");
+  it("uses current-platform native host release scripts for local packaging", () => {
+    expect(packageJson.scripts["host:package:release-local"]).toBe("node scripts/package-native-host-current.mjs");
+    expect(packageJson.scripts["host:verify:release-local"]).toBe("node scripts/validate-native-host-current.mjs");
   });
 
   it("writes release checksums with the artifact-aware checksum script", () => {
@@ -59,8 +77,12 @@ describe("release-native-host workflow", () => {
     expect(artifactWorkflow).toContain("pnpm extension:package:firefox");
     expect(artifactWorkflow).toContain("Verify extension packages");
     expect(artifactWorkflow).toContain("pnpm extension:verify");
+    expect(artifactWorkflow).toContain("pnpm extension:lint:firefox");
     expect(artifactWorkflow).toContain("localhost-control-extension-store-packages");
     expect(artifactWorkflow).toContain("dist/chrome-store/*.zip");
     expect(artifactWorkflow).toContain("dist/firefox-addons/*.zip");
+    expect(artifactWorkflow).toContain("name: Linux native host (${{ matrix.arch }})");
+    expect(artifactWorkflow).toContain("runner: ubuntu-24.04-arm");
+    expect(artifactWorkflow).toContain("rustup target add aarch64-apple-darwin x86_64-apple-darwin");
   });
 });

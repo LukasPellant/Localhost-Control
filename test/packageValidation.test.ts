@@ -266,6 +266,7 @@ describe("validate-native-host-package", () => {
     expect(validatePkg?.[0]).toContain("--expand-full");
     expect(validatePkg?.[0]).toContain("validateNativeManifestBySuffix");
     expect(validatePkg?.[0]).toContain("macosHostPath");
+    expect(validatePkg?.[0]).toContain("Library/Google/Chrome/NativeMessagingHosts");
     expect(validatorScript).toContain('const macosHostPath = "/Library/Application Support/Localhost Control/localhost-control-host"');
   });
 

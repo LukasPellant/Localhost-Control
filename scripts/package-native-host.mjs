@@ -25,6 +25,22 @@ const copyHostBinary = async (source, destination) => {
   await chmod(destination, 0o755);
 };
 
+const buildRustHostForTarget = (target) => {
+  const result = spawnSync("cargo", ["build", "--release", "-p", "localhost-control-host", "--target", target], { cwd: repoRoot, stdio: "inherit" });
+  if (result.status !== 0) throw new Error(`cargo build failed for localhost-control-host target ${target}`);
+  const executable = process.platform === "win32" ? "localhost-control-host.exe" : "localhost-control-host";
+  return path.join(repoRoot, "target", target, "release", executable);
+};
+
+const buildUniversalMacHost = () => {
+  const targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"];
+  const binaries = targets.map(buildRustHostForTarget);
+  const output = path.join(repoRoot, "target", "release", "localhost-control-host-universal");
+  const result = spawnSync("lipo", ["-create", ...binaries, "-output", output], { cwd: repoRoot, stdio: "inherit" });
+  if (result.status !== 0) throw new Error("lipo failed while creating the universal macOS native host");
+  return output;
+};
+
 const buildRustHost = (platform) => {
   if (platform === "win32" && process.platform !== "win32") {
     throw new Error("Windows Rust native host packages must be built on Windows, or pass --host-binary=/path/to/windows/localhost-control-host.exe.");
@@ -34,6 +50,9 @@ const buildRustHost = (platform) => {
   }
   if (platform === "darwin" && process.platform !== "darwin") {
     throw new Error("macOS Rust native host packages must be built on macOS, or pass --host-binary=/path/to/macos/localhost-control-host.");
+  }
+  if (platform === "darwin") {
+    return buildUniversalMacHost();
   }
   const result = spawnSync("cargo", ["build", "--release", "-p", "localhost-control-host"], { cwd: repoRoot, stdio: "inherit" });
   if (result.status !== 0) throw new Error("cargo build failed for localhost-control-host");
@@ -141,13 +160,13 @@ const writeTarGzArchive = async (output, root) => {
   await writeFile(output, gzipSync(Buffer.concat(chunks)));
 };
 
-const packageTarball = async ({ platform, stageDir, outputDir, version }) => {
+const packageTarball = async ({ platform, stageDir, outputDir, version, arch }) => {
   const installerDir = platform === "darwin" ? "macos" : "linux";
   await cp(path.join(repoRoot, "installer", installerDir, "install.sh"), path.join(stageDir, "install.sh"));
   await cp(path.join(repoRoot, "installer", installerDir, "uninstall.sh"), path.join(stageDir, "uninstall.sh"));
   await chmod(path.join(stageDir, "install.sh"), 0o755);
   await chmod(path.join(stageDir, "uninstall.sh"), 0o755);
-  const label = platform === "darwin" ? "macos" : "linux";
+  const label = platform === "darwin" ? "macos-universal" : `linux-${arch}`;
   const output = path.join(outputDir, `localhost-control-native-host-${label}-${version}.tar.gz`);
   const result = spawnSync("tar", ["-czf", output, "-C", stageDir, "."], { stdio: "inherit" });
   if (result.status !== 0) throw new Error("tar packaging failed");
@@ -252,7 +271,7 @@ const packagePkg = async ({ stageDir, outputDir, version, extensionId, firefoxEx
     firefoxExtensionId
   });
 
-  const output = path.join(outputDir, `localhost-control-native-host-${version}.pkg`);
+  const output = path.join(outputDir, `localhost-control-native-host-macos-universal-${version}.pkg`);
   const result = spawnSync("pkgbuild", ["--root", pkgRoot, "--identifier", "com.localhost-control.native-host", "--version", version, output], { stdio: "inherit" });
   if (result.status !== 0) throw new Error("pkgbuild packaging failed");
   return output;
@@ -287,9 +306,9 @@ const main = async () => {
   let output;
   if (platform === "win32" && format === "zip") output = await packageWindowsZip({ stageDir, outputDir, version: packageJson.version });
   else if (platform === "darwin" && format === "pkg") output = await packagePkg({ stageDir, outputDir, version: packageJson.version, extensionId, firefoxExtensionId });
-  else if (platform === "darwin" && format === "tarball") output = await packageTarball({ platform, stageDir, outputDir, version: packageJson.version });
+  else if (platform === "darwin" && format === "tarball") output = await packageTarball({ platform, stageDir, outputDir, version: packageJson.version, arch });
   else if (platform === "linux" && format === "deb") output = await packageDeb({ stageDir, outputDir, version: packageJson.version, arch, extensionId, firefoxExtensionId });
-  else if (platform === "linux" && format === "tarball") output = await packageTarball({ platform, stageDir, outputDir, version: packageJson.version });
+  else if (platform === "linux" && format === "tarball") output = await packageTarball({ platform, stageDir, outputDir, version: packageJson.version, arch });
   else throw new Error(`Unsupported package target: ${platform}/${format}`);
 
   console.log(output);

@@ -51,7 +51,7 @@ describe("resolveNativeMessagingManifestTargets", () => {
       "/Users/tester/Library/Application Support/Mozilla/NativeMessagingHosts/com.localhost_control.host.json"
     ]);
     expect(resolveNativeMessagingManifestTargets("darwin", "system", "/Users/tester").map((target) => target.path)).toEqual([
-      "/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.localhost_control.host.json",
+      "/Library/Google/Chrome/NativeMessagingHosts/com.localhost_control.host.json",
       "/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.localhost_control.host.json",
       "/Library/Application Support/Mozilla/NativeMessagingHosts/com.localhost_control.host.json"
     ]);

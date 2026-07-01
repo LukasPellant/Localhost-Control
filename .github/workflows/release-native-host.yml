@@ -64,8 +64,16 @@ jobs:
           if-no-files-found: error
 
   linux:
-    name: Linux release assets
-    runs-on: ubuntu-latest
+    name: Linux release assets (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -99,18 +107,22 @@ jobs:
         run: pnpm build
 
       - name: Package Linux native host
-        run: pnpm host:package:linux
+        run: |
+          node scripts/package-native-host.mjs --platform=linux --format=tarball --arch=${{ matrix.arch }}
+          node scripts/package-native-host.mjs --platform=linux --format=deb --arch=${{ matrix.arch }}
 
       - name: Validate Linux assets
-        run: pnpm host:verify:linux
+        run: |
+          node scripts/validate-native-host-package.mjs --platform=linux --format=tarball --arch=${{ matrix.arch }}
+          node scripts/validate-native-host-package.mjs --platform=linux --format=deb --arch=${{ matrix.arch }}
 
       - name: Upload Linux release assets
         uses: actions/upload-artifact@v4
         with:
-          name: release-linux
+          name: release-linux-${{ matrix.arch }}
           path: |
-            dist/native-host/localhost-control-native-host-linux-*.tar.gz
-            dist/native-host/localhost-control-native-host_*_amd64.deb
+            dist/native-host/localhost-control-native-host-linux-${{ matrix.arch }}-*.tar.gz
+            dist/native-host/localhost-control-native-host_*_${{ matrix.arch }}.deb
           if-no-files-found: error
 
   macos:
@@ -142,6 +154,9 @@ jobs:
       - name: Run Rust native host tests
         run: cargo test -p localhost-control-host
 
+      - name: Install macOS Rust targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -159,8 +174,8 @@ jobs:
         with:
           name: release-macos
           path: |
-            dist/native-host/localhost-control-native-host-macos-*.tar.gz
-            dist/native-host/localhost-control-native-host-*.pkg
+            dist/native-host/localhost-control-native-host-macos-universal-*.tar.gz
+            dist/native-host/localhost-control-native-host-macos-universal-*.pkg
           if-no-files-found: error
 
   extension:
@@ -191,6 +206,9 @@ jobs:
 
       - name: Verify extension packages
         run: pnpm extension:verify
+
+      - name: Lint Firefox extension package
+        run: pnpm extension:lint:firefox
 
       - name: Upload extension release assets
         uses: actions/upload-artifact@v4

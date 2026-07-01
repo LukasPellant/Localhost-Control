@@ -33,7 +33,7 @@ Then install the native host for your operating system from GitHub Releases:
 https://github.com/LukasPellant/Localhost-Control/releases
 ```
 
-Use the Windows `.zip`, the macOS `.pkg` when available, the Linux `.deb` on Debian/Ubuntu systems, or the `.tar.gz` packages for portable installs. The native host packages are built for the published Chrome Web Store extension ID `oamllgeaemchejbebgamdakjloahgjdc`.
+Use the Windows `.zip`, the universal macOS `.pkg`, the Linux `.deb` matching your CPU architecture on Debian/Ubuntu systems, or the `.tar.gz` packages for portable installs. The native host packages are built for the published Chrome Web Store extension ID `oamllgeaemchejbebgamdakjloahgjdc`.
 
 Firefox builds are packaged separately as `dist\firefox-addons\localhost-control-<version>-firefox.zip` and use the add-on ID `localhost-control@lukaspellant.dev` for native messaging.
 
@@ -83,6 +83,8 @@ pnpm build
 pnpm extension:package
 pnpm extension:package:chrome
 pnpm extension:package:firefox
+pnpm extension:verify
+pnpm extension:lint:firefox
 pnpm host:install -- --browser brave --extension-id <extension-id>
 pnpm host:uninstall -- --browser brave
 EXTENSION_ID=<extension-id> pnpm host:install:mac
@@ -103,13 +105,13 @@ Use `--browser all` to register the native host for Brave, Chrome, Chromium, Edg
 
 The macOS and Linux installers register Chrome, Brave, and Firefox. The macOS and Linux packages install the Rust native host binary directly, so end users do not need Node.js. The default Chromium extension ID for packaged artifacts is the published Chrome Web Store ID `oamllgeaemchejbebgamdakjloahgjdc`; Firefox uses `localhost-control@lukaspellant.dev`. Use `EXTENSION_ID=<id>` and `FIREFOX_EXTENSION_ID=<id>` for unpacked local development.
 
-`pnpm host:package:mac:tarball` creates a self-contained macOS `.tar.gz` with the Rust macOS native host; run it on macOS or pass `--host-binary` to `scripts/package-native-host.mjs` with a macOS-built `localhost-control-host` binary. `pnpm host:package:mac` also creates a native `.pkg` and must run on macOS with `pkgbuild` available. `pnpm host:package:linux` builds the Rust Linux native host and creates a tarball plus `.deb`; run it on Linux or pass `--host-binary` with a Linux-built `localhost-control-host` binary.
+`pnpm host:package:mac:tarball` creates a self-contained universal macOS `.tar.gz` with the Rust macOS native host; run it on macOS with `aarch64-apple-darwin` and `x86_64-apple-darwin` Rust targets installed, or pass `--host-binary` to `scripts/package-native-host.mjs` with a macOS-built `localhost-control-host` binary. `pnpm host:package:mac` also creates a native universal `.pkg` and must run on macOS with `pkgbuild` and `lipo` available. `pnpm host:package:linux` builds the Rust Linux native host and creates a tarball plus `.deb` for the current architecture; run it on Linux or pass `--host-binary` with a Linux-built `localhost-control-host` binary and `--arch=amd64` or `--arch=arm64`.
 
-For local native host artifacts, build on the target operating system or pass `--host-binary` to `scripts/package-native-host.mjs` with a binary built for that target. `pnpm host:package:release-local` is intended for an environment where the required target binaries are available; otherwise use GitHub Actions to produce the Windows, macOS, and Linux release assets on their native runners.
+For local native host artifacts, build on the target operating system or pass `--host-binary` to `scripts/package-native-host.mjs` with a binary built for that target. `pnpm host:package:release-local` packages and verifies the current operating system only, then writes current-version checksums. Use GitHub Actions to produce the full Windows, universal macOS, Linux `amd64`, and Linux `arm64` release set on native runners.
 
 `pnpm test:run` runs deterministic unit and packaging tests. `pnpm smoke:native-host` runs the Rust native-host test suite.
 
-GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml` and publishes release assets through `.github/workflows/release-native-host.yml`. The workflows run deterministic tests, Rust native-host tests, typecheck, the workspace build, OS-specific packaging, extension store packaging, and artifact validation before uploading the Windows `.zip`, macOS `.pkg`/`.tar.gz`, Linux `.tar.gz`/`.deb`, Chrome store ZIP, and Firefox add-on ZIP files.
+GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml` and publishes release assets through `.github/workflows/release-native-host.yml`. The workflows run deterministic tests, Rust native-host tests, typecheck, the workspace build, OS-specific packaging, extension store packaging, and artifact validation before uploading the Windows `.zip`, universal macOS `.pkg`/`.tar.gz`, Linux `amd64` and `arm64` `.tar.gz`/`.deb`, Chrome store ZIP, and Firefox add-on ZIP files.
 
 ## Chrome Web Store package
 
@@ -133,6 +135,12 @@ To re-check existing Chrome and Firefox ZIPs without rebuilding, run:
 
 ```powershell
 pnpm extension:verify
+```
+
+To run Mozilla Add-ons lint against the packaged Firefox ZIP, run:
+
+```powershell
+pnpm extension:lint:firefox
 ```
 
 Store listing notes, permission justifications, privacy answers, and reviewer instructions live in `docs\chrome-store-submission.md`.

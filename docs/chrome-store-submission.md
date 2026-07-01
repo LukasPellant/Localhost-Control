@@ -92,6 +92,6 @@ pnpm host:uninstall -- --browser chrome
 - [ ] Run `pnpm extension:package:chrome`.
 - [ ] Run `pnpm extension:package:firefox`.
 - [ ] Run `pnpm extension:verify`.
-- [ ] Run `web-ext lint` against an extracted Firefox ZIP.
+- [ ] Run `pnpm extension:lint:firefox` against the packaged Firefox ZIP.
 - [ ] Confirm the production bundle does not contain demo project names or paths.
 - [ ] Confirm the native host has been tested with the final extension ID.

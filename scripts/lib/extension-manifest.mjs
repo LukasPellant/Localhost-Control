@@ -29,6 +29,5 @@ export const buildFirefoxManifest = (chromeManifest) => {
   };
 
   delete manifest.side_panel;
-  delete manifest.action;
   return manifest;
 };
