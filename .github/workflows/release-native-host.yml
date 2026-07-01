@@ -187,6 +187,7 @@ jobs:
   macos-intel:
     name: macOS Intel compatibility
     runs-on: macos-15-intel
+    needs: macos
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -198,34 +199,19 @@ jobs:
         with:
           node-version: 22
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Download macOS release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: release-macos
+          path: dist/native-host
 
-      - name: Enable pnpm
-        run: corepack enable
+      - name: Validate downloaded macOS tarball on Intel
+        run: node scripts/validate-native-host-package.mjs --platform=darwin --format=tarball
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run Rust native host tests
-        run: cargo test -p localhost-control-host
-
-      - name: Install macOS Rust targets
-        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
-
-      - name: Package macOS tarball on Intel
-        run: pnpm host:package:mac:tarball
-
-      - name: Validate macOS tarball on Intel
-        run: pnpm host:verify:mac:tarball
-
-      - name: Package macOS pkg on Intel
-        run: node scripts/package-native-host.mjs --platform=darwin --format=pkg
-
-      - name: Validate macOS pkg on Intel
+      - name: Validate downloaded macOS pkg on Intel
         run: node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg
 
-      - name: Smoke installed macOS pkg on Intel
+      - name: Smoke downloaded macOS pkg on Intel
         run: bash scripts/ci/smoke-installed-macos-pkg.sh
 
   extension:

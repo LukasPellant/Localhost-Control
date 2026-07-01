@@ -46,8 +46,13 @@ describe("release-native-host workflow", () => {
   it("runs macOS Intel compatibility before publishing releases", () => {
     expect(workflow).toContain("name: macOS Intel compatibility");
     expect(workflow).toContain("runs-on: macos-15-intel");
-    expect(workflow).toContain("pnpm host:package:mac:tarball");
-    expect(workflow).toContain("pnpm host:verify:mac:tarball");
+    expect(workflow).toMatch(/macos-intel:\s*\r?\n\s+name: macOS Intel compatibility\r?\n\s+runs-on: macos-15-intel\r?\n\s+needs: macos/);
+    expect(workflow).toContain("name: release-macos");
+    expect(workflow).toContain("path: dist/native-host");
+    expect(workflow).toContain("Validate downloaded macOS tarball on Intel");
+    expect(workflow).toContain("Validate downloaded macOS pkg on Intel");
+    expect(workflow).toContain("Smoke downloaded macOS pkg on Intel");
+    expect(workflow).not.toContain("Package macOS pkg on Intel");
   });
 
   it("publishes extension store packages with the release", () => {
@@ -97,6 +102,11 @@ describe("release-native-host workflow", () => {
     expect(artifactWorkflow).toContain("rustup target add aarch64-apple-darwin x86_64-apple-darwin");
     expect(artifactWorkflow).toContain("bash scripts/ci/smoke-installed-macos-pkg.sh");
     expect(artifactWorkflow).toContain("runs-on: macos-15-intel");
-    expect(artifactWorkflow).toContain("pnpm host:verify:mac:tarball");
+    expect(artifactWorkflow).toMatch(/macos-intel:\s*\r?\n\s+name: macOS Intel compatibility\r?\n\s+runs-on: macos-15-intel\r?\n\s+needs: macos/);
+    expect(artifactWorkflow).toContain("name: localhost-control-native-host-macos");
+    expect(artifactWorkflow).toContain("Validate downloaded macOS tarball on Intel");
+    expect(artifactWorkflow).toContain("Validate downloaded macOS pkg on Intel");
+    expect(artifactWorkflow).toContain("Smoke downloaded macOS pkg on Intel");
+    expect(artifactWorkflow).not.toContain("Package macOS pkg on Intel");
   });
 });
