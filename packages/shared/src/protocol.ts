@@ -45,6 +45,8 @@ const hasOpenProjectFolderParams = (value: unknown): boolean => {
 const isOptionalNumber = (value: unknown): boolean => value === undefined || isNumber(value);
 const isOptionalString = (value: unknown): boolean => value === undefined || isString(value);
 const isOptionalPositiveInteger = (value: unknown): boolean => value === undefined || isPositiveInteger(value);
+const isOptionalNonNegativeInteger = (value: unknown): boolean =>
+  value === undefined || (isNumber(value) && Number.isInteger(value) && value >= 0);
 const isDetectedKind = (value: unknown): boolean => isString(value) && detectedKinds.has(value);
 const isConfidence = (value: unknown): boolean => isString(value) && confidenceLevels.has(value);
 
@@ -91,7 +93,7 @@ const isPortEntry = (value: unknown): value is PortEntry => {
     isBoolean(value.killable) &&
     isOptionalString(value.executablePath) &&
     isOptionalString(value.commandLine) &&
-    isOptionalPositiveInteger(value.parentPid) &&
+    isOptionalNonNegativeInteger(value.parentPid) &&
     isOptionalString(value.url) &&
     isOptionalString(value.title) &&
     isOptionalNumber(value.statusCode) &&

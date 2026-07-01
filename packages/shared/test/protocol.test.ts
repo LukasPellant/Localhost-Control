@@ -163,6 +163,6 @@ describe("native messaging protocol", () => {
         scannedAt: "2026-06-27T10:00:00.000Z",
         durationMs: 28
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 });
