@@ -846,6 +846,38 @@ fn powershell_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
 
+#[cfg(windows)]
+fn build_windows_terminal_script(cwd: &str, command_line: Option<&str>) -> String {
+    let mut lines = vec![
+        "Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue".to_string(),
+        format!("Set-Location -LiteralPath {}", powershell_single_quote(cwd)),
+    ];
+    if let Some(command_line) = command_line
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        lines.push(format!(
+            "& cmd.exe /d /s /c {}",
+            powershell_single_quote(command_line)
+        ));
+    }
+    format!("{}\r\n", lines.join("\r\n"))
+}
+
+#[cfg(windows)]
+fn write_windows_terminal_script(script: &str) -> io::Result<String> {
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!(
+        "localhost-control-{}-{timestamp}.ps1",
+        std::process::id()
+    ));
+    std::fs::write(&path, script)?;
+    Ok(path.display().to_string())
+}
+
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn shell_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
@@ -922,16 +954,15 @@ fn open_terminal(params: &TerminalParams) -> Value {
         .filter(|value| Path::new(value).exists())
         .unwrap_or_else(|| "powershell.exe".to_string());
     let command_line = command_to_execute(params);
-    let powershell_command = match command_line {
-        Some(command_line) => format!(
-            "Set-Location -LiteralPath {}; {}",
-            powershell_single_quote(&cwd),
-            command_line
-        ),
-        None => format!(
-            "Set-Location -LiteralPath {}",
-            powershell_single_quote(&cwd)
-        ),
+    let powershell_script = build_windows_terminal_script(&cwd, command_line);
+    let powershell_script_path = match write_windows_terminal_script(&powershell_script) {
+        Ok(path) => path,
+        Err(error) => {
+            return json!({
+                "opened": false,
+                "message": format!("Failed to prepare terminal command: {error}")
+            })
+        }
     };
     let mut command = Command::new(&terminal);
     if terminal.ends_with("wt.exe") {
@@ -940,11 +971,19 @@ fn open_terminal(params: &TerminalParams) -> Value {
             &cwd,
             "powershell.exe",
             "-NoExit",
-            "-Command",
-            &powershell_command,
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            &powershell_script_path,
         ]);
     } else {
-        command.args(["-NoExit", "-Command", &powershell_command]);
+        command.args([
+            "-NoExit",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            &powershell_script_path,
+        ]);
     }
     match command
         .current_dir(&cwd)
@@ -1781,6 +1820,21 @@ next    42126 pella   10u  IPv4 0x123456789abcdec      0t0  TCP localhost:3000 (
 
     #[cfg(windows)]
     #[test]
+    fn windows_terminal_script_runs_saved_command_through_cmd_shell() {
+        let command_line = "\"node\" \"D:\\DevelopmentD\\DrawCreator\\node_modules\\.bin\\..\\vite\\bin\\vite.js\" --host 127.0.0.1 --port 5179";
+
+        let script = super::build_windows_terminal_script(
+            "D:\\DevelopmentD\\DrawCreator",
+            Some(command_line),
+        );
+
+        assert!(script.contains("Remove-Item -LiteralPath $PSCommandPath"));
+        assert!(script.contains("Set-Location -LiteralPath 'D:\\DevelopmentD\\DrawCreator'"));
+        assert!(script.contains("& cmd.exe /d /s /c '\"node\" \"D:\\DevelopmentD\\DrawCreator\\node_modules\\.bin\\..\\vite\\bin\\vite.js\" --host 127.0.0.1 --port 5179'"));
+    }
+
+    #[cfg(windows)]
+    #[test]
     fn terminate_tree_omits_windows_force_flag() {
         assert_eq!(
             super::windows_taskkill_args(1234, "terminate-tree"),
@@ -1788,15 +1842,26 @@ next    42126 pella   10u  IPv4 0x123456789abcdec      0t0  TCP localhost:3000 (
         );
         assert_eq!(
             super::windows_taskkill_args(1234, "force-tree"),
-            vec!["/PID".to_string(), "1234".to_string(), "/T".to_string(), "/F".to_string()]
+            vec![
+                "/PID".to_string(),
+                "1234".to_string(),
+                "/T".to_string(),
+                "/F".to_string()
+            ]
         );
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[test]
     fn terminate_tree_sends_only_term_signal() {
-        assert_eq!(super::unix_signals_for_kill_mode("terminate-tree"), vec!["TERM"]);
-        assert_eq!(super::unix_signals_for_kill_mode("force-tree"), vec!["TERM", "KILL"]);
+        assert_eq!(
+            super::unix_signals_for_kill_mode("terminate-tree"),
+            vec!["TERM"]
+        );
+        assert_eq!(
+            super::unix_signals_for_kill_mode("force-tree"),
+            vec!["TERM", "KILL"]
+        );
     }
 
     #[cfg(target_os = "linux")]
