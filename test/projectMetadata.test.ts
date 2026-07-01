@@ -33,4 +33,18 @@ describe("project metadata", () => {
     expect(rootPackage.description).toBe(expectedProductDescription);
     expect(extensionManifest.description).toContain("Find, check, clean, and stop localhost development servers");
   });
+
+  it("keeps current release notes aligned with native host artifact names and macOS signing caveats", () => {
+    const rootPackage = readJson<PackageJson>("package.json");
+    const version = rootPackage.version;
+    const releaseNotes = readFileSync(resolve(__dirname, "..", `docs/releases/v${version}.md`), "utf8");
+
+    expect(releaseNotes).toContain(`localhost-control-native-host-windows-${version}.zip`);
+    expect(releaseNotes).toContain(`localhost-control-native-host-macos-universal-${version}.pkg`);
+    expect(releaseNotes).toContain(`localhost-control-native-host-macos-universal-${version}.tar.gz`);
+    expect(releaseNotes).toContain(`localhost-control-native-host_${version}_amd64.deb`);
+    expect(releaseNotes).toContain(`localhost-control-native-host_${version}_arm64.deb`);
+    expect(releaseNotes).toContain("notarized");
+    expect(releaseNotes).toContain("Gatekeeper");
+  });
 });
