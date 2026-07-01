@@ -124,6 +124,8 @@ For local native host artifacts, build on the target operating system or pass `-
 
 GitHub Actions builds the native host artifacts on the target operating systems through `.github/workflows/native-host-artifacts.yml` and publishes release assets through `.github/workflows/release-native-host.yml`. The workflows run deterministic tests, Rust native-host tests, typecheck, the workspace build, OS-specific packaging, extension store packaging, and artifact validation before uploading the Windows `.zip`, universal macOS `.pkg`/`.tar.gz`, Linux `amd64` and `arm64` `.tar.gz`/`.deb`, Chrome store ZIP, and Firefox add-on ZIP files.
 
+Before a public macOS release, sign and notarize the `.pkg` with an Apple Developer ID Installer certificate. The CI packaging and install smoke tests prove the package contents and native messaging flow, but they do not replace Apple signing/notarization for Gatekeeper-friendly distribution.
+
 ## Chrome Web Store package
 
 Build the upload ZIP with:

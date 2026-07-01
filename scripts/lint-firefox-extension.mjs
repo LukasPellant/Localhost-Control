@@ -23,6 +23,8 @@ const artifact = path.resolve(
   args.get("artifact") ??
     path.join(repoRoot, "dist", "firefox-addons", `localhost-control-${packageJson.version}-firefox.zip`)
 );
+const allowedWarningCodes = new Set(["UNSAFE_VAR_ASSIGNMENT"]);
+const ignoredSummaryCodes = new Set(["ERRORS", "NOTICES", "WARNINGS"]);
 
 const normalizeEntry = (value) => value.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
 
@@ -68,6 +70,9 @@ const extractZip = async (zipPath, outputDir) => {
   }
 };
 
+const unexpectedWarningCodes = (output) =>
+  [...new Set(output.match(/\b[A-Z][A-Z0-9_]{2,}\b/g) ?? [])].filter((code) => !allowedWarningCodes.has(code) && !ignoredSummaryCodes.has(code));
+
 const main = async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "localhost-control-firefox-lint-"));
   try {
@@ -75,10 +80,16 @@ const main = async () => {
     const npx = process.platform === "win32" ? "npx.cmd" : "npx";
     const result = spawnSync(npx, ["--yes", "web-ext@latest", "lint", "--source-dir", tempRoot], {
       cwd: repoRoot,
-      stdio: "inherit",
+      encoding: "utf8",
       shell: process.platform === "win32"
     });
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
     if (result.status !== 0) throw new Error("web-ext lint failed for the Firefox extension package");
+    const unexpectedWarnings = unexpectedWarningCodes(`${result.stdout ?? ""}\n${result.stderr ?? ""}`);
+    if (unexpectedWarnings.length) {
+      throw new Error(`Unexpected Firefox lint warning: ${unexpectedWarnings.join(", ")}`);
+    }
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

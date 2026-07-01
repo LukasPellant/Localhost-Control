@@ -13,7 +13,7 @@ describe("release-native-host workflow", () => {
     const checkoutCount = (workflow.match(/uses: actions\/checkout@v4/g) ?? []).length;
     const pinnedRefCount = (workflow.match(/ref: \$\{\{ inputs\.tag \|\| github\.ref \}\}/g) ?? []).length;
 
-    expect(checkoutCount).toBe(5);
+    expect(checkoutCount).toBe(6);
     expect(pinnedRefCount).toBe(checkoutCount);
   });
 
@@ -22,14 +22,16 @@ describe("release-native-host workflow", () => {
     expect(workflow).toContain("pnpm host:package:windows");
     expect(workflow).toContain("pnpm host:verify:windows");
     expect(workflow).toContain("dist/native-host/localhost-control-native-host-windows-*.zip");
-    expect(workflow).toMatch(/needs:\s*\r?\n\s+- windows\r?\n\s+- linux\r?\n\s+- macos\r?\n\s+- extension/);
+    expect(workflow).toMatch(/needs:\s*\r?\n\s+- windows\r?\n\s+- linux\r?\n\s+- macos\r?\n\s+- macos-intel\r?\n\s+- extension/);
   });
 
   it("builds Linux release assets for amd64 and arm64 with matching artifact names", () => {
     expect(workflow).toContain("name: Linux release assets (${{ matrix.arch }})");
-    expect(workflow).toContain("runner: ubuntu-latest");
+    expect(workflow).toContain("runner: ubuntu-24.04");
     expect(workflow).toContain("runner: ubuntu-24.04-arm");
     expect(workflow).toContain("node scripts/package-native-host.mjs --platform=linux --format=tarball --arch=${{ matrix.arch }}");
+    expect(workflow).toContain("sudo dpkg -i dist/native-host/localhost-control-native-host_*_${{ matrix.arch }}.deb");
+    expect(workflow).toContain("sudo dpkg -r localhost-control-native-host");
     expect(workflow).toContain("dist/native-host/localhost-control-native-host-linux-${{ matrix.arch }}-*.tar.gz");
     expect(workflow).toContain("dist/native-host/localhost-control-native-host_*_${{ matrix.arch }}.deb");
   });
@@ -37,8 +39,17 @@ describe("release-native-host workflow", () => {
   it("builds universal macOS release assets with correct names", () => {
     expect(workflow).toContain("rustup target add aarch64-apple-darwin x86_64-apple-darwin");
     expect(workflow).toContain("pnpm host:package:mac");
+    expect(workflow).toContain("sudo installer -pkg dist/native-host/localhost-control-native-host-macos-universal-*.pkg -target /");
+    expect(workflow).toContain('sudo "/Library/Application Support/Localhost Control/uninstall.sh"');
     expect(workflow).toContain("dist/native-host/localhost-control-native-host-macos-universal-*.tar.gz");
     expect(workflow).toContain("dist/native-host/localhost-control-native-host-macos-universal-*.pkg");
+  });
+
+  it("runs macOS Intel compatibility before publishing releases", () => {
+    expect(workflow).toContain("name: macOS Intel compatibility");
+    expect(workflow).toContain("runs-on: macos-15-intel");
+    expect(workflow).toContain("pnpm host:package:mac:tarball");
+    expect(workflow).toContain("pnpm host:verify:mac:tarball");
   });
 
   it("publishes extension store packages with the release", () => {
@@ -82,7 +93,12 @@ describe("release-native-host workflow", () => {
     expect(artifactWorkflow).toContain("dist/chrome-store/*.zip");
     expect(artifactWorkflow).toContain("dist/firefox-addons/*.zip");
     expect(artifactWorkflow).toContain("name: Linux native host (${{ matrix.arch }})");
+    expect(artifactWorkflow).toContain("runner: ubuntu-24.04");
     expect(artifactWorkflow).toContain("runner: ubuntu-24.04-arm");
+    expect(artifactWorkflow).toContain("sudo dpkg -i dist/native-host/localhost-control-native-host_*_${{ matrix.arch }}.deb");
     expect(artifactWorkflow).toContain("rustup target add aarch64-apple-darwin x86_64-apple-darwin");
+    expect(artifactWorkflow).toContain("sudo installer -pkg dist/native-host/localhost-control-native-host-macos-universal-*.pkg -target /");
+    expect(artifactWorkflow).toContain("runs-on: macos-15-intel");
+    expect(artifactWorkflow).toContain("pnpm host:verify:mac:tarball");
   });
 });

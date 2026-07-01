@@ -92,7 +92,7 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
           - arch: arm64
             runner: ubuntu-24.04-arm
     steps:
@@ -149,6 +149,39 @@ jobs:
 
       - name: Validate Linux deb
         run: node scripts/validate-native-host-package.mjs --platform=linux --format=deb --arch=${{ matrix.arch }}
+
+      - name: Smoke installed Linux deb
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup() {
+            sudo dpkg -r localhost-control-native-host >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          sudo dpkg -i dist/native-host/localhost-control-native-host_*_${{ matrix.arch }}.deb
+          test -x /usr/lib/localhost-control/localhost-control-host
+          test -f /etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json
+          test -f /etc/brave/native-messaging-hosts/com.localhost_control.host.json
+          test -f /usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json
+          node <<'NODE'
+          const { spawnSync } = require("node:child_process");
+          const pkg = require("./package.json");
+          const body = Buffer.from(JSON.stringify({ id: "installed-smoke", method: "version" }));
+          const frame = Buffer.alloc(4 + body.length);
+          frame.writeUInt32LE(body.length, 0);
+          body.copy(frame, 4);
+          const result = spawnSync("/usr/lib/localhost-control/localhost-control-host", [], { input: frame, timeout: 5000 });
+          if (result.status !== 0) throw new Error(result.stderr?.toString() || `host exited with ${result.status}`);
+          const length = result.stdout.readUInt32LE(0);
+          const response = JSON.parse(result.stdout.subarray(4, 4 + length).toString("utf8"));
+          if (response.id !== "installed-smoke" || response.result?.version !== pkg.version) throw new Error("invalid native host version response");
+          NODE
+          sudo dpkg -r localhost-control-native-host
+          trap - EXIT
+          test ! -e /usr/lib/localhost-control/localhost-control-host
+          test ! -e /etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json
+          test ! -e /etc/brave/native-messaging-hosts/com.localhost_control.host.json
+          test ! -e /usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json
 
       - name: Write Linux checksums
         run: node scripts/write-native-host-checksums.mjs
@@ -219,6 +252,42 @@ jobs:
       - name: Validate macOS pkg
         run: node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg
 
+      - name: Smoke installed macOS pkg
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup() {
+            if [ -x "/Library/Application Support/Localhost Control/uninstall.sh" ]; then
+              sudo "/Library/Application Support/Localhost Control/uninstall.sh" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+          sudo installer -pkg dist/native-host/localhost-control-native-host-macos-universal-*.pkg -target /
+          test -x "/Library/Application Support/Localhost Control/localhost-control-host"
+          test -f "/Library/Google/Chrome/NativeMessagingHosts/com.localhost_control.host.json"
+          test -f "/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.localhost_control.host.json"
+          test -f "/Library/Application Support/Mozilla/NativeMessagingHosts/com.localhost_control.host.json"
+          node <<'NODE'
+          const { spawnSync } = require("node:child_process");
+          const pkg = require("./package.json");
+          const hostPath = "/Library/Application Support/Localhost Control/localhost-control-host";
+          const body = Buffer.from(JSON.stringify({ id: "installed-smoke", method: "version" }));
+          const frame = Buffer.alloc(4 + body.length);
+          frame.writeUInt32LE(body.length, 0);
+          body.copy(frame, 4);
+          const result = spawnSync(hostPath, [], { input: frame, timeout: 5000 });
+          if (result.status !== 0) throw new Error(result.stderr?.toString() || `host exited with ${result.status}`);
+          const length = result.stdout.readUInt32LE(0);
+          const response = JSON.parse(result.stdout.subarray(4, 4 + length).toString("utf8"));
+          if (response.id !== "installed-smoke" || response.result?.version !== pkg.version) throw new Error("invalid native host version response");
+          NODE
+          sudo "/Library/Application Support/Localhost Control/uninstall.sh"
+          trap - EXIT
+          test ! -e "/Library/Application Support/Localhost Control/localhost-control-host"
+          test ! -e "/Library/Google/Chrome/NativeMessagingHosts/com.localhost_control.host.json"
+          test ! -e "/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.localhost_control.host.json"
+          test ! -e "/Library/Application Support/Mozilla/NativeMessagingHosts/com.localhost_control.host.json"
+
       - name: Write macOS checksums
         run: node scripts/write-native-host-checksums.mjs
 
@@ -228,3 +297,72 @@ jobs:
           name: localhost-control-native-host-macos
           path: dist/native-host/*
           if-no-files-found: error
+
+  macos-intel:
+    name: macOS Intel compatibility
+    runs-on: macos-15-intel
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Rust native host tests
+        run: cargo test -p localhost-control-host
+
+      - name: Install macOS Rust targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Package macOS tarball on Intel
+        run: pnpm host:package:mac:tarball
+
+      - name: Validate macOS tarball on Intel
+        run: pnpm host:verify:mac:tarball
+
+      - name: Package macOS pkg on Intel
+        run: node scripts/package-native-host.mjs --platform=darwin --format=pkg
+
+      - name: Validate macOS pkg on Intel
+        run: node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg
+
+      - name: Smoke installed macOS pkg on Intel
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup() {
+            if [ -x "/Library/Application Support/Localhost Control/uninstall.sh" ]; then
+              sudo "/Library/Application Support/Localhost Control/uninstall.sh" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+          sudo installer -pkg dist/native-host/localhost-control-native-host-macos-universal-*.pkg -target /
+          test -x "/Library/Application Support/Localhost Control/localhost-control-host"
+          node <<'NODE'
+          const { spawnSync } = require("node:child_process");
+          const pkg = require("./package.json");
+          const hostPath = "/Library/Application Support/Localhost Control/localhost-control-host";
+          const body = Buffer.from(JSON.stringify({ id: "installed-smoke", method: "version" }));
+          const frame = Buffer.alloc(4 + body.length);
+          frame.writeUInt32LE(body.length, 0);
+          body.copy(frame, 4);
+          const result = spawnSync(hostPath, [], { input: frame, timeout: 5000 });
+          if (result.status !== 0) throw new Error(result.stderr?.toString() || `host exited with ${result.status}`);
+          const length = result.stdout.readUInt32LE(0);
+          const response = JSON.parse(result.stdout.subarray(4, 4 + length).toString("utf8"));
+          if (response.id !== "installed-smoke" || response.result?.version !== pkg.version) throw new Error("invalid native host version response");
+          NODE
+          sudo "/Library/Application Support/Localhost Control/uninstall.sh"
+          trap - EXIT
+          test ! -e "/Library/Application Support/Localhost Control/localhost-control-host"
