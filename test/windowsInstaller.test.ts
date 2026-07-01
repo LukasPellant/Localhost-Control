@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -70,7 +70,9 @@ describe("Windows native host installer scripts", () => {
       const manifests = JSON.parse(output) as string[];
 
       expect(manifests).toHaveLength(suffixes.length);
-      expect(new Set(manifests)).toEqual(new Set([join(outDir, "com.localhost_control.host.json")]));
+      expect(new Set(manifests.map((manifest) => realpathSync.native(manifest)))).toEqual(
+        new Set([realpathSync.native(join(outDir, "com.localhost_control.host.json"))])
+      );
       expect(readFileSync(join(outDir, "com.localhost_control.host.json"), "utf8")).toContain(
         `chrome-extension://${extensionId}/`
       );
@@ -121,7 +123,7 @@ describe("Windows native host installer scripts", () => {
         HasAllowedOrigins: boolean;
       };
 
-      expect(manifest.ManifestPath).toBe(join(outDir, "com.localhost_control.host.firefox.json"));
+      expect(realpathSync.native(manifest.ManifestPath)).toBe(realpathSync.native(join(outDir, "com.localhost_control.host.firefox.json")));
       expect(manifest.AllowedExtensions).toEqual([firefoxExtensionId]);
       expect(manifest.HasAllowedOrigins).toBe(false);
 

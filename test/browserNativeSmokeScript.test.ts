@@ -149,11 +149,15 @@ describe("smoke-browser-native.mjs", () => {
   });
 
   it("uses Firefox native messaging user manifest locations on Unix platforms", () => {
-    if (process.platform === "win32") return;
+    const macosPaths = firefoxUserManifestPaths("/tmp/localhost-control-home", "com.localhost_control.host", "darwin");
+    const linuxPaths = firefoxUserManifestPaths("/tmp/localhost-control-home", "com.localhost_control.host", "linux");
 
-    const paths = firefoxUserManifestPaths("/tmp/localhost-control-home");
-    expect(paths[0]).toContain("Mozilla");
-    expect(paths[0]).toContain("com.localhost_control.host.json");
+    expect(macosPaths[0]).toContain("Library");
+    expect(macosPaths[0]).toContain("Mozilla");
+    expect(macosPaths[0]).toContain("com.localhost_control.host.json");
+    expect(linuxPaths[0]).toContain(".mozilla");
+    expect(linuxPaths[0]).toContain("native-messaging-hosts");
+    expect(linuxPaths[0]).toContain("com.localhost_control.host.json");
   });
 
   it("uses the temp profile path to clean up Chromium child processes on Windows", () => {

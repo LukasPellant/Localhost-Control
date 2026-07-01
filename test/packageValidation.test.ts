@@ -81,6 +81,8 @@ describe("validate-native-host-package", () => {
         path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
         `--platform=${platform}`,
         "--format=tarball",
+        ...(platform === "linux" ? ["--arch=amd64"] : []),
+        "--binary-arch-check=never",
         "--protocol-smoke=never",
         `--artifact=${artifact}`
       ],
@@ -116,6 +118,8 @@ describe("validate-native-host-package", () => {
           path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
           `--platform=${platform}`,
           "--format=tarball",
+          ...(platform === "linux" ? ["--arch=amd64"] : []),
+          "--binary-arch-check=never",
           "--protocol-smoke=never",
           `--artifact=${artifact}`
         ],
@@ -176,6 +180,8 @@ describe("validate-native-host-package", () => {
           path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
           `--platform=${platform}`,
           "--format=tarball",
+          ...(platform === "linux" ? ["--arch=amd64"] : []),
+          "--binary-arch-check=never",
           "--protocol-smoke=always",
           `--artifact=${artifact}`
         ],
@@ -223,6 +229,7 @@ describe("validate-native-host-package", () => {
         path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
         "--platform=linux",
         "--format=deb",
+        "--arch=amd64",
         "--protocol-smoke=never",
         `--artifact=${artifact}`
       ],
@@ -381,7 +388,7 @@ describe("validate-native-host-package", () => {
     expect(validatePkg?.[0]).toContain("Library/Application Support/Localhost Control/uninstall.sh");
     expect(validatePkg?.[0]).toContain("macOS pkg uninstall helper does not remove");
     expect(validatePkg?.[0]).toContain("verifyMacUniversalHost");
-    expect(validatorScript).toContain('run("lipo", ["-verify_arch", "arm64", "x86_64", hostPath])');
+    expect(validatorScript).toContain('run("lipo", [hostPath, "-verify_arch", "arm64", "x86_64"])');
     expect(validatorScript).toContain("verifyLinuxElfHost");
     expect(validatorScript).toContain("Tarball uninstaller did not remove");
     expect(validatorScript).toContain("Debian package metadata must declare Architecture");
@@ -439,6 +446,7 @@ describe("validate-native-host-package", () => {
           path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
           "--platform=linux",
           "--format=deb",
+          "--arch=amd64",
           "--protocol-smoke=never",
           `--artifact=${artifact}`
         ],
@@ -487,6 +495,7 @@ describe("validate-native-host-package", () => {
           path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
           "--platform=linux",
           "--format=deb",
+          "--arch=amd64",
           "--protocol-smoke=never",
           `--artifact=${artifact}`
         ],
@@ -538,6 +547,7 @@ describe("validate-native-host-package", () => {
         path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
         "--platform=linux",
         "--format=deb",
+        "--arch=amd64",
         "--protocol-smoke=never",
         `--artifact=${artifact}`,
         `--extension-id=${ids.chrome}`,

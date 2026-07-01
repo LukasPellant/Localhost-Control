@@ -139,8 +139,8 @@ const chromiumUserManifestPaths = (browser, homeDir, hostName = HOST_NAME) => {
   return [path.join(root, "NativeMessagingHosts", `${hostName}.json`)];
 };
 
-export const firefoxUserManifestPaths = (homeDir, hostName = HOST_NAME) => {
-  if (process.platform === "darwin") {
+export const firefoxUserManifestPaths = (homeDir, hostName = HOST_NAME, platform = process.platform) => {
+  if (platform === "darwin") {
     return [path.join(homeDir, "Library", "Application Support", "Mozilla", "NativeMessagingHosts", `${hostName}.json`)];
   }
   return [path.join(homeDir, ".mozilla", "native-messaging-hosts", `${hostName}.json`)];

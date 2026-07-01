@@ -78,10 +78,11 @@ jobs:
         run: pnpm smoke:browser-native -- --browser chrome --headless --required --host-path target/release/localhost-control-host.exe
 
       - name: Set up Firefox
+        id: setup-firefox
         uses: browser-actions/setup-firefox@v1
 
       - name: Smoke Firefox native messaging
-        run: pnpm smoke:browser-native -- --browser firefox --headless --required --host-path target/release/localhost-control-host.exe
+        run: pnpm smoke:browser-native -- --browser firefox --browser-exe "${{ steps.setup-firefox.outputs.firefox-path }}" --headless --required --host-path target/release/localhost-control-host.exe
 
       - name: Write Windows checksums
         run: node scripts/write-native-host-checksums.mjs
@@ -160,13 +161,14 @@ jobs:
         run: node scripts/validate-native-host-package.mjs --platform=linux --format=deb --arch=${{ matrix.arch }}
 
       - name: Set up Firefox
-        if: matrix.arch == 'amd64'
+        id: setup-firefox
         uses: browser-actions/setup-firefox@v1
 
       - name: Smoke installed Linux deb
         env:
           BROWSER_NATIVE_SMOKE_BROWSERS: ${{ matrix.arch == 'amd64' && 'chrome firefox' || 'firefox' }}
           BROWSER_NATIVE_SMOKE_REQUIRED: "true"
+          FIREFOX_BROWSER_EXE: ${{ steps.setup-firefox.outputs.firefox-path }}
         run: bash scripts/ci/smoke-installed-linux-deb.sh ${{ matrix.arch }}
 
       - name: Write Linux checksums
@@ -239,11 +241,13 @@ jobs:
         run: node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg
 
       - name: Set up Firefox
+        id: setup-firefox
         uses: browser-actions/setup-firefox@v1
 
       - name: Smoke installed macOS pkg
         env:
           BROWSER_NATIVE_SMOKE_REQUIRED: "true"
+          FIREFOX_BROWSER_EXE: ${{ steps.setup-firefox.outputs.firefox-path }}
         run: bash scripts/ci/smoke-installed-macos-pkg.sh
 
       - name: Write macOS checksums
@@ -288,9 +292,11 @@ jobs:
         run: node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg
 
       - name: Set up Firefox
+        id: setup-firefox
         uses: browser-actions/setup-firefox@v1
 
       - name: Smoke downloaded macOS pkg on Intel
         env:
           BROWSER_NATIVE_SMOKE_REQUIRED: "true"
+          FIREFOX_BROWSER_EXE: ${{ steps.setup-firefox.outputs.firefox-path }}
         run: bash scripts/ci/smoke-installed-macos-pkg.sh

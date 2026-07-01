@@ -23,9 +23,13 @@ const outputDir = path.resolve(args.get("out-dir") ?? path.join(repoRoot, "dist"
 const expectedExtensionId = args.get("extension-id") ?? defaultExtensionId;
 const expectedFirefoxExtensionId = args.get("firefox-extension-id") ?? defaultFirefoxExtensionId;
 const protocolSmoke = args.get("protocol-smoke") ?? "auto";
+const binaryArchCheck = args.get("binary-arch-check") ?? "auto";
 
 if (!["auto", "always", "never"].includes(protocolSmoke)) {
   throw new Error("Unsupported protocol smoke mode. Use auto, always, or never.");
+}
+if (!["auto", "never"].includes(binaryArchCheck)) {
+  throw new Error("Unsupported binary architecture check mode. Use auto or never.");
 }
 
 const defaultArtifactPath = () => {
@@ -141,12 +145,12 @@ const assertArrayEquals = (actual, expected, message) => {
 const shouldRunProtocolSmoke = () => protocolSmoke === "always" || (protocolSmoke === "auto" && platform === process.platform);
 
 const verifyMacUniversalHost = (hostPath) => {
-  if (platform !== "darwin" || process.platform !== "darwin") return;
-  run("lipo", ["-verify_arch", "arm64", "x86_64", hostPath]);
+  if (binaryArchCheck === "never" || platform !== "darwin" || process.platform !== "darwin") return;
+  run("lipo", [hostPath, "-verify_arch", "arm64", "x86_64"]);
 };
 
 const verifyLinuxElfHost = async (hostPath) => {
-  if (platform !== "linux") return;
+  if (binaryArchCheck === "never" || platform !== "linux") return;
   const header = await readFile(hostPath);
   if (header.length < 20 || header[0] !== 0x7f || header[1] !== 0x45 || header[2] !== 0x4c || header[3] !== 0x46) {
     throw new Error("Linux native host must be an ELF executable.");

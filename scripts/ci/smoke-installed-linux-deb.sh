@@ -18,14 +18,18 @@ smoke_browser_native() {
   local browser="${1:?browser is required}"
   local required_args=()
   local installed_host_args=()
+  local browser_exe_args=()
   if [ "${BROWSER_NATIVE_SMOKE_REQUIRED:-false}" = "true" ]; then
     required_args+=(--required)
   fi
   if [ "${browser}" = "firefox" ]; then
     installed_host_args+=(--use-installed-host --host-name com.localhost_control.host --extension-id localhost-control@lukaspellant.dev)
+    if [ -n "${FIREFOX_BROWSER_EXE:-}" ]; then
+      browser_exe_args+=(--browser-exe "${FIREFOX_BROWSER_EXE}")
+    fi
   fi
 
-  pnpm smoke:browser-native -- --browser "${browser}" --headless "${required_args[@]}" "${installed_host_args[@]}" --host-path /usr/lib/localhost-control/localhost-control-host
+  pnpm smoke:browser-native -- --browser "${browser}" "${browser_exe_args[@]}" --headless "${required_args[@]}" "${installed_host_args[@]}" --host-path /usr/lib/localhost-control/localhost-control-host
 }
 
 sudo dpkg -i "${artifacts[0]}"
@@ -33,6 +37,29 @@ test -x /usr/lib/localhost-control/localhost-control-host
 test -f /etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json
 test -f /etc/brave/native-messaging-hosts/com.localhost_control.host.json
 test -f /usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json
+
+node <<'NODE'
+const fs = require("node:fs");
+const hostPath = "/usr/lib/localhost-control/localhost-control-host";
+const expectedChromeOrigin = "chrome-extension://oamllgeaemchejbebgamdakjloahgjdc/";
+const expectedFirefoxId = "localhost-control@lukaspellant.dev";
+const manifests = [
+  ["/etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json", "chrome"],
+  ["/etc/brave/native-messaging-hosts/com.localhost_control.host.json", "chrome"],
+  ["/usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json", "firefox"]
+];
+for (const [manifestPath, browser] of manifests) {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  if (manifest.name !== "com.localhost_control.host") throw new Error(`invalid manifest name in ${manifestPath}`);
+  if (manifest.path !== hostPath) throw new Error(`invalid host path in ${manifestPath}`);
+  if (manifest.type !== "stdio") throw new Error(`invalid native host type in ${manifestPath}`);
+  if (browser === "firefox") {
+    if (JSON.stringify(manifest.allowed_extensions) !== JSON.stringify([expectedFirefoxId])) throw new Error(`invalid Firefox allowed_extensions in ${manifestPath}`);
+  } else if (JSON.stringify(manifest.allowed_origins) !== JSON.stringify([expectedChromeOrigin])) {
+    throw new Error(`invalid Chromium allowed_origins in ${manifestPath}`);
+  }
+}
+NODE
 
 node <<'NODE'
 const { spawnSync } = require("node:child_process");
