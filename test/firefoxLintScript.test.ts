@@ -82,14 +82,14 @@ const writeZip = (output: string, entries: Record<string, string | Buffer>) => {
   writeFileSync(output, Buffer.concat([...localParts, centralDirectory, endRecord]));
 };
 
-const writeFakeNpx = (binDir: string, output: string) => {
+const writeFakeWebExt = (binDir: string, output: string) => {
   mkdirSync(binDir, { recursive: true });
   if (process.platform === "win32") {
     const lines = output.split(/\r?\n/).map((line) => `echo ${line}`);
-    writeFileSync(path.join(binDir, "npx.cmd"), `@echo off\r\n${lines.join("\r\n")}\r\nexit /b 0\r\n`);
+    writeFileSync(path.join(binDir, "web-ext.cmd"), `@echo off\r\n${lines.join("\r\n")}\r\nexit /b 0\r\n`);
     return;
   }
-  const script = path.join(binDir, "npx");
+  const script = path.join(binDir, "web-ext");
   writeFileSync(script, `#!/usr/bin/env sh\nprintf '%s\\n' '${output.replace(/'/g, "'\\''")}'\nexit 0\n`);
   chmodSync(script, 0o755);
 };
@@ -102,7 +102,7 @@ const runFirefoxLint = (webExtOutput: string) => {
     "manifest.json": "{}\n",
     "sidepanel.js": "console.log('test');\n"
   });
-  writeFakeNpx(binDir, webExtOutput);
+  writeFakeWebExt(binDir, webExtOutput);
 
   return spawnSync(process.execPath, [path.join(repoRoot, "scripts", "lint-firefox-extension.mjs"), `--artifact=${artifact}`], {
     cwd: repoRoot,
@@ -117,6 +117,15 @@ describe("lint-firefox-extension.mjs", () => {
 
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
+  });
+
+  it("rejects additional unsafe assignment warnings even when they point at sidepanel.js", () => {
+    const result = runFirefoxLint(
+      "UNSAFE_VAR_ASSIGNMENT sidepanel.js\nUNSAFE_VAR_ASSIGNMENT sidepanel.js\nUNSAFE_VAR_ASSIGNMENT sidepanel.js"
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("Unexpected Firefox lint warning");
   });
 
   it("rejects unsafe assignment warnings outside the reviewed bundled sidepanel runtime", () => {

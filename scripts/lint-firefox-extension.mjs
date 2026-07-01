@@ -18,6 +18,7 @@ const artifact = path.resolve(
 const allowedWarningCodes = new Set(["UNSAFE_VAR_ASSIGNMENT"]);
 const ignoredSummaryCodes = new Set(["ERRORS", "NOTICES", "WARNINGS"]);
 const sourceExtensions = new Set([".ts", ".tsx", ".js", ".jsx"]);
+const reviewedUnsafeAssignmentWarningLimit = 2;
 
 const normalizeEntry = (value) => value.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
 
@@ -88,6 +89,11 @@ const unexpectedWarningDetails = (output) => {
   const unsafeAssignmentProblems = unsafeAssignmentLines
     .filter((line) => !line.toLowerCase().includes("sidepanel"))
     .map((line) => line.trim() || "UNSAFE_VAR_ASSIGNMENT");
+  if (unsafeAssignmentLines.length > reviewedUnsafeAssignmentWarningLimit) {
+    unsafeAssignmentProblems.push(
+      `UNSAFE_VAR_ASSIGNMENT count ${unsafeAssignmentLines.length} exceeds reviewed limit ${reviewedUnsafeAssignmentWarningLimit}`
+    );
+  }
 
   return [...unexpectedCodes, ...unsafeAssignmentProblems];
 };
@@ -101,8 +107,8 @@ const main = async () => {
       throw new Error(`Firefox lint source guard found innerHTML usage: ${sourceInnerHtml.join(", ")}`);
     }
 
-    const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-    const result = spawnSync(npx, ["--yes", "web-ext@latest", "lint", "--source-dir", tempRoot], {
+    const webExt = process.platform === "win32" ? "web-ext.cmd" : "web-ext";
+    const result = spawnSync(webExt, ["lint", "--source-dir", tempRoot], {
       cwd: repoRoot,
       encoding: "utf8",
       shell: process.platform === "win32"

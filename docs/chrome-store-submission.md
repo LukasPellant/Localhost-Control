@@ -42,50 +42,44 @@ The extension communicates only with its native messaging host installed on the 
 
 ## Reviewer Instructions
 
-1. Install the Chrome extension ZIP built by `pnpm extension:package:chrome`.
-2. Copy the extension ID from `chrome://extensions`.
-3. Install the native host for Chrome:
+1. Install the uploaded Chrome Web Store build. For pre-publication review, use the exact ZIP uploaded to the store, `localhost-control-<version>-chrome-store.zip`.
+2. Install the matching native host from the final GitHub Release for the same version:
+   - Windows: download `localhost-control-native-host-windows-<version>.zip`, extract it, and run `install.ps1`.
+   - macOS: download `localhost-control-native-host-macos-universal-<version>.pkg` and install it. The public `.pkg` should be signed/notarized before broad distribution.
+   - Debian/Ubuntu: download `localhost-control-native-host_<version>_amd64.deb` or `localhost-control-native-host_<version>_arm64.deb` and install it with the system package installer.
+   - Portable macOS/Linux review: use the matching `.tar.gz` and run `install.sh`.
+3. Start a disposable local server:
 
 ```powershell
-pnpm host:install -- --browser chrome --extension-id <extension-id>
+node -e "require('node:http').createServer((_, res) => res.end('ok')).listen(5173, '127.0.0.1')"
 ```
 
-On macOS or Linux, use:
+4. Open the Localhost Control side panel.
+5. Verify the local listener appears with PID/resource metadata.
+6. Verify the Open and Copy URL actions use `http://127.0.0.1:5173`.
+7. Save a profile for the listener, trust a temporary project path, add `http://127.0.0.1:5173` as the main URL, add `http://127.0.0.1:5173/health` as the health URL, and set this start command:
+
+```powershell
+node -e "require('node:http').createServer((_, res) => res.end('ok')).listen(5173, '127.0.0.1')"
+```
+
+8. Stop the manually started disposable server, then start the saved profile from the side panel and verify the ready notification appears when the localhost health check succeeds.
+9. Stop that profile, temporarily change the saved profile health URL to `http://127.0.0.1:59999/health`, start the saved profile again, and verify the failed notification appears when the localhost health check does not become ready.
+10. Verify cleanup controls clear only the selected localhost origin and that Hard reload reloads matching localhost tabs.
+11. Verify Stop asks for confirmation and stops the disposable local server.
+12. Confirm native messaging through the browser, not only by launching the host binary directly: Chrome, Brave, and Firefox should all be able to open Localhost Control and receive a scan/version response from the installed native host.
+
+For Firefox review builds, install the Firefox add-on package submitted to Mozilla Add-ons, or load the exact `localhost-control-<version>-firefox.zip` from the same GitHub Release in `about:debugging#/runtime/this-firefox`. Firefox native messaging uses the add-on ID `localhost-control@lukaspellant.dev`; the final native host packages are built with that ID. After loading Firefox, repeat the native messaging and disposable-server checks above.
+
+Uninstall the native host after review if desired:
+
+```powershell
+.\uninstall.ps1
+```
 
 ```bash
-EXTENSION_ID=<extension-id> pnpm host:install:mac
-EXTENSION_ID=<extension-id> pnpm host:install:linux
-```
-
-For Firefox review builds, package with `pnpm extension:package:firefox`, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select the packaged ZIP or its extracted `manifest.json`. Install the native host with `FIREFOX_EXTENSION_ID=localhost-control@lukaspellant.dev` on macOS/Linux, or on Windows use:
-
-```powershell
-pnpm host:install -- --browser firefox --firefox-extension-id localhost-control@lukaspellant.dev
-```
-
-4. Start a disposable local server:
-
-```powershell
-node -e "require('node:http').createServer((_, res) => res.end('ok')).listen(5173, '127.0.0.1')"
-```
-
-5. Open the Localhost Control side panel.
-6. Verify the local listener appears with PID/resource metadata.
-7. Verify the Open and Copy URL actions use `http://127.0.0.1:5173`.
-8. Save a profile for the listener, trust a temporary project path, add `http://127.0.0.1:5173` as the main URL, add `http://127.0.0.1:5173/health` as the health URL, and set this start command:
-
-```powershell
-node -e "require('node:http').createServer((_, res) => res.end('ok')).listen(5173, '127.0.0.1')"
-```
-
-9. Stop the manually started disposable server, then start the saved profile from the side panel and verify the ready notification appears when the localhost health check succeeds.
-10. Stop that profile, temporarily change the saved profile health URL to `http://127.0.0.1:59999/health`, start the saved profile again, and verify the failed notification appears when the localhost health check does not become ready.
-11. Verify cleanup controls clear only the selected localhost origin and that Hard reload reloads matching localhost tabs.
-12. Verify Stop asks for confirmation and stops the disposable local server.
-13. Uninstall the native host after review if desired:
-
-```powershell
-pnpm host:uninstall -- --browser chrome
+sudo "/Library/Application Support/Localhost Control/uninstall.sh"
+sudo dpkg -r localhost-control-native-host
 ```
 
 ## Pre-Upload Checklist
@@ -99,4 +93,9 @@ pnpm host:uninstall -- --browser chrome
 - [ ] Run `pnpm extension:lint:firefox` against the packaged Firefox ZIP.
 - [ ] Confirm any Firefox lint warnings are only the reviewed React runtime `UNSAFE_VAR_ASSIGNMENT` warnings in bundled `sidepanel.js`; app source must not use direct `innerHTML`.
 - [ ] Confirm the production bundle does not contain demo project names or paths.
-- [ ] Confirm the native host has been tested with the final extension ID.
+- [ ] Confirm `.github/workflows/release-native-host.yml` passed for the release tag or manual `release-native-host.yml` run.
+- [ ] Confirm the final GitHub Release contains the Windows ZIP, universal macOS PKG/TAR.GZ, Linux amd64/arm64 DEB/TAR.GZ, Chrome ZIP, Firefox ZIP, and `SHA256SUMS`.
+- [ ] Verify `SHA256SUMS` against the downloaded native host artifacts.
+- [ ] Confirm Windows package validation, Linux install smoke, macOS install smoke, and Firefox lint are green in the release workflow logs.
+- [ ] Confirm macOS signing/notarization status is recorded before broad public distribution.
+- [ ] Confirm Chrome, Brave, and Firefox native messaging works with the final release extension IDs and installed native host packages on each supported operating system.
