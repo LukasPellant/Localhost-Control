@@ -133,6 +133,19 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Dev apps" })).toHaveClass("active");
   });
 
+  it("keeps Dev apps filters compact", async () => {
+    render(<App client={client} />);
+
+    const filters = await screen.findByLabelText("Port filters");
+    expect(within(filters).getByRole("button", { name: "Dev apps" })).toBeInTheDocument();
+    expect(within(filters).getByRole("button", { name: "All" })).toBeInTheDocument();
+    expect(within(filters).getByRole("button", { name: "Custom" })).toBeInTheDocument();
+    expect(within(filters).queryByRole("button", { name: "Node" })).not.toBeInTheDocument();
+    expect(within(filters).queryByRole("button", { name: "Python" })).not.toBeInTheDocument();
+    expect(within(filters).queryByRole("button", { name: "Unknown" })).not.toBeInTheDocument();
+    expect(within(filters).queryByRole("button", { name: "Protected" })).not.toBeInTheDocument();
+  });
+
   it("keeps saved profiles in Favorites instead of pinning them in Dev apps", async () => {
     window.localStorage.setItem(
       "localhost-control-settings",
@@ -755,7 +768,7 @@ describe("App", () => {
     expect(profiles).toHaveTextContent("Health permission denied");
   });
 
-  it("does not offer profile start when the saved command is not safe to run", async () => {
+  it("keeps unsafe profile start visible but disabled", async () => {
     window.localStorage.setItem(
       "localhost-control-settings",
       JSON.stringify({
@@ -775,7 +788,39 @@ describe("App", () => {
     render(<App client={client} />);
 
     const profiles = await screen.findByLabelText("Project profiles");
-    expect(within(profiles).queryByRole("button", { name: /start profile docs/i })).not.toBeInTheDocument();
+    expect(within(profiles).getByRole("button", { name: /start profile docs/i })).toBeDisabled();
+  });
+
+  it("keeps start visible for a running trusted saved profile", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /^start profile example shop$/i }));
+
+    await waitFor(() =>
+      expect(client.openTerminal).toHaveBeenCalledWith({
+        projectHint: "D:\\Projects\\ExampleShop",
+        commandLine: "pnpm dev",
+        executeCommand: true
+      })
+    );
   });
 
   it("groups saved profile health, origin cleanup, command, URLs, and recent logs in the detail card", async () => {
@@ -825,6 +870,16 @@ describe("App", () => {
     expect(within(devHealth).getByRole("button", { name: /open desktop preview http:\/\/127\.0\.0\.1:5173/i })).toBeInTheDocument();
     expect(within(devHealth).getByRole("button", { name: /open project folder for example shop/i })).toBeInTheDocument();
     expect(within(devHealth).getByRole("button", { name: /copy logs for example shop/i })).toBeInTheDocument();
+  });
+
+  it("places detail actions before process metadata", async () => {
+    render(<App client={client} />);
+
+    const details = await screen.findByLabelText("Port 5173 details");
+    const saveProfileButton = within(details).getByRole("button", { name: /save profile/i });
+    const processLabel = within(details).getByText("Process");
+
+    expect(Boolean(saveProfileButton.compareDocumentPosition(processLabel) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
   it("opens a trusted saved profile folder from the detail card", async () => {
@@ -2679,14 +2734,15 @@ describe("App", () => {
     expect(createTab).toHaveBeenCalledOnce();
   });
 
-  it("keeps the detail panel aligned with the active filter", async () => {
+  it("keeps the detail panel aligned after switching to all ports", async () => {
     render(<App client={client} />);
 
     expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Protected" }));
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
 
     expect(screen.getByRole("button", { name: /select port 135/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /select port 135/i }));
     expect(screen.getByLabelText("Port 135 details")).toBeInTheDocument();
     expect(screen.getByText("Protected system process")).toBeInTheDocument();
   });
@@ -2785,7 +2841,7 @@ describe("App", () => {
 
     render(<App client={staleClient} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Unknown" }));
+    fireEvent.click(await screen.findByRole("button", { name: "All" }));
     const row = await screen.findByRole("button", { name: /select port 8990/i });
     expect(row).toHaveTextContent("Possible ghost process");
     const devHealth = screen.getByLabelText("Dev health for port 8990");

@@ -118,62 +118,6 @@ export const DetailPanel = ({
           </IconButton>
         </div>
       </div>
-      <dl className="detail-grid">
-        {profile ? (
-          <div>
-            <dt>Profile</dt>
-            <dd>{profile.name}</dd>
-          </div>
-        ) : null}
-        <div>
-          <dt>URL</dt>
-          <dd>{entryUrl}</dd>
-        </div>
-        <div>
-          <dt>PID</dt>
-          <dd>{entry.pid}</dd>
-        </div>
-        <div>
-          <dt>Process</dt>
-          <dd>{entry.processName}</dd>
-        </div>
-        <div>
-          <dt>Confidence</dt>
-          <dd>{entry.confidence}</dd>
-        </div>
-        <div>
-          <dt>CPU</dt>
-          <dd>{cpu ?? "Unknown"}</dd>
-        </div>
-        <div>
-          <dt>Memory</dt>
-          <dd>{memory ?? "Unknown"}</dd>
-        </div>
-        <div>
-          <dt>Private</dt>
-          <dd>{privateMemory ?? "Unknown"}</dd>
-        </div>
-        <div>
-          <dt>Threads</dt>
-          <dd>{entry.resources?.threadCount ?? "Unknown"}</dd>
-        </div>
-        <div>
-          <dt>Handles</dt>
-          <dd>{entry.resources?.handleCount ?? "Unknown"}</dd>
-        </div>
-        <div>
-          <dt>Uptime</dt>
-          <dd>{uptime ?? "Unknown"}</dd>
-        </div>
-        <div className="wide">
-          <dt>Path</dt>
-          <dd>{entry.projectHint ?? entry.executablePath ?? "Unknown"}</dd>
-        </div>
-        <div className="wide">
-          <dt>Command</dt>
-          <dd>{entry.commandLine ?? entry.protectionReason ?? "No command line available"}</dd>
-        </div>
-      </dl>
       {showDevHealth ? (
         <div className="dev-health-card" aria-label={profile ? `Dev health for ${profile.name}` : `Dev health for port ${entry.port}`}>
           <div className="dev-health-heading">
@@ -339,7 +283,7 @@ export const DetailPanel = ({
                 </button>
                 <button type="button" onClick={() => onOpenProfileTerminal(profile)} aria-label={`Open terminal for ${profile.name}`}>
                   <Terminal size={14} />
-                  Open terminal in project
+                  Terminal
                 </button>
               </>
             ) : null}
@@ -379,6 +323,62 @@ export const DetailPanel = ({
           Hide process
         </button>
       </div>
+      <dl className="detail-grid">
+        {profile ? (
+          <div>
+            <dt>Profile</dt>
+            <dd>{profile.name}</dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>URL</dt>
+          <dd>{entryUrl}</dd>
+        </div>
+        <div>
+          <dt>PID</dt>
+          <dd>{entry.pid}</dd>
+        </div>
+        <div>
+          <dt>Process</dt>
+          <dd>{entry.processName}</dd>
+        </div>
+        <div>
+          <dt>Confidence</dt>
+          <dd>{entry.confidence}</dd>
+        </div>
+        <div>
+          <dt>CPU</dt>
+          <dd>{cpu ?? "Unknown"}</dd>
+        </div>
+        <div>
+          <dt>Memory</dt>
+          <dd>{memory ?? "Unknown"}</dd>
+        </div>
+        <div>
+          <dt>Private</dt>
+          <dd>{privateMemory ?? "Unknown"}</dd>
+        </div>
+        <div>
+          <dt>Threads</dt>
+          <dd>{entry.resources?.threadCount ?? "Unknown"}</dd>
+        </div>
+        <div>
+          <dt>Handles</dt>
+          <dd>{entry.resources?.handleCount ?? "Unknown"}</dd>
+        </div>
+        <div>
+          <dt>Uptime</dt>
+          <dd>{uptime ?? "Unknown"}</dd>
+        </div>
+        <div className="wide">
+          <dt>Path</dt>
+          <dd>{entry.projectHint ?? entry.executablePath ?? "Unknown"}</dd>
+        </div>
+        <div className="wide">
+          <dt>Command</dt>
+          <dd>{entry.commandLine ?? entry.protectionReason ?? "No command line available"}</dd>
+        </div>
+      </dl>
     </section>
   );
 };

@@ -42,7 +42,7 @@ import { exportSettingsBundle, importSettingsBundle } from "./lib/settingsBundle
 import { detectStaleProcess, formatStaleProcessAdvice, type StaleProcessSignal } from "./lib/staleProcesses";
 import "./styles.css";
 
-const filters: FilterId[] = ["web", "custom", "all", "node", "python", "unknown", "protected"];
+const filters: FilterId[] = ["web", "all", "custom"];
 const themeQuery = "(prefers-color-scheme: dark)";
 const nativeHostReleasesUrl = "https://github.com/LukasPellant/Localhost-Control/releases";
 
@@ -1179,12 +1179,11 @@ export const App = ({ client }: AppProps) => {
 
       <section className="summary-strip" aria-label="Scan summary">
         <span><strong>{entries.length}</strong> ports</span>
-        <span><strong>{killableCount}</strong> killable</span>
+        <span><strong>{killableCount}</strong> kill</span>
         <span><strong>{protectedCount}</strong> protected</span>
-        <span>{scanResult ? new Date(scanResult.scannedAt).toLocaleTimeString() : "not scanned"}</span>
-        <button className="summary-action" type="button" onClick={() => void copyScanContext()} aria-label="Copy scan context">
+        <span>{scanResult ? new Date(scanResult.scannedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--:--"}</span>
+        <button className="summary-action" type="button" onClick={() => void copyScanContext()} aria-label="Copy scan context" title="Copy scan context">
           <Copy size={13} />
-          Context
         </button>
       </section>
 
@@ -1290,62 +1289,74 @@ export const App = ({ client }: AppProps) => {
 
           {profileStates.length ? (
             <section className="profile-strip" aria-label="Project profiles">
-              {profileStates.map((state) => (
-                <article
-                  className={`profile-chip ${state.status}`}
-                  key={state.profile.id}
-                >
-                  <button
-                    className="profile-summary"
-                    type="button"
-                    aria-label={`Open profile ${state.profile.name}`}
-                    onClick={() => {
-                      if (state.entry) setSelectedKey(`${state.entry.pid}:${state.entry.port}`);
-                      else if (state.profile.mainUrl) openExternalUrl(state.profile.mainUrl, state.profile.preferredOpenMode);
-                    }}
+              {profileStates.map((state) => {
+                const trustedStartable = isTrustedStartableProjectProfile(settings, state.profile);
+                const startTitle = trustedStartable
+                  ? `Start profile ${state.profile.name}`
+                  : isStartableProjectProfile(state.profile)
+                    ? "Trust this project path before starting"
+                    : "Update this profile from a running app to capture a start command";
+                return (
+                  <article
+                    className={`profile-chip ${state.status}`}
+                    key={state.profile.id}
                   >
-                    <span className="profile-name">{state.profile.name}</span>
-                    <span className="profile-status">{state.status}</span>
-                    <span className="profile-health">{state.healthLabel}</span>
-                  </button>
-                  <div className="profile-actions">
-                    <button type="button" onClick={() => void copyProfileContext(state)} aria-label={`Copy profile context ${state.profile.name}`}>
-                      <Copy size={13} />
-                      Context
+                    <button
+                      className="profile-summary"
+                      type="button"
+                      aria-label={`Open profile ${state.profile.name}`}
+                      onClick={() => {
+                        if (state.entry) setSelectedKey(`${state.entry.pid}:${state.entry.port}`);
+                        else if (state.profile.mainUrl) openExternalUrl(state.profile.mainUrl, state.profile.preferredOpenMode);
+                      }}
+                    >
+                      <span className="profile-name">{state.profile.name}</span>
+                      <span className="profile-status">{state.status}</span>
+                      <span className="profile-health">{state.healthLabel}</span>
                     </button>
-                    {state.status === "stopped" && isTrustedStartableProjectProfile(settings, state.profile) ? (
-                      <button type="button" onClick={() => void startProfile(state.profile)} aria-label={`Start profile ${state.profile.name}`}>
+                    <div className="profile-actions">
+                      <button type="button" onClick={() => void copyProfileContext(state)} aria-label={`Copy profile context ${state.profile.name}`}>
+                        <Copy size={13} />
+                        Context
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void startProfile(state.profile)}
+                        aria-label={`Start profile ${state.profile.name}`}
+                        disabled={!trustedStartable}
+                        title={startTitle}
+                      >
                         <Terminal size={13} />
                         Start
                       </button>
-                    ) : null}
-                    {state.entry?.killable ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (state.entry?.killable) requestKillEntry(state.entry);
-                        }}
-                        aria-label={`Stop profile ${state.profile.name}`}
-                      >
-                        <Square size={12} />
-                        Stop
-                      </button>
-                    ) : null}
-                    {state.entry?.killable && isTrustedStartableProjectProfile(settings, state.profile) ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (state.entry?.killable) requestRestartProfile(state.profile, state.entry);
-                        }}
-                        aria-label={`Restart profile ${state.profile.name}`}
-                      >
-                        <RefreshCw size={12} />
-                        Restart
-                      </button>
-                    ) : null}
-                  </div>
-                </article>
-              ))}
+                      {state.entry?.killable ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (state.entry?.killable) requestKillEntry(state.entry);
+                          }}
+                          aria-label={`Stop profile ${state.profile.name}`}
+                        >
+                          <Square size={12} />
+                          Stop
+                        </button>
+                      ) : null}
+                      {state.entry?.killable && trustedStartable ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (state.entry?.killable) requestRestartProfile(state.profile, state.entry);
+                          }}
+                          aria-label={`Restart profile ${state.profile.name}`}
+                        >
+                          <RefreshCw size={12} />
+                          Restart
+                        </button>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
               {settings.projectProfiles.length >= 2 && !hasWorkspaceForCurrentProfiles ? (
                 <button className="profile-chip action" type="button" onClick={() => void saveWorkspaceFromProfiles()}>
                   <span className="profile-name">
