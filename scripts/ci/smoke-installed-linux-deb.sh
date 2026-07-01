@@ -27,6 +27,8 @@ smoke_browser_native() {
     if [ -n "${FIREFOX_BROWSER_EXE:-}" ]; then
       browser_exe_args+=(--browser-exe "${FIREFOX_BROWSER_EXE}")
     fi
+  elif [ "${browser}" = "chrome" ] && [ -n "${CHROME_BROWSER_EXE:-}" ]; then
+    browser_exe_args+=(--browser-exe "${CHROME_BROWSER_EXE}")
   fi
 
   pnpm smoke:browser-native -- --browser "${browser}" "${browser_exe_args[@]}" --headless "${required_args[@]}" "${installed_host_args[@]}" --host-path /usr/lib/localhost-control/localhost-control-host

@@ -1,28 +1,46 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
-import {
-  buildChromiumLaunchArgs,
-  buildChromiumNativeManifest,
-  buildFirefoxNativeManifest,
-  buildFirefoxSmokeManifest,
-  buildWindowsBrowserCleanupCommand,
-  browserCandidates,
-  browserExecutableCommandNames,
-  chromiumRegistrySuffixes,
-  computeChromiumExtensionId,
-  describeRuntimeEvaluationFailure,
-  firefoxUserManifestPaths,
-  main,
-  parseBrowserNativeSmokeArgs,
-  webExtCliPath
-} from "../scripts/smoke-browser-native.mjs";
+import { beforeAll, describe, expect, it } from "vitest";
+
+let buildChromiumLaunchArgs: any;
+let buildChromiumNativeManifest: any;
+let buildFirefoxNativeManifest: any;
+let buildFirefoxSmokeManifest: any;
+let buildWindowsBrowserCleanupCommand: any;
+let browserCandidates: any;
+let browserExecutableCommandNames: any;
+let chromiumRegistrySuffixes: any;
+let computeChromiumExtensionId: any;
+let describeRuntimeEvaluationFailure: any;
+let firefoxUserManifestPaths: any;
+let main: any;
+let parseBrowserNativeSmokeArgs: any;
+let webExtCliPath: any;
 
 const packageJson = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8")) as {
   scripts: Record<string, string>;
 };
 
 describe("smoke-browser-native.mjs", () => {
+  beforeAll(async () => {
+    ({
+      buildChromiumLaunchArgs,
+      buildChromiumNativeManifest,
+      buildFirefoxNativeManifest,
+      buildFirefoxSmokeManifest,
+      buildWindowsBrowserCleanupCommand,
+      browserCandidates,
+      browserExecutableCommandNames,
+      chromiumRegistrySuffixes,
+      computeChromiumExtensionId,
+      describeRuntimeEvaluationFailure,
+      firefoxUserManifestPaths,
+      main,
+      parseBrowserNativeSmokeArgs,
+      webExtCliPath
+    } = await import("../scripts/smoke-browser-native.mjs"));
+  });
+
   it("is exposed as an opt-in release smoke script", () => {
     expect(packageJson.scripts["smoke:browser-native"]).toBe("node scripts/smoke-browser-native.mjs");
   });

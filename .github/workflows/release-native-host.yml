@@ -56,8 +56,12 @@ jobs:
       - name: Validate Windows asset
         run: pnpm host:verify:windows
 
+      - name: Set up Chrome
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v2
+
       - name: Smoke Chrome native messaging
-        run: pnpm smoke:browser-native -- --browser chrome --headless --required --host-path target/release/localhost-control-host.exe
+        run: pnpm smoke:browser-native -- --browser chrome --browser-exe "${{ steps.setup-chrome.outputs.chrome-path }}" --headless --required --host-path target/release/localhost-control-host.exe
 
       - name: Set up Firefox
         id: setup-firefox
@@ -126,6 +130,11 @@ jobs:
           node scripts/validate-native-host-package.mjs --platform=linux --format=tarball --arch=${{ matrix.arch }}
           node scripts/validate-native-host-package.mjs --platform=linux --format=deb --arch=${{ matrix.arch }}
 
+      - name: Set up Chrome
+        if: matrix.arch == 'amd64'
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v2
+
       - name: Set up Firefox
         id: setup-firefox
         uses: browser-actions/setup-firefox@v1
@@ -134,6 +143,7 @@ jobs:
         env:
           BROWSER_NATIVE_SMOKE_BROWSERS: ${{ matrix.arch == 'amd64' && 'chrome firefox' || 'firefox' }}
           BROWSER_NATIVE_SMOKE_REQUIRED: "true"
+          CHROME_BROWSER_EXE: ${{ steps.setup-chrome.outputs.chrome-path }}
           FIREFOX_BROWSER_EXE: ${{ steps.setup-firefox.outputs.firefox-path }}
         run: bash scripts/ci/smoke-installed-linux-deb.sh ${{ matrix.arch }}
 
@@ -190,6 +200,10 @@ jobs:
       - name: Validate macOS assets
         run: pnpm host:verify:mac
 
+      - name: Set up Chrome
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v2
+
       - name: Set up Firefox
         id: setup-firefox
         uses: browser-actions/setup-firefox@v1
@@ -197,6 +211,7 @@ jobs:
       - name: Smoke installed macOS pkg
         env:
           BROWSER_NATIVE_SMOKE_REQUIRED: "true"
+          CHROME_BROWSER_EXE: ${{ steps.setup-chrome.outputs.chrome-path }}
           FIREFOX_BROWSER_EXE: ${{ steps.setup-firefox.outputs.firefox-path }}
         run: bash scripts/ci/smoke-installed-macos-pkg.sh
 
@@ -242,6 +257,10 @@ jobs:
       - name: Validate downloaded macOS pkg on Intel
         run: node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg
 
+      - name: Set up Chrome
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v2
+
       - name: Set up Firefox
         id: setup-firefox
         uses: browser-actions/setup-firefox@v1
@@ -249,6 +268,7 @@ jobs:
       - name: Smoke downloaded macOS pkg on Intel
         env:
           BROWSER_NATIVE_SMOKE_REQUIRED: "true"
+          CHROME_BROWSER_EXE: ${{ steps.setup-chrome.outputs.chrome-path }}
           FIREFOX_BROWSER_EXE: ${{ steps.setup-firefox.outputs.firefox-path }}
         run: bash scripts/ci/smoke-installed-macos-pkg.sh
 

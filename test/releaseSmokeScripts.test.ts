@@ -30,6 +30,7 @@ describe("release install smoke scripts", () => {
     expect(linux).toContain("invalid Chromium allowed_origins");
     expect(linux).toContain("invalid Firefox allowed_extensions");
     expect(linux).toContain("BROWSER_NATIVE_SMOKE_REQUIRED");
+    expect(linux).toContain("CHROME_BROWSER_EXE");
     expect(linux).toContain("FIREFOX_BROWSER_EXE");
     expect(linux).toContain('for browser in ${BROWSER_NATIVE_SMOKE_BROWSERS:-chrome firefox}; do');
     expect(linux).toContain('installed_host_args+=(--use-installed-host --host-name com.localhost_control.host --extension-id localhost-control@lukaspellant.dev)');
@@ -44,6 +45,7 @@ describe("release install smoke scripts", () => {
     expect(macos).toContain("invalid Chromium allowed_origins");
     expect(macos).toContain("invalid Firefox allowed_extensions");
     expect(macos).toContain("BROWSER_NATIVE_SMOKE_REQUIRED");
+    expect(macos).toContain("CHROME_BROWSER_EXE");
     expect(macos).toContain("FIREFOX_BROWSER_EXE");
     expect(macos).toContain('for browser in ${BROWSER_NATIVE_SMOKE_BROWSERS:-chrome firefox}; do');
     expect(macos).toContain('installed_host_args+=(--use-installed-host --host-name com.localhost_control.host --extension-id localhost-control@lukaspellant.dev)');

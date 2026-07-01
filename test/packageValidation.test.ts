@@ -402,6 +402,7 @@ describe("validate-native-host-package", () => {
     expect(packagerScript).toContain('path.join(installRoot, "uninstall.sh")');
     expect(packagerScript).toContain("verifyUniversalMacHost(hostBinary)");
     expect(packagerScript).toContain("macOS universal native host packages must be created on macOS");
+    expect(packagerScript).toContain('spawnSync("lipo", [binaryPath, "-verify_arch", "arm64", "x86_64"]');
     expect(macosUninstaller).toContain('SCOPE="system"');
     expect(macosUninstaller).toContain('/Library/Google/Chrome/NativeMessagingHosts/${HOST_NAME}.json');
     expect(macosUninstaller).toContain('/Library/Application Support/Localhost Control');

@@ -37,7 +37,7 @@ const verifyUniversalMacHost = (binaryPath) => {
   if (process.platform !== "darwin") {
     throw new Error("macOS universal native host packages must be created on macOS so lipo can verify arm64 and x86_64 slices.");
   }
-  const result = spawnSync("lipo", ["-verify_arch", "arm64", "x86_64", binaryPath], { cwd: repoRoot, stdio: "inherit" });
+  const result = spawnSync("lipo", [binaryPath, "-verify_arch", "arm64", "x86_64"], { cwd: repoRoot, stdio: "inherit" });
   if (result.status !== 0) throw new Error("macOS native host binary must contain arm64 and x86_64 slices.");
 };
 
