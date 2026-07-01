@@ -9,6 +9,7 @@
     "test": "vitest && pnpm -r --sort test",
     "test:run": "vitest run && pnpm -r --sort test:run",
     "smoke:native-host": "cargo test -p localhost-control-host",
+    "smoke:browser-native": "node scripts/smoke-browser-native.mjs",
     "typecheck": "pnpm --filter @localhost-control/shared build && pnpm -r --sort typecheck",
     "extension:package": "node scripts/package-extension.mjs",
     "extension:package:chrome": "node scripts/package-extension.mjs --target=chrome",
