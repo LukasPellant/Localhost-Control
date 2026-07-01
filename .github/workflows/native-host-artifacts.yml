@@ -74,6 +74,15 @@ jobs:
       - name: Validate Windows zip
         run: pnpm host:verify:windows
 
+      - name: Smoke Chrome native messaging
+        run: pnpm smoke:browser-native -- --browser chrome --headless --required --host-path target/release/localhost-control-host.exe
+
+      - name: Set up Firefox
+        uses: browser-actions/setup-firefox@v1
+
+      - name: Smoke Firefox native messaging
+        run: pnpm smoke:browser-native -- --browser firefox --headless --required --host-path target/release/localhost-control-host.exe
+
       - name: Write Windows checksums
         run: node scripts/write-native-host-checksums.mjs
 
@@ -150,7 +159,12 @@ jobs:
       - name: Validate Linux deb
         run: node scripts/validate-native-host-package.mjs --platform=linux --format=deb --arch=${{ matrix.arch }}
 
+      - name: Set up Firefox
+        uses: browser-actions/setup-firefox@v1
+
       - name: Smoke installed Linux deb
+        env:
+          BROWSER_NATIVE_SMOKE_REQUIRED: ${{ matrix.arch == 'amd64' && 'true' || 'false' }}
         run: bash scripts/ci/smoke-installed-linux-deb.sh ${{ matrix.arch }}
 
       - name: Write Linux checksums
@@ -222,7 +236,12 @@ jobs:
       - name: Validate macOS pkg
         run: node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg
 
+      - name: Set up Firefox
+        uses: browser-actions/setup-firefox@v1
+
       - name: Smoke installed macOS pkg
+        env:
+          BROWSER_NATIVE_SMOKE_REQUIRED: "true"
         run: bash scripts/ci/smoke-installed-macos-pkg.sh
 
       - name: Write macOS checksums
@@ -260,5 +279,10 @@ jobs:
       - name: Validate downloaded macOS pkg on Intel
         run: node scripts/validate-native-host-package.mjs --platform=darwin --format=pkg
 
+      - name: Set up Firefox
+        uses: browser-actions/setup-firefox@v1
+
       - name: Smoke downloaded macOS pkg on Intel
+        env:
+          BROWSER_NATIVE_SMOKE_REQUIRED: "true"
         run: bash scripts/ci/smoke-installed-macos-pkg.sh

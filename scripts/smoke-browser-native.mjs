@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { cp, access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createHash, generateKeyPairSync } from "node:crypto";
-import { createServer } from "node:net";
+import { createServer as createHttpServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -13,7 +14,7 @@ export const BROWSER_SMOKE_HOST_NAME = "com.localhost_control.host_smoke";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
-const supportedAutomatedBrowsers = new Set(["chrome", "brave"]);
+const supportedAutomatedBrowsers = new Set(["chrome", "brave", "firefox"]);
 
 export const parseBrowserNativeSmokeArgs = (argv = process.argv.slice(2)) => {
   const args = parseArgs(argv);
@@ -22,6 +23,7 @@ export const parseBrowserNativeSmokeArgs = (argv = process.argv.slice(2)) => {
     browser,
     browserExe: args.get("browser-exe"),
     extensionDir: path.resolve(args.get("extension-dir") ?? path.join(repoRoot, "packages", "extension", "dist")),
+    headless: args.get("headless") === "true",
     hostName: args.get("host-name") ?? BROWSER_SMOKE_HOST_NAME,
     hostPath: path.resolve(
       args.get("host-path") ??
@@ -31,6 +33,7 @@ export const parseBrowserNativeSmokeArgs = (argv = process.argv.slice(2)) => {
     ),
     required: args.get("required") === "true",
     manualGate: args.get("manual-gate") === "true",
+    manualConfirmed: args.get("manual-confirmed") === "true" || process.env.FIREFOX_NATIVE_SMOKE_CONFIRMED === "true",
     timeoutMs: Number(args.get("timeout-ms") ?? 30_000)
   };
   if (!["chrome", "brave", "firefox"].includes(parsed.browser)) {
@@ -39,11 +42,12 @@ export const parseBrowserNativeSmokeArgs = (argv = process.argv.slice(2)) => {
   return parsed;
 };
 
-export const buildChromiumLaunchArgs = ({ extensionDir, initialUrl = "about:blank", remoteDebuggingPort, userDataDir }) => [
+export const buildChromiumLaunchArgs = ({ extensionDir, headless = false, initialUrl = "about:blank", remoteDebuggingPort, userDataDir }) => [
   `--remote-debugging-port=${remoteDebuggingPort}`,
   `--user-data-dir=${userDataDir}`,
   `--disable-extensions-except=${extensionDir}`,
   `--load-extension=${extensionDir}`,
+  ...(headless ? ["--headless=new"] : []),
   "--no-first-run",
   "--no-default-browser-check",
   "--disable-background-networking",
@@ -56,6 +60,14 @@ export const buildChromiumNativeManifest = ({ extensionId, hostName = HOST_NAME,
   path: hostPath,
   type: "stdio",
   allowed_origins: [`chrome-extension://${extensionId}/`]
+});
+
+export const buildFirefoxNativeManifest = ({ extensionId, hostName = HOST_NAME, hostPath }) => ({
+  name: hostName,
+  description: "Localhost Control native messaging host",
+  path: hostPath,
+  type: "stdio",
+  allowed_extensions: [extensionId]
 });
 
 export const computeChromiumExtensionId = (manifestPublicKey) => {
@@ -123,6 +135,13 @@ const chromiumUserManifestPaths = (browser, homeDir, hostName = HOST_NAME) => {
   return [path.join(root, "NativeMessagingHosts", `${hostName}.json`)];
 };
 
+export const firefoxUserManifestPaths = (homeDir, hostName = HOST_NAME) => {
+  if (process.platform === "darwin") {
+    return [path.join(homeDir, "Library", "Application Support", "Mozilla", "NativeMessagingHosts", `${hostName}.json`)];
+  }
+  return [path.join(homeDir, ".mozilla", "native-messaging-hosts", `${hostName}.json`)];
+};
+
 const queryRegistryValue = (suffix) => {
   const result = spawnSync("reg.exe", ["query", `HKCU\\Software\\${suffix}`, "/ve"], { encoding: "utf8" });
   if (result.status !== 0) return { exists: false };
@@ -178,26 +197,56 @@ const registerNativeHost = async ({ browser, extensionId, hostName, hostPath, te
   return { env: { HOME: homeDir }, cleanup: () => {} };
 };
 
+const registerFirefoxNativeHost = async ({ extensionId, hostName, hostPath, tempRoot, homeDir }) => {
+  const manifestPath = path.join(tempRoot, `${hostName}.firefox.json`);
+  await writeFile(manifestPath, `${JSON.stringify(buildFirefoxNativeManifest({ extensionId, hostName, hostPath }), null, 2)}\n`);
+
+  if (process.platform === "win32") {
+    const suffix = `Mozilla\\NativeMessagingHosts\\${hostName}`;
+    const previous = queryRegistryValue(suffix);
+    writeRegistryValue(suffix, manifestPath);
+    return {
+      env: {},
+      cleanup: () => {
+        if (previous.value) writeRegistryValue(suffix, previous.value);
+        else if (previous.exists) deleteRegistryValue(suffix);
+        else deleteRegistryKey(suffix);
+      }
+    };
+  }
+
+  for (const target of firefoxUserManifestPaths(homeDir, hostName)) {
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, `${JSON.stringify(buildFirefoxNativeManifest({ extensionId, hostName, hostPath }), null, 2)}\n`);
+  }
+  return { env: { HOME: homeDir }, cleanup: () => {} };
+};
+
 const findOnPath = (command) => {
   const result = spawnSync(process.platform === "win32" ? "where.exe" : "which", [command], { encoding: "utf8" });
   return result.status === 0 ? result.stdout.split(/\r?\n/).find(Boolean) : undefined;
 };
 
-const browserCandidates = (browser) => {
+export const browserExecutableCommandNames = (browser, platform = process.platform) => {
+  if (platform !== "linux") return [];
+  if (browser === "brave") return ["brave-browser", "brave"];
+  if (browser === "firefox") return ["firefox"];
+  return ["google-chrome", "google-chrome-stable"];
+};
+
+export const browserCandidates = (browser) => {
   if (process.platform === "win32") {
     const roots = [process.env.PROGRAMFILES, process.env["PROGRAMFILES(X86)"], process.env.LOCALAPPDATA].filter(Boolean);
-    return browser === "brave"
-      ? roots.map((root) => path.join(root, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"))
-      : roots.map((root) => path.join(root, "Google", "Chrome", "Application", "chrome.exe"));
+    if (browser === "brave") return roots.map((root) => path.join(root, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"));
+    if (browser === "firefox") return roots.map((root) => path.join(root, "Mozilla Firefox", "firefox.exe"));
+    return roots.map((root) => path.join(root, "Google", "Chrome", "Application", "chrome.exe"));
   }
   if (process.platform === "darwin") {
-    return browser === "brave"
-      ? ["/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"]
-      : ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"];
+    if (browser === "brave") return ["/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"];
+    if (browser === "firefox") return ["/Applications/Firefox.app/Contents/MacOS/firefox"];
+    return ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"];
   }
-  return browser === "brave"
-    ? ["brave-browser", "brave"].map(findOnPath).filter(Boolean)
-    : ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].map(findOnPath).filter(Boolean);
+  return browserExecutableCommandNames(browser).map(findOnPath).filter(Boolean);
 };
 
 const locateBrowserExecutable = async ({ browser, browserExe, required }) => {
@@ -218,7 +267,7 @@ const locateBrowserExecutable = async ({ browser, browserExe, required }) => {
 
 const freePort = async () =>
   new Promise((resolve, reject) => {
-    const server = createServer();
+    const server = createNetServer();
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
@@ -252,13 +301,126 @@ const terminateBrowserProcesses = (child, userDataDir) => {
   );
 };
 
-const launchChromiumBrowser = ({ browserExe, extensionDir, initialUrl, remoteDebuggingPort, userDataDir, env }) => {
-  const child = spawn(browserExe, buildChromiumLaunchArgs({ extensionDir, initialUrl, remoteDebuggingPort, userDataDir }), {
+export const webExtCliPath = () => path.join(repoRoot, "node_modules", "web-ext", "bin", "web-ext.js");
+
+const launchChromiumBrowser = ({ browserExe, extensionDir, headless, initialUrl, remoteDebuggingPort, userDataDir, env }) => {
+  const child = spawn(browserExe, buildChromiumLaunchArgs({ extensionDir, headless, initialUrl, remoteDebuggingPort, userDataDir }), {
     env: { ...process.env, ...env },
     stdio: "ignore"
   });
   child.unref();
   return child;
+};
+
+export const buildFirefoxSmokeManifest = ({ extensionId }) => ({
+  manifest_version: 2,
+  name: "Localhost Control Firefox native smoke",
+  version: packageJson.version,
+  applications: {
+    gecko: {
+      id: extensionId
+    }
+  },
+  permissions: ["nativeMessaging", "http://127.0.0.1/*"],
+  background: {
+    scripts: ["background.js"]
+  }
+});
+
+const buildFirefoxSmokeBackground = ({ callbackUrl, hostName }) => `
+const report = async (payload) => {
+  try {
+    await fetch(${JSON.stringify(callbackUrl)}, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    console.error("Firefox native smoke callback failed", error);
+  }
+};
+
+(async () => {
+  try {
+    const response = await browser.runtime.sendNativeMessage(${JSON.stringify(hostName)}, {
+      id: "browser-native-smoke",
+      method: "version"
+    });
+    await report({ ok: true, response });
+  } catch (error) {
+    await report({ ok: false, error: error?.message ?? String(error) });
+  }
+})();
+`;
+
+const prepareFirefoxSmokeExtension = async ({ callbackUrl, extensionId, hostName, tempRoot }) => {
+  const extensionDir = path.join(tempRoot, "firefox-smoke-extension");
+  await mkdir(extensionDir, { recursive: true });
+  await writeFile(path.join(extensionDir, "manifest.json"), `${JSON.stringify(buildFirefoxSmokeManifest({ extensionId }), null, 2)}\n`);
+  await writeFile(path.join(extensionDir, "background.js"), buildFirefoxSmokeBackground({ callbackUrl, hostName }));
+  return extensionDir;
+};
+
+const startFirefoxSmokeCallback = async () => {
+  let resolveResult;
+  let rejectResult;
+  const resultPromise = new Promise((resolve, reject) => {
+    resolveResult = resolve;
+    rejectResult = reject;
+  });
+  const server = createHttpServer((request, response) => {
+    if (request.method !== "POST" || request.url !== "/result") {
+      response.writeHead(404).end();
+      return;
+    }
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => {
+      try {
+        const body = Buffer.concat(chunks).toString("utf8");
+        resolveResult(JSON.parse(body));
+        response.writeHead(200, { "content-type": "text/plain" }).end("ok");
+      } catch (error) {
+        rejectResult(error);
+        response.writeHead(400).end();
+      }
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  return {
+    callbackUrl: `http://127.0.0.1:${address.port}/result`,
+    resultPromise,
+    close: () => new Promise((resolve) => server.close(resolve))
+  };
+};
+
+const launchFirefoxWebExt = ({ browserExe, extensionDir, headless, profileDir, env }) => {
+  const args = [
+    webExtCliPath(),
+    "run",
+    "--source-dir",
+    extensionDir,
+    "--firefox",
+    browserExe,
+    "--firefox-profile",
+    profileDir,
+    "--profile-create-if-missing",
+    "--keep-profile-changes",
+    "--no-reload",
+    "--no-input",
+    "--start-url",
+    "about:blank",
+    ...(headless ? ["--arg=-headless"] : [])
+  ];
+  return spawn(process.execPath, args, {
+    cwd: repoRoot,
+    env: { ...process.env, ...env },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
 };
 
 const fetchJson = async (url) => {
@@ -463,8 +625,82 @@ const runChromiumSmoke = async (options) => {
   }
 };
 
+const runFirefoxSmoke = async (options) => {
+  await access(options.hostPath);
+  const browserExe = await locateBrowserExecutable(options);
+  if (!browserExe) return;
+
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "localhost-control-firefox-native-"));
+  const firefoxHomeDir = path.join(tempRoot, "home");
+  const firefoxProfileDir = path.join(tempRoot, "profile");
+  const extensionId = "localhost-control-smoke@example.invalid";
+  let child;
+  let registration;
+  let callback;
+  const logs = { stdout: "", stderr: "" };
+  try {
+    await mkdir(firefoxHomeDir, { recursive: true });
+    await mkdir(firefoxProfileDir, { recursive: true });
+    callback = await startFirefoxSmokeCallback();
+    const extensionDir = await prepareFirefoxSmokeExtension({
+      callbackUrl: callback.callbackUrl,
+      extensionId,
+      hostName: options.hostName,
+      tempRoot
+    });
+    registration = await registerFirefoxNativeHost({
+      ...options,
+      extensionId,
+      tempRoot,
+      homeDir: firefoxHomeDir
+    });
+    child = launchFirefoxWebExt({
+      browserExe,
+      extensionDir,
+      headless: options.headless,
+      profileDir: firefoxProfileDir,
+      env: registration.env
+    });
+    child.stdout?.on("data", (chunk) => {
+      logs.stdout += chunk.toString();
+    });
+    child.stderr?.on("data", (chunk) => {
+      logs.stderr += chunk.toString();
+    });
+    const childExit = new Promise((_, reject) => {
+      child.once("exit", (code, signal) => {
+        reject(new Error(`Firefox native smoke browser exited before reporting result (${code ?? signal}). ${logs.stderr || logs.stdout}`.trim()));
+      });
+    });
+    const result = await withTimeout(
+      Promise.race([callback.resultPromise, childExit]),
+      options.timeoutMs,
+      "Firefox native messaging smoke result"
+    );
+    if (!result?.ok) throw new Error(`Firefox native smoke failed: ${result?.error ?? JSON.stringify(result)}`);
+    const response = result.response;
+    if (response?.id !== "browser-native-smoke" || response?.result?.version !== packageJson.version) {
+      throw new Error(`Unexpected Firefox native host version response: ${JSON.stringify(response)}`);
+    }
+    console.log(`Browser native smoke passed for firefox with extension ${extensionId}.`);
+  } finally {
+    try {
+      registration?.cleanup();
+    } catch (error) {
+      console.warn(`Firefox native smoke registry cleanup warning: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    terminateBrowserProcesses(child, firefoxProfileDir);
+    await callback?.close().catch(() => undefined);
+    try {
+      await removeTempRoot(tempRoot);
+    } catch (error) {
+      console.warn(`Firefox native smoke temp cleanup warning: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+};
+
 const printFirefoxManualGate = () => {
-  console.log("Firefox browser-native smoke is a manual release gate for now.");
+  console.log("Firefox browser-native smoke manual release gate recorded.");
   console.log("Load the signed Firefox package, install the matching native host, and verify the panel can scan or request version through native messaging.");
 };
 
@@ -472,10 +708,16 @@ export const main = async (argv = process.argv.slice(2)) => {
   const options = parseBrowserNativeSmokeArgs(argv);
   if (options.browser === "firefox") {
     if (options.manualGate) {
+      if (options.required && !options.manualConfirmed) {
+        throw new Error(
+          "Firefox browser-native smoke is a required manual release gate. Re-run after verifying Firefox with FIREFOX_NATIVE_SMOKE_CONFIRMED=true or --manual-confirmed."
+        );
+      }
       printFirefoxManualGate();
       return;
     }
-    throw new Error("Firefox browser-native automation is not implemented yet. Use --manual-gate for the documented release check.");
+    await runFirefoxSmoke(options);
+    return;
   }
   if (!supportedAutomatedBrowsers.has(options.browser)) throw new Error(`Browser ${options.browser} is not automated by this smoke script.`);
   await runChromiumSmoke(options);

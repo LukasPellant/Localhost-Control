@@ -66,6 +66,8 @@ describe("project metadata", () => {
     expect(storeNotes).toContain("SHA256SUMS");
     expect(storeNotes).toContain("Firefox native messaging");
     expect(storeNotes).toContain("Chrome, Brave, and Firefox");
+    expect(storeNotes).toContain("pnpm smoke:browser-native -- --browser firefox --manual-gate --required");
+    expect(storeNotes).toContain("FIREFOX_NATIVE_SMOKE_CONFIRMED=true");
     expect(storeNotes).toContain("macOS signing/notarization");
   });
 });

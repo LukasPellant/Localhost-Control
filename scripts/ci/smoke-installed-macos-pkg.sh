@@ -15,6 +15,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
+smoke_browser_native() {
+  local browser="${1:?browser is required}"
+  local required_args=()
+  if [ "${BROWSER_NATIVE_SMOKE_REQUIRED:-false}" = "true" ]; then
+    required_args+=(--required)
+  fi
+
+  pnpm smoke:browser-native -- --browser "${browser}" --headless "${required_args[@]}" --host-path "/Library/Application Support/Localhost Control/localhost-control-host"
+}
+
 sudo installer -pkg "${artifacts[0]}" -target /
 test -x "/Library/Application Support/Localhost Control/localhost-control-host"
 test -f "/Library/Google/Chrome/NativeMessagingHosts/com.localhost_control.host.json"
@@ -35,6 +45,10 @@ const length = result.stdout.readUInt32LE(0);
 const response = JSON.parse(result.stdout.subarray(4, 4 + length).toString("utf8"));
 if (response.id !== "installed-smoke" || response.result?.version !== pkg.version) throw new Error("invalid native host version response");
 NODE
+
+for browser in ${BROWSER_NATIVE_SMOKE_BROWSERS:-chrome firefox}; do
+  smoke_browser_native "${browser}"
+done
 
 sudo "/Library/Application Support/Localhost Control/uninstall.sh"
 trap - EXIT

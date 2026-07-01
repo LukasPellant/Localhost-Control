@@ -91,6 +91,7 @@ sudo dpkg -r localhost-control-native-host
 - [ ] Run `pnpm extension:package:firefox`.
 - [ ] Run `pnpm extension:verify`.
 - [ ] Run `pnpm extension:lint:firefox` against the packaged Firefox ZIP.
+- [ ] Run `pnpm smoke:browser-native -- --browser firefox --manual-gate --required` after manually verifying Firefox native messaging with the final installed native host. Set `FIREFOX_NATIVE_SMOKE_CONFIRMED=true` or pass `--manual-confirmed` only after that browser check passes.
 - [ ] Confirm any Firefox lint warnings are only the reviewed React runtime `UNSAFE_VAR_ASSIGNMENT` warnings in bundled `sidepanel.js`; app source must not use direct `innerHTML`.
 - [ ] Confirm the production bundle does not contain demo project names or paths.
 - [ ] Confirm `.github/workflows/release-native-host.yml` passed for the release tag or manual `release-native-host.yml` run.
