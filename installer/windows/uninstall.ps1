@@ -93,6 +93,10 @@ function Get-RegistryTargets {
     return @($targets.Values | ForEach-Object { $_ })
   }
 
+  if ($Browser -eq "brave") {
+    return @($targets["brave"] + $targets["chrome"] + $targets["chromium"])
+  }
+
   return @($targets[$Browser])
 }
 
