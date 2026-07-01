@@ -17,9 +17,7 @@ import {
   webExtCliPath
 } from "../scripts/smoke-browser-native.mjs";
 
-const packageJson = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8")) as {
-  scripts: Record<string, string>;
-};
+const packageJson = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8"));
 
 describe("smoke-browser-native.mjs", () => {
   it("is exposed as an opt-in release smoke script", () => {
