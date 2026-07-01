@@ -37,6 +37,9 @@ const isString = (value: unknown): value is string => typeof value === "string";
 const isNonEmptyString = (value: unknown): value is string => isString(value) && value.trim().length > 0;
 const isTcpPort = (value: unknown): value is number => Number.isInteger(value) && Number(value) > 0 && Number(value) <= 65535;
 const localhostNames = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1"]);
+const symbolicProfileIcons = new Set(["app", "book", "code", "docs", "terminal", "window"]);
+const safeImageDataIconPattern = /^data:image\/(?:avif|gif|jpe?g|png|webp);base64,[a-z0-9+/=]+$/i;
+const maxInlineIconLength = 32_768;
 export const isLocalWebUrl = (value: string): boolean => {
   try {
     const url = new URL(value);
@@ -46,6 +49,14 @@ export const isLocalWebUrl = (value: string): boolean => {
   } catch {
     return false;
   }
+};
+export const isProfileImageIcon = (value: string): boolean => {
+  const icon = value.trim();
+  return (icon.length <= maxInlineIconLength && safeImageDataIconPattern.test(icon)) || isLocalWebUrl(icon);
+};
+export const isSafeProfileIcon = (value: string): boolean => {
+  const icon = value.trim();
+  return symbolicProfileIcons.has(icon.toLowerCase()) || isProfileImageIcon(icon);
 };
 const normalizePath = (value: string): string =>
   value
@@ -94,6 +105,10 @@ const sanitizeStringList = (value: unknown): string[] | undefined => {
 };
 
 const optionalString = (value: unknown): string | undefined => (isNonEmptyString(value) ? value.trim() : undefined);
+const optionalProfileIcon = (value: unknown): string | undefined => {
+  const icon = optionalString(value);
+  return icon && isSafeProfileIcon(icon) ? icon : undefined;
+};
 const optionalLocalWebUrl = (value: unknown): string | undefined => {
   const url = optionalString(value);
   return url && isLocalWebUrl(url) ? url : undefined;
@@ -113,7 +128,7 @@ export const sanitizeProjectProfiles = (value: unknown): ProjectProfile[] => {
       id,
       name: item.name.trim()
     };
-    const icon = optionalString(item.icon);
+    const icon = optionalProfileIcon(item.icon);
     const projectPath = optionalString(item.projectPath);
     const startCommand = optionalString(item.startCommand);
     const mainUrl = optionalLocalWebUrl(item.mainUrl);

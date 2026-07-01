@@ -148,4 +148,22 @@ describe("project profile matching", () => {
       }
     ]);
   });
+
+  it("keeps only symbolic, local, or safe inline image profile icons", () => {
+    expect(
+      sanitizeProjectProfiles([
+        { id: "docs", name: "Docs", icon: "book" },
+        { id: "local", name: "Local", icon: "http://127.0.0.1:5173/favicon.png" },
+        { id: "inline", name: "Inline", icon: "data:image/png;base64,iVBORw0KGgo=" },
+        { id: "remote", name: "Remote", icon: "https://example.com/icon.png" },
+        { id: "script", name: "Script", icon: "data:image/svg+xml,<svg onload=alert(1) />" }
+      ])
+    ).toEqual([
+      { id: "docs", name: "Docs", icon: "book" },
+      { id: "local", name: "Local", icon: "http://127.0.0.1:5173/favicon.png" },
+      { id: "inline", name: "Inline", icon: "data:image/png;base64,iVBORw0KGgo=" },
+      { id: "remote", name: "Remote" },
+      { id: "script", name: "Script" }
+    ]);
+  });
 });

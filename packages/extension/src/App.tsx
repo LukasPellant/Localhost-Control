@@ -39,7 +39,7 @@ import { analyzePortDoctor, formatPortDoctorAdvice, type PortDoctorReport } from
 import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
 import { checkProfileHealth, preflightProfileHealthCheck, type ProfileHealthResult } from "./lib/profileHealth";
 import { notifyProfileHealth } from "./lib/profileNotifications";
-import { deriveProfileStates, matchProfileForEntry, scoreProfileForEntry, type ProfileState, type ProjectProfile } from "./lib/projectProfiles";
+import { deriveProfileStates, isProfileImageIcon, matchProfileForEntry, scoreProfileForEntry, type ProfileState, type ProjectProfile } from "./lib/projectProfiles";
 import { formatProfileLogs } from "./lib/profileLogs";
 import { deriveWorkspaceStates, type ProjectWorkspace, type WorkspaceState } from "./lib/projectWorkspaces";
 import { slugifyLocalId } from "./lib/localIds";
@@ -94,7 +94,6 @@ type PreparedProfileStartResult =
     }
   | { ok: false; message: string };
 
-const imageIconPattern = /^(https?:\/\/|data:image\/|\/)/i;
 const killClosedPort = (result: KillResult): boolean => result.killed && result.portClosed;
 const fallbackDetailForStart = (profile: ProjectProfile, result: { portChanged: boolean; selectedPort?: number }): string | undefined =>
   result.portChanged && result.selectedPort ? `Preferred ${preferredProfilePort(profile)} busy; started on ${result.selectedPort}` : undefined;
@@ -189,7 +188,7 @@ const profileInitials = (name: string): string =>
     .map((part) => part[0]?.toUpperCase())
     .join("") || "?";
 const ProfileLogo = ({ profile }: { profile: ProjectProfile }) => {
-  if (profile.icon && imageIconPattern.test(profile.icon)) {
+  if (profile.icon && isProfileImageIcon(profile.icon)) {
     return (
       <span className="profile-logo" aria-label={`${profile.name} logo`}>
         <img src={profile.icon} alt="" />
