@@ -98,5 +98,6 @@ sudo dpkg -r localhost-control-native-host
 - [ ] Confirm the final GitHub Release contains the Windows ZIP, universal macOS PKG/TAR.GZ, Linux amd64/arm64 DEB/TAR.GZ, Chrome ZIP, Firefox ZIP, and `SHA256SUMS`.
 - [ ] Verify `SHA256SUMS` against the downloaded native host artifacts.
 - [ ] Confirm Windows package validation, Linux install smoke, macOS install smoke, and Firefox lint are green in the release workflow logs.
+- [ ] Confirm Brave runtime native messaging manually on at least one Brave installation; CI validates Brave native messaging manifests, but GitHub runner images do not include Brave by default.
 - [ ] Confirm macOS signing/notarization status is recorded before broad public distribution.
 - [ ] Confirm Chrome, Brave, and Firefox native messaging works with the final release extension IDs and installed native host packages on each supported operating system.

@@ -68,6 +68,7 @@ describe("project metadata", () => {
     expect(storeNotes).toContain("Chrome, Brave, and Firefox");
     expect(storeNotes).toContain("pnpm smoke:browser-native -- --browser firefox --manual-gate --required");
     expect(storeNotes).toContain("FIREFOX_NATIVE_SMOKE_CONFIRMED=true");
+    expect(storeNotes).toContain("Brave runtime native messaging manually");
     expect(storeNotes).toContain("macOS signing/notarization");
   });
 });

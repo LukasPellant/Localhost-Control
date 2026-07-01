@@ -35,6 +35,8 @@ describe("smoke-browser-native.mjs", () => {
     expect(parsed.hostName).toBe("com.localhost_control.host_smoke");
     expect(parsed.required).toBe(true);
     expect(parseBrowserNativeSmokeArgs(["--browser", "chrome", "--headless"]).headless).toBe(true);
+    expect(parseBrowserNativeSmokeArgs(["--browser", "firefox", "--use-installed-host"]).hostName).toBe("com.localhost_control.host");
+    expect(parseBrowserNativeSmokeArgs(["--browser", "firefox", "--use-installed-host"]).extensionId).toBe("localhost-control@lukaspellant.dev");
   });
 
   it("builds Chromium launch arguments for a temporary profile and unpacked extension", () => {
@@ -140,6 +142,12 @@ describe("smoke-browser-native.mjs", () => {
     expect(browserExecutableCommandNames("chrome", "linux").join("\n")).not.toMatch(/chromium/i);
   });
 
+  it("can discover Firefox from PATH on every CI platform", () => {
+    expect(browserExecutableCommandNames("firefox", "win32")).toContain("firefox");
+    expect(browserExecutableCommandNames("firefox", "darwin")).toContain("firefox");
+    expect(browserExecutableCommandNames("firefox", "linux")).toContain("firefox");
+  });
+
   it("uses Firefox native messaging user manifest locations on Unix platforms", () => {
     if (process.platform === "win32") return;
 
@@ -176,6 +184,10 @@ describe("smoke-browser-native.mjs", () => {
     await expect(
       main(["--browser", "firefox", "--manual-gate", "--required", "--manual-confirmed"])
     ).resolves.toBeUndefined();
+  });
+
+  it("rejects installed manifest smoke for Chromium-family browsers", async () => {
+    await expect(main(["--browser", "chrome", "--use-installed-host"])).rejects.toThrow(/supported only for Firefox/);
   });
 
   it("launches web-ext through the Node CLI entrypoint instead of a platform shell wrapper", () => {

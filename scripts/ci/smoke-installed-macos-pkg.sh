@@ -18,11 +18,15 @@ trap cleanup EXIT
 smoke_browser_native() {
   local browser="${1:?browser is required}"
   local required_args=()
+  local installed_host_args=()
   if [ "${BROWSER_NATIVE_SMOKE_REQUIRED:-false}" = "true" ]; then
     required_args+=(--required)
   fi
+  if [ "${browser}" = "firefox" ]; then
+    installed_host_args+=(--use-installed-host --host-name com.localhost_control.host --extension-id localhost-control@lukaspellant.dev)
+  fi
 
-  pnpm smoke:browser-native -- --browser "${browser}" --headless "${required_args[@]}" --host-path "/Library/Application Support/Localhost Control/localhost-control-host"
+  pnpm smoke:browser-native -- --browser "${browser}" --headless "${required_args[@]}" "${installed_host_args[@]}" --host-path "/Library/Application Support/Localhost Control/localhost-control-host"
 }
 
 sudo installer -pkg "${artifacts[0]}" -target /

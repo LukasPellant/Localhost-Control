@@ -15,16 +15,19 @@ export const BROWSER_SMOKE_HOST_NAME = "com.localhost_control.host_smoke";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
 const supportedAutomatedBrowsers = new Set(["chrome", "brave", "firefox"]);
+const defaultFirefoxExtensionId = "localhost-control@lukaspellant.dev";
 
 export const parseBrowserNativeSmokeArgs = (argv = process.argv.slice(2)) => {
   const args = parseArgs(argv);
   const browser = args.get("browser") ?? "chrome";
+  const useInstalledHost = args.get("use-installed-host") === "true";
   const parsed = {
     browser,
     browserExe: args.get("browser-exe"),
     extensionDir: path.resolve(args.get("extension-dir") ?? path.join(repoRoot, "packages", "extension", "dist")),
+    extensionId: args.get("extension-id") ?? (browser === "firefox" && useInstalledHost ? defaultFirefoxExtensionId : undefined),
     headless: args.get("headless") === "true",
-    hostName: args.get("host-name") ?? BROWSER_SMOKE_HOST_NAME,
+    hostName: args.get("host-name") ?? (useInstalledHost ? HOST_NAME : BROWSER_SMOKE_HOST_NAME),
     hostPath: path.resolve(
       args.get("host-path") ??
         (process.platform === "win32"
@@ -34,6 +37,7 @@ export const parseBrowserNativeSmokeArgs = (argv = process.argv.slice(2)) => {
     required: args.get("required") === "true",
     manualGate: args.get("manual-gate") === "true",
     manualConfirmed: args.get("manual-confirmed") === "true" || process.env.FIREFOX_NATIVE_SMOKE_CONFIRMED === "true",
+    useInstalledHost,
     timeoutMs: Number(args.get("timeout-ms") ?? 30_000)
   };
   if (!["chrome", "brave", "firefox"].includes(parsed.browser)) {
@@ -228,25 +232,26 @@ const findOnPath = (command) => {
 };
 
 export const browserExecutableCommandNames = (browser, platform = process.platform) => {
-  if (platform !== "linux") return [];
   if (browser === "brave") return ["brave-browser", "brave"];
   if (browser === "firefox") return ["firefox"];
+  if (platform !== "linux") return [];
   return ["google-chrome", "google-chrome-stable"];
 };
 
 export const browserCandidates = (browser) => {
+  const pathCandidates = browserExecutableCommandNames(browser).map(findOnPath).filter(Boolean);
   if (process.platform === "win32") {
     const roots = [process.env.PROGRAMFILES, process.env["PROGRAMFILES(X86)"], process.env.LOCALAPPDATA].filter(Boolean);
-    if (browser === "brave") return roots.map((root) => path.join(root, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"));
-    if (browser === "firefox") return roots.map((root) => path.join(root, "Mozilla Firefox", "firefox.exe"));
+    if (browser === "brave") return [...pathCandidates, ...roots.map((root) => path.join(root, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"))];
+    if (browser === "firefox") return [...pathCandidates, ...roots.map((root) => path.join(root, "Mozilla Firefox", "firefox.exe"))];
     return roots.map((root) => path.join(root, "Google", "Chrome", "Application", "chrome.exe"));
   }
   if (process.platform === "darwin") {
-    if (browser === "brave") return ["/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"];
-    if (browser === "firefox") return ["/Applications/Firefox.app/Contents/MacOS/firefox"];
+    if (browser === "brave") return [...pathCandidates, "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"];
+    if (browser === "firefox") return [...pathCandidates, "/Applications/Firefox.app/Contents/MacOS/firefox"];
     return ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"];
   }
-  return browserExecutableCommandNames(browser).map(findOnPath).filter(Boolean);
+  return pathCandidates;
 };
 
 const locateBrowserExecutable = async ({ browser, browserExe, required }) => {
@@ -263,6 +268,18 @@ const locateBrowserExecutable = async ({ browser, browserExe, required }) => {
   if (required) throw new Error(message);
   console.log(message);
   return undefined;
+};
+
+const ensurePathAvailable = async ({ label, path: targetPath, required }) => {
+  try {
+    await access(targetPath);
+    return true;
+  } catch {
+    const message = `Skipping browser native smoke: ${label} was not found at ${targetPath}.`;
+    if (required) throw new Error(message);
+    console.log(message);
+    return false;
+  }
 };
 
 const freePort = async () =>
@@ -299,6 +316,14 @@ const terminateBrowserProcesses = (child, userDataDir) => {
       env: { ...process.env, LOCALHOST_CONTROL_BROWSER_USER_DATA_DIR: userDataDir }
     }
   );
+};
+
+const waitForChildClose = async (child, timeoutMs = 3_000) => {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  await Promise.race([
+    new Promise((resolve) => child.once("close", resolve)),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs))
+  ]);
 };
 
 export const webExtCliPath = () => path.join(repoRoot, "node_modules", "web-ext", "bin", "web-ext.js");
@@ -572,8 +597,8 @@ const fetchBrowserVersion = (remoteDebuggingPort, timeoutMs) =>
   );
 
 const runChromiumSmoke = async (options) => {
-  await access(path.join(options.extensionDir, "manifest.json"));
-  await access(options.hostPath);
+  if (!(await ensurePathAvailable({ label: "extension manifest", path: path.join(options.extensionDir, "manifest.json"), required: options.required }))) return;
+  if (!(await ensurePathAvailable({ label: "native host", path: options.hostPath, required: options.required }))) return;
   const browserExe = await locateBrowserExecutable(options);
   if (!browserExe) return;
 
@@ -617,6 +642,7 @@ const runChromiumSmoke = async (options) => {
       console.warn(`Browser native smoke registry cleanup warning: ${error instanceof Error ? error.message : String(error)}`);
     }
     terminateBrowserProcesses(child, smokeUserDataDir);
+    await waitForChildClose(child);
     try {
       await removeTempRoot(tempRoot);
     } catch (error) {
@@ -626,14 +652,14 @@ const runChromiumSmoke = async (options) => {
 };
 
 const runFirefoxSmoke = async (options) => {
-  await access(options.hostPath);
+  if (!(await ensurePathAvailable({ label: "native host", path: options.hostPath, required: options.required }))) return;
   const browserExe = await locateBrowserExecutable(options);
   if (!browserExe) return;
 
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "localhost-control-firefox-native-"));
   const firefoxHomeDir = path.join(tempRoot, "home");
   const firefoxProfileDir = path.join(tempRoot, "profile");
-  const extensionId = "localhost-control-smoke@example.invalid";
+  const extensionId = options.extensionId ?? "localhost-control-smoke@example.invalid";
   let child;
   let registration;
   let callback;
@@ -648,12 +674,14 @@ const runFirefoxSmoke = async (options) => {
       hostName: options.hostName,
       tempRoot
     });
-    registration = await registerFirefoxNativeHost({
-      ...options,
-      extensionId,
-      tempRoot,
-      homeDir: firefoxHomeDir
-    });
+    registration = options.useInstalledHost
+      ? { env: {}, cleanup: () => {} }
+      : await registerFirefoxNativeHost({
+          ...options,
+          extensionId,
+          tempRoot,
+          homeDir: firefoxHomeDir
+        });
     child = launchFirefoxWebExt({
       browserExe,
       extensionDir,
@@ -690,6 +718,7 @@ const runFirefoxSmoke = async (options) => {
       console.warn(`Firefox native smoke registry cleanup warning: ${error instanceof Error ? error.message : String(error)}`);
     }
     terminateBrowserProcesses(child, firefoxProfileDir);
+    await waitForChildClose(child);
     await callback?.close().catch(() => undefined);
     try {
       await removeTempRoot(tempRoot);
@@ -706,6 +735,9 @@ const printFirefoxManualGate = () => {
 
 export const main = async (argv = process.argv.slice(2)) => {
   const options = parseBrowserNativeSmokeArgs(argv);
+  if (options.useInstalledHost && options.browser !== "firefox") {
+    throw new Error("Installed native host manifest smoke is currently supported only for Firefox, where the smoke extension can use the packaged Gecko id.");
+  }
   if (options.browser === "firefox") {
     if (options.manualGate) {
       if (options.required && !options.manualConfirmed) {

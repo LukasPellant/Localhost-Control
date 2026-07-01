@@ -160,11 +160,13 @@ jobs:
         run: node scripts/validate-native-host-package.mjs --platform=linux --format=deb --arch=${{ matrix.arch }}
 
       - name: Set up Firefox
+        if: matrix.arch == 'amd64'
         uses: browser-actions/setup-firefox@v1
 
       - name: Smoke installed Linux deb
         env:
-          BROWSER_NATIVE_SMOKE_REQUIRED: ${{ matrix.arch == 'amd64' && 'true' || 'false' }}
+          BROWSER_NATIVE_SMOKE_BROWSERS: ${{ matrix.arch == 'amd64' && 'chrome firefox' || 'firefox' }}
+          BROWSER_NATIVE_SMOKE_REQUIRED: "true"
         run: bash scripts/ci/smoke-installed-linux-deb.sh ${{ matrix.arch }}
 
       - name: Write Linux checksums
@@ -266,6 +268,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Download macOS artifacts
         uses: actions/download-artifact@v4
