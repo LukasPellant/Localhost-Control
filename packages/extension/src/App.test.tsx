@@ -175,6 +175,70 @@ describe("App", () => {
     expect(screen.queryByLabelText("Detected localhost ports")).not.toBeInTheDocument();
   });
 
+  it("opens a favorite profile control panel without opening its URL", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "docs",
+            name: "Docs",
+            icon: "book",
+            projectPath: "D:\\Projects\\Docs",
+            startCommand: "pnpm docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321",
+            healthUrl: "http://127.0.0.1:4321/health"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    expect(within(profiles).getByLabelText("Docs logo")).toBeInTheDocument();
+    fireEvent.click(within(profiles).getByRole("button", { name: /show profile controls docs/i }));
+
+    expect(openSpy).not.toHaveBeenCalled();
+    const details = await screen.findByLabelText("Profile Docs controls");
+    expect(details).toHaveTextContent("Docs");
+    expect(details).toHaveTextContent("No running port");
+    expect(within(details).getByRole("button", { name: /open app for docs/i })).toBeInTheDocument();
+    expect(within(details).getByRole("button", { name: /^start profile docs$/i })).toBeDisabled();
+    expect(within(details).getByRole("button", { name: /trust project docs/i })).toBeInTheDocument();
+    expect(within(details).getByRole("button", { name: /copy profile context docs/i })).toBeInTheDocument();
+  });
+
+  it("opens trusted favorite project folders from the profile control panel", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "docs",
+            name: "Docs",
+            projectPath: "D:\\Projects\\Docs",
+            startCommand: "pnpm docs",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /show profile controls docs/i }));
+    const details = await screen.findByLabelText("Profile Docs controls");
+    fireEvent.click(within(details).getByRole("button", { name: /open project folder for docs/i }));
+
+    await waitFor(() => expect(client.openProjectFolder).toHaveBeenCalledWith({ projectPath: "D:\\Projects\\Docs" }));
+  });
+
   it("updates an existing saved profile with running process start metadata", async () => {
     window.localStorage.setItem(
       "localhost-control-settings",
@@ -1897,13 +1961,15 @@ describe("App", () => {
     render(<App client={client} />);
 
     const profiles = await screen.findByLabelText("Project profiles");
-    fireEvent.click(within(profiles).getByRole("button", { name: /open profile external docs/i }));
+    fireEvent.click(within(profiles).getByRole("button", { name: /show profile controls external docs/i }));
     expect(openSpy).not.toHaveBeenCalledWith("https://example.com", "_blank", "noopener,noreferrer");
+    expect(within(await screen.findByLabelText("Profile External Docs controls")).getByRole("button", { name: /open app for external docs/i })).toBeDisabled();
 
     fireEvent.click(within(await screen.findByLabelText("Project workspaces")).getByRole("button", { name: /open workspace daily stack/i }));
     expect(openSpy).toHaveBeenCalledWith("http://127.0.0.1:5173", "_blank", "noopener,noreferrer");
     expect(openSpy).not.toHaveBeenCalledWith("https://example.com", "_blank", "noopener,noreferrer");
 
+    fireEvent.click(within(profiles).getByRole("button", { name: /show profile controls example shop/i }));
     const details = screen.getByLabelText("Port 5173 details");
     expect(within(details).getByRole("link", { name: "Local Admin" })).toHaveAttribute("href", "http://127.0.0.1:5173/admin");
     expect(within(details).queryByRole("link", { name: "External Docs" })).not.toBeInTheDocument();
@@ -2020,7 +2086,8 @@ describe("App", () => {
     render(<App client={client} />);
 
     const profiles = await screen.findByLabelText("Project profiles");
-    fireEvent.click(within(profiles).getByRole("button", { name: /open profile docs/i }));
+    fireEvent.click(within(profiles).getByRole("button", { name: /show profile controls docs/i }));
+    fireEvent.click(within(await screen.findByLabelText("Profile Docs controls")).getByRole("button", { name: /open app for docs/i }));
 
     await waitFor(() => expect(createWindow).toHaveBeenCalledWith({ url: "http://127.0.0.1:4321", type: "popup" }));
     expect(createTab).not.toHaveBeenCalled();

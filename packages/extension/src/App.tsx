@@ -1,5 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, SlidersHorizontal, Square, Star, Terminal, Upload } from "lucide-react";
+import {
+  AppWindow,
+  BookOpen,
+  Code2,
+  Copy,
+  Download,
+  FolderPlus,
+  RefreshCw,
+  Search,
+  Settings2,
+  ShieldAlert,
+  SlidersHorizontal,
+  Square,
+  Star,
+  Terminal,
+  Upload
+} from "lucide-react";
 import { withAppScope, type KillParams, type KillResult, type PortEntry, type ScanResult, type StopMode } from "@localhost-control/shared";
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
@@ -68,6 +84,7 @@ type PendingWorkspaceRestart = {
   mode: WorkspaceRestartMode;
 };
 
+const imageIconPattern = /^(https?:\/\/|data:image\/|\/)/i;
 const killClosedPort = (result: KillResult): boolean => result.killed && result.portClosed;
 
 const nativeHostDownloadUrl = (): string => {
@@ -149,6 +166,40 @@ const checkingProfileHealthResult = (profile: ProjectProfile): ProfileHealthResu
   checkedAt: new Date().toISOString(),
   message: `Waiting for ${profile.name} health check...`
 });
+const profileInitials = (name: string): string =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "?";
+const ProfileLogo = ({ profile }: { profile: ProjectProfile }) => {
+  if (profile.icon && imageIconPattern.test(profile.icon)) {
+    return (
+      <span className="profile-logo" aria-label={`${profile.name} logo`}>
+        <img src={profile.icon} alt="" />
+      </span>
+    );
+  }
+
+  const icon = profile.icon?.toLowerCase();
+  const symbol =
+    icon === "book" || icon === "docs" ? (
+      <BookOpen size={15} />
+    ) : icon === "code" || icon === "terminal" ? (
+      <Code2 size={15} />
+    ) : icon === "app" || icon === "window" ? (
+      <AppWindow size={15} />
+    ) : (
+      profileInitials(profile.name)
+    );
+
+  return (
+    <span className="profile-logo" aria-label={`${profile.name} logo`}>
+      {symbol}
+    </span>
+  );
+};
 
 export const App = ({ client }: AppProps) => {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
@@ -167,6 +218,7 @@ export const App = ({ client }: AppProps) => {
   const [settingsManagerOpen, setSettingsManagerOpen] = useState(false);
   const [settingsActionSaving, setSettingsActionSaving] = useState(false);
   const [activeView, setActiveView] = useState<ActiveView>("dev");
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const settingsActionSavingRef = useRef(false);
   const viewSelectedRef = useRef(false);
   const settingsRef = useRef(settings);
@@ -279,7 +331,7 @@ export const App = ({ client }: AppProps) => {
     () => filterEntries(entries, { query, filter, customPortRange: settings.customPortRange, scopePolicy: settings }),
     [entries, query, filter, settings]
   );
-  const selectedEntry = useMemo(
+  const selectedListEntry = useMemo(
     () => visibleEntries.find((entry) => `${entry.pid}:${entry.port}` === selectedKey) ?? visibleEntries[0],
     [selectedKey, visibleEntries]
   );
@@ -310,7 +362,12 @@ export const App = ({ client }: AppProps) => {
     (entry: PortEntry): ProjectProfile | undefined => matchProfileForEntry(entry, settings.projectProfiles)?.profile,
     [settings.projectProfiles]
   );
-  const selectedProfile = selectedEntry ? profileForEntry(selectedEntry) : undefined;
+  const selectedProfileState = useMemo(
+    () => profileStates.find((state) => state.profile.id === selectedProfileId) ?? (activeView === "favorites" ? profileStates[0] : undefined),
+    [activeView, profileStates, selectedProfileId]
+  );
+  const detailEntry = activeView === "favorites" && selectedProfileState ? selectedProfileState.entry : selectedListEntry;
+  const detailProfile = activeView === "favorites" && selectedProfileState ? selectedProfileState.profile : detailEntry ? profileForEntry(detailEntry) : undefined;
   const projectFolderPathForEntry = useCallback(
     (entry: PortEntry): string | undefined => {
       const profile = profileForEntry(entry);
@@ -319,8 +376,12 @@ export const App = ({ client }: AppProps) => {
     },
     [profileForEntry, settings]
   );
-  const selectedProjectFolderPath = selectedEntry ? projectFolderPathForEntry(selectedEntry) : undefined;
-  const selectedProfileHealth = selectedProfile ? profileHealthResults[selectedProfile.id] : undefined;
+  const projectFolderPathForProfile = useCallback(
+    (profile: ProjectProfile): string | undefined => (profile.projectPath && isTrustedProjectPath(settings, profile.projectPath) ? profile.projectPath : undefined),
+    [settings]
+  );
+  const detailProjectFolderPath = detailEntry ? projectFolderPathForEntry(detailEntry) : detailProfile ? projectFolderPathForProfile(detailProfile) : undefined;
+  const detailProfileHealth = detailProfile ? profileHealthResults[detailProfile.id] : undefined;
   const workspaceStates = useMemo(
     () => deriveWorkspaceStates(settings.projectWorkspaces, settings.projectProfiles, profileStates),
     [profileStates, settings.projectProfiles, settings.projectWorkspaces]
@@ -331,14 +392,14 @@ export const App = ({ client }: AppProps) => {
     return settings.projectWorkspaces.some((workspace) => hasSameProfileIds(workspace.profileIds, profileIds));
   }, [settings.projectProfiles, settings.projectWorkspaces]);
   const selectedDoctorReport = useMemo(
-    () => (selectedEntry ? analyzePortDoctor(selectedEntry, entries, settings.projectProfiles, selectedProfile?.id) : undefined),
-    [entries, selectedEntry, selectedProfile?.id, settings.projectProfiles]
+    () => (detailEntry ? analyzePortDoctor(detailEntry, entries, settings.projectProfiles, detailProfile?.id) : undefined),
+    [detailEntry, detailProfile?.id, entries, settings.projectProfiles]
   );
   const staleSignalForEntry = useCallback(
     (entry: PortEntry) => detectStaleProcess(entry, profileForEntry(entry)),
     [profileForEntry]
   );
-  const selectedStaleSignal = selectedEntry ? staleSignalForEntry(selectedEntry) : undefined;
+  const selectedStaleSignal = detailEntry ? staleSignalForEntry(detailEntry) : undefined;
   const killableCount = entries.filter((entry) => entry.killable).length;
   const protectedCount = entries.length - killableCount;
   const savedItemCount = settings.projectProfiles.length + settings.projectWorkspaces.length;
@@ -715,6 +776,25 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const profileStateForProfile = (profile: ProjectProfile): ProfileState =>
+    profileStates.find((state) => state.profile.id === profile.id) ?? {
+      profile,
+      status: "stopped",
+      healthLabel: "No running port"
+    };
+
+  const copyProfileContextForProfile = async (profile: ProjectProfile) => {
+    await copyProfileContext(profileStateForProfile(profile));
+  };
+
+  const openProfileApp = (profile: ProjectProfile) => {
+    if (!profile.mainUrl) {
+      setMessage(`Profile ${profile.name} has no main URL configured`);
+      return;
+    }
+    openExternalUrl(profile.mainUrl, profile.preferredOpenMode);
+  };
+
   const copyScanContext = async () => {
     try {
       await copyText(
@@ -950,6 +1030,28 @@ export const App = ({ client }: AppProps) => {
     }
   };
 
+  const openProjectFolderForProfile = async (profile: ProjectProfile) => {
+    const projectPath = projectFolderPathForProfile(profile);
+    if (!projectPath) {
+      setMessage("Trust the project path before opening its folder.");
+      return;
+    }
+
+    try {
+      const result = await client.openProjectFolder({ projectPath });
+      if (result.opened) {
+        void recordAction({
+          action: "open-project-folder",
+          target: profile.name,
+          detail: projectPath
+        });
+      }
+      setMessage(result.message);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const checkHealthForProfile = async (profile: ProjectProfile) => {
     const requestSeq = (profileHealthRequestSeqRef.current[profile.id] ?? 0) + 1;
     profileHealthRequestSeqRef.current[profile.id] = requestSeq;
@@ -1137,6 +1239,19 @@ export const App = ({ client }: AppProps) => {
     setMessage(`Trusted ${entry.projectHint}`);
   };
 
+  const trustProfileProject = async (profile: ProjectProfile) => {
+    if (!profile.projectPath) {
+      setMessage(`Profile ${profile.name} has no project path configured`);
+      return;
+    }
+    if (isTrustedProjectPath(settings, profile.projectPath)) {
+      setMessage(`${profile.name} is already trusted`);
+      return;
+    }
+    if (!(await patchSettings({ trustedProjectPaths: [...settings.trustedProjectPaths, profile.projectPath] }))) return;
+    setMessage(`Trusted ${profile.projectPath}`);
+  };
+
   const hideProcess = async (entry: PortEntry) => {
     const processName = entry.processName.toLowerCase();
     if (settings.blockedProcessNames.map((name) => name.toLowerCase()).includes(processName)) return;
@@ -1304,15 +1419,18 @@ export const App = ({ client }: AppProps) => {
                     <button
                       className="profile-summary"
                       type="button"
-                      aria-label={`Open profile ${state.profile.name}`}
+                      aria-label={`Show profile controls ${state.profile.name}`}
                       onClick={() => {
+                        setSelectedProfileId(state.profile.id);
                         if (state.entry) setSelectedKey(`${state.entry.pid}:${state.entry.port}`);
-                        else if (state.profile.mainUrl) openExternalUrl(state.profile.mainUrl, state.profile.preferredOpenMode);
                       }}
                     >
-                      <span className="profile-name">{state.profile.name}</span>
-                      <span className="profile-status">{state.status}</span>
-                      <span className="profile-health">{state.healthLabel}</span>
+                      <ProfileLogo profile={state.profile} />
+                      <span className="profile-copy">
+                        <span className="profile-name">{state.profile.name}</span>
+                        <span className="profile-status">{state.status}</span>
+                        <span className="profile-health">{state.healthLabel}</span>
+                      </span>
                     </button>
                     <div className="profile-actions">
                       <button type="button" onClick={() => void copyProfileContext(state)} aria-label={`Copy profile context ${state.profile.name}`}>
@@ -1380,26 +1498,44 @@ export const App = ({ client }: AppProps) => {
       {activeView === "dev" ? (
         <PortList
           entries={visibleEntries}
-          selectedKey={selectedEntry ? `${selectedEntry.pid}:${selectedEntry.port}` : null}
+          selectedKey={selectedListEntry ? `${selectedListEntry.pid}:${selectedListEntry.port}` : null}
           profileNameForEntry={(entry) => profileForEntry(entry)?.name}
           staleSignalForEntry={staleSignalForEntry}
-          onSelect={(entry) => setSelectedKey(`${entry.pid}:${entry.port}`)}
+          onSelect={(entry) => {
+            setSelectedKey(`${entry.pid}:${entry.port}`);
+            setSelectedProfileId(null);
+          }}
           onOpen={openEntry}
           onKill={requestKillEntry}
         />
       ) : null}
 
       <DetailPanel
-        entry={selectedEntry}
-        profile={selectedProfile}
-        profileHealth={selectedProfileHealth}
+        entry={detailEntry}
+        profile={detailProfile}
+        profileStatus={activeView === "favorites" ? selectedProfileState?.status : undefined}
+        profileHealthLabel={activeView === "favorites" ? selectedProfileState?.healthLabel : undefined}
+        profileHealth={detailProfileHealth}
         doctorReport={selectedDoctorReport}
         staleSignal={selectedStaleSignal}
-        projectFolderPath={selectedProjectFolderPath}
+        projectFolderPath={detailProjectFolderPath}
+        canStartProfile={detailProfile ? isTrustedStartableProjectProfile(settings, detailProfile) : false}
+        profileStartTitle={
+          detailProfile
+            ? isTrustedStartableProjectProfile(settings, detailProfile)
+              ? `Start profile ${detailProfile.name}`
+              : isStartableProjectProfile(detailProfile)
+                ? "Trust this project path before starting"
+                : "Update this profile from a running app to capture a start command"
+            : undefined
+        }
         onKill={requestKillEntry}
         onOpen={openEntry}
         onCopy={(entry) => void copyEntry(entry)}
         onCopyDevContext={(entry) => void copyDevContextForEntry(entry)}
+        onOpenProfile={(profile) => openProfileApp(profile)}
+        onStartProfile={(profile) => void startProfile(profile)}
+        onCopyProfileContext={(profile) => void copyProfileContextForProfile(profile)}
         onCopyProfileLogs={(profile) => void copyProfileLogs(profile)}
         onTerminal={(entry) => void openTerminalForEntry(entry)}
         onCleanup={(entry, mode) => void cleanupBrowserDataForEntry(entry, mode)}
@@ -1407,6 +1543,7 @@ export const App = ({ client }: AppProps) => {
         onOpenPrivate={(entry) => void openPrivateWindowForEntry(entry)}
         onOpenMobilePreview={(entry, preset) => void openMobilePreviewForEntry(entry, preset)}
         onOpenProjectFolder={(entry) => void openProjectFolderForEntry(entry)}
+        onOpenProfileFolder={(profile) => void openProjectFolderForProfile(profile)}
         onCopyProfileCommand={(profile) => void copyProfileCommand(profile)}
         onOpenProfileTerminal={(profile) => void openTerminalForProfile(profile)}
         onCheckProfileHealth={(profile) => void checkHealthForProfile(profile)}
@@ -1414,6 +1551,7 @@ export const App = ({ client }: AppProps) => {
         onCopyStaleAdvice={(entry, signal) => void copyStaleAdvice(entry, signal)}
         onSaveProfile={(entry) => void saveProfileForEntry(entry)}
         onTrustProject={(entry) => void trustProject(entry)}
+        onTrustProfile={(profile) => void trustProfileProject(profile)}
         onHideProcess={(entry) => void hideProcess(entry)}
       />
 

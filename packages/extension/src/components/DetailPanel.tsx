@@ -12,14 +12,21 @@ import type { StaleProcessSignal } from "../lib/staleProcesses";
 type DetailPanelProps = {
   entry: PortEntry | undefined;
   profile?: ProjectProfile | undefined;
+  profileStatus?: string | undefined;
+  profileHealthLabel?: string | undefined;
   profileHealth?: ProfileHealthResult | undefined;
   doctorReport?: PortDoctorReport | undefined;
   staleSignal?: StaleProcessSignal | undefined;
   projectFolderPath?: string | undefined;
+  canStartProfile?: boolean | undefined;
+  profileStartTitle?: string | undefined;
   onKill(entry: PortEntry): void;
   onOpen(entry: PortEntry): void;
   onCopy(entry: PortEntry): void;
   onCopyDevContext(entry: PortEntry): void;
+  onOpenProfile(profile: ProjectProfile): void;
+  onStartProfile(profile: ProjectProfile): void;
+  onCopyProfileContext(profile: ProjectProfile): void;
   onCopyProfileLogs(profile: ProjectProfile): void;
   onTerminal(entry: PortEntry): void;
   onCleanup(entry: PortEntry, mode?: BrowserCleanupMode): void;
@@ -27,6 +34,7 @@ type DetailPanelProps = {
   onOpenPrivate(entry: PortEntry): void;
   onOpenMobilePreview(entry: PortEntry, preset: BrowserPreviewPreset): void;
   onOpenProjectFolder(entry: PortEntry): void;
+  onOpenProfileFolder(profile: ProjectProfile): void;
   onCopyProfileCommand(profile: ProjectProfile): void;
   onOpenProfileTerminal(profile: ProjectProfile): void;
   onCheckProfileHealth(profile: ProjectProfile): void;
@@ -34,20 +42,28 @@ type DetailPanelProps = {
   onCopyStaleAdvice(entry: PortEntry, signal: StaleProcessSignal): void;
   onSaveProfile(entry: PortEntry): void;
   onTrustProject(entry: PortEntry): void;
+  onTrustProfile(profile: ProjectProfile): void;
   onHideProcess(entry: PortEntry): void;
 };
 
 export const DetailPanel = ({
   entry,
   profile,
+  profileStatus,
+  profileHealthLabel,
   profileHealth,
   doctorReport,
   staleSignal,
   projectFolderPath,
+  canStartProfile = false,
+  profileStartTitle,
   onKill,
   onOpen,
   onCopy,
   onCopyDevContext,
+  onOpenProfile,
+  onStartProfile,
+  onCopyProfileContext,
   onCopyProfileLogs,
   onTerminal,
   onCleanup,
@@ -55,6 +71,7 @@ export const DetailPanel = ({
   onOpenPrivate,
   onOpenMobilePreview,
   onOpenProjectFolder,
+  onOpenProfileFolder,
   onCopyProfileCommand,
   onOpenProfileTerminal,
   onCheckProfileHealth,
@@ -62,9 +79,177 @@ export const DetailPanel = ({
   onCopyStaleAdvice,
   onSaveProfile,
   onTrustProject,
+  onTrustProfile,
   onHideProcess
 }: DetailPanelProps) => {
+  const recentLogs = recentProfileLogLines(profile);
+
   if (!entry) {
+    if (profile) {
+      return (
+        <section className="detail-panel" aria-label={`Profile ${profile.name} controls`}>
+          <div className="detail-heading">
+            <div>
+              <span className="detail-port">{profile.name}</span>
+              <span className="detail-kind">{profileStatus ?? "saved"}</span>
+            </div>
+            <div className="detail-actions">
+              <IconButton label={`Open main URL for ${profile.name}`} onClick={() => onOpenProfile(profile)} disabled={!profile.mainUrl}>
+                <ExternalLink size={15} />
+              </IconButton>
+              <IconButton label={`Copy profile summary ${profile.name}`} onClick={() => onCopyProfileContext(profile)}>
+                <Copy size={15} />
+              </IconButton>
+              <IconButton label={`Open terminal for ${profile.name}`} onClick={() => onOpenProfileTerminal(profile)} disabled={!profile.projectPath && !profile.startCommand}>
+                <Terminal size={15} />
+              </IconButton>
+            </div>
+          </div>
+          <div className="dev-health-card" aria-label={`Dev health for ${profile.name}`}>
+            <div className="dev-health-heading">
+              <div>
+                <strong>Profile controls</strong>
+                <span>{profileHealthLabel ?? "No running port"}</span>
+              </div>
+              {profileHealth ? <span className={`dev-health-status ${profileHealth.state}`}>{profileHealth.label}</span> : null}
+            </div>
+            <dl className="dev-health-grid">
+              {profile.healthUrl || profileHealth ? (
+                <div>
+                  <dt>Health</dt>
+                  <dd>{profileHealth?.label ?? profileHealthLabel ?? "Not checked"}</dd>
+                </div>
+              ) : null}
+              {profile.mainUrl ? (
+                <div>
+                  <dt>Main URL</dt>
+                  <dd>{profile.mainUrl}</dd>
+                </div>
+              ) : null}
+              {profile.projectPath ? (
+                <div>
+                  <dt>Project path</dt>
+                  <dd>{profile.projectPath}</dd>
+                </div>
+              ) : null}
+              {profile.startCommand ? (
+                <div>
+                  <dt>Saved command</dt>
+                  <dd>{profile.startCommand}</dd>
+                </div>
+              ) : null}
+              {profile.notes ? (
+                <div>
+                  <dt>Notes</dt>
+                  <dd>{profile.notes}</dd>
+                </div>
+              ) : null}
+            </dl>
+            <div className="dev-health-actions">
+              {profile.healthUrl ? (
+                <button type="button" onClick={() => onCheckProfileHealth(profile)} aria-label={`Check health for ${profile.name}`}>
+                  <Activity size={14} />
+                  Check health
+                </button>
+              ) : null}
+              <button type="button" onClick={() => onOpenProfile(profile)} aria-label={`Open app for ${profile.name}`} disabled={!profile.mainUrl}>
+                <ExternalLink size={14} />
+                Open app
+              </button>
+              <button
+                type="button"
+                onClick={() => onStartProfile(profile)}
+                aria-label={`Start profile ${profile.name}`}
+                disabled={!canStartProfile}
+                title={profileStartTitle}
+              >
+                <Terminal size={14} />
+                Start
+              </button>
+              <button type="button" onClick={() => onCopyProfileContext(profile)} aria-label={`Copy profile context ${profile.name}`}>
+                <Copy size={14} />
+                Context
+              </button>
+              {projectFolderPath ? (
+                <button type="button" onClick={() => onOpenProfileFolder(profile)} aria-label={`Open project folder for ${profile.name}`}>
+                  <FolderOpen size={14} />
+                  Open folder
+                </button>
+              ) : null}
+              {recentLogs.length ? (
+                <button type="button" onClick={() => onCopyProfileLogs(profile)} aria-label={`Copy logs for ${profile.name}`}>
+                  <Copy size={14} />
+                  Copy logs
+                </button>
+              ) : null}
+              {profile.startCommand ? (
+                <>
+                  <button type="button" onClick={() => onCopyProfileCommand(profile)} aria-label={`Copy command for ${profile.name}`}>
+                    <Copy size={14} />
+                    Copy command
+                  </button>
+                  <button type="button" onClick={() => onOpenProfileTerminal(profile)} aria-label={`Open terminal for ${profile.name}`}>
+                    <Terminal size={14} />
+                    Terminal
+                  </button>
+                </>
+              ) : null}
+            </div>
+            {profile.extraUrls?.length ? (
+              <div className="dev-health-links" aria-label="Profile URLs">
+                {profile.extraUrls.map((item) => (
+                  <a key={`${item.label}-${item.url}`} href={item.url} target="_blank" rel="noreferrer">
+                    {item.label}
+                  </a>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <div className="detail-rule-actions">
+            <button
+              type="button"
+              onClick={() => onTrustProfile(profile)}
+              disabled={!profile.projectPath || Boolean(projectFolderPath)}
+              aria-label={`Trust project ${profile.name}`}
+            >
+              <FolderPlus size={14} />
+              Trust project
+            </button>
+          </div>
+          <dl className="detail-grid">
+            <div>
+              <dt>Profile</dt>
+              <dd>{profile.name}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>{profileStatus ?? "saved"}</dd>
+            </div>
+            {profile.expectedPort ? (
+              <div>
+                <dt>Expected port</dt>
+                <dd>{profile.expectedPort}</dd>
+              </div>
+            ) : null}
+            {profile.mainUrl ? (
+              <div className="wide">
+                <dt>Main URL</dt>
+                <dd>{profile.mainUrl}</dd>
+              </div>
+            ) : null}
+            <div className="wide">
+              <dt>Path</dt>
+              <dd>{profile.projectPath ?? "No project path configured"}</dd>
+            </div>
+            <div className="wide">
+              <dt>Command</dt>
+              <dd>{profile.startCommand ?? "No start command configured"}</dd>
+            </div>
+          </dl>
+        </section>
+      );
+    }
+
     return (
       <section className="detail-panel empty-detail">
         <span>No port selected</span>
@@ -91,7 +276,6 @@ export const DetailPanel = ({
     Boolean(doctorReport && doctorReport.status !== "ok") ||
     Boolean(staleSignal) ||
     Boolean(projectFolderPath);
-  const recentLogs = recentProfileLogLines(profile);
   const projectFolderLabel = profile ? `Open project folder for ${profile.name}` : `Open project folder for port ${entry.port}`;
   const canUpdateProfile = Boolean(profile && (entry.projectHint || entry.commandLine) && (!profile.projectPath || !profile.startCommand));
   const saveProfileLabel = profile ? "Update profile" : "Save profile";
