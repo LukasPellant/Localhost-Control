@@ -81,4 +81,65 @@ describe("Windows native host installer scripts", () => {
       rmSync(tempRoot, { recursive: true, force: true });
     }
   });
+
+  it("registers and unregisters Firefox with allowed_extensions on Windows", () => {
+    if (process.platform !== "win32") {
+      return;
+    }
+
+    const firefoxExtensionId = "localhost-control-test@example.invalid";
+    const tempRoot = mkdtempSync(join(tmpdir(), "localhost-control-firefox-installer-"));
+    const registryRoot = `HKCU:\\Software\\LocalhostControlFirefoxInstallerTest\\${process.pid}-${Date.now()}`;
+    const installPath = join(tempRoot, "install.ps1");
+    const uninstallPath = join(tempRoot, "uninstall.ps1");
+    const outDir = join(tempRoot, "out");
+    const registrySuffix = "Mozilla\\NativeMessagingHosts\\com.localhost_control.host";
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(installPath, readInstaller("install.ps1"));
+    writeFileSync(uninstallPath, readInstaller("uninstall.ps1"));
+    writeFileSync(join(outDir, "localhost-control-host.exe"), "");
+
+    try {
+      runPowerShell(
+        "& $env:INSTALL -SkipBuild -Browser firefox -RegistryRoot $env:REGISTRY_ROOT -FirefoxExtensionId $env:FIREFOX_EXTENSION_ID",
+        { INSTALL: installPath, REGISTRY_ROOT: registryRoot, FIREFOX_EXTENSION_ID: firefoxExtensionId }
+      );
+
+      const output = runPowerShell(
+        [
+          "$keyPath = Join-Path $env:REGISTRY_ROOT $env:REGISTRY_SUFFIX",
+          "if (!(Test-Path $keyPath)) { throw \"Missing Firefox registry target: $keyPath\" }",
+          "$manifestPath = (Get-Item -Path $keyPath).GetValue('')",
+          "$manifest = Get-Content -Raw $manifestPath | ConvertFrom-Json",
+          "[pscustomobject]@{ ManifestPath = $manifestPath; AllowedExtensions = $manifest.allowed_extensions; HasAllowedOrigins = [bool]($manifest.PSObject.Properties.Name -contains 'allowed_origins') } | ConvertTo-Json"
+        ].join("; "),
+        { REGISTRY_ROOT: registryRoot, REGISTRY_SUFFIX: registrySuffix }
+      );
+      const manifest = JSON.parse(output) as {
+        ManifestPath: string;
+        AllowedExtensions: string[];
+        HasAllowedOrigins: boolean;
+      };
+
+      expect(manifest.ManifestPath).toBe(join(outDir, "com.localhost_control.host.firefox.json"));
+      expect(manifest.AllowedExtensions).toEqual([firefoxExtensionId]);
+      expect(manifest.HasAllowedOrigins).toBe(false);
+
+      runPowerShell(
+        "& $env:UNINSTALL -Browser firefox -RegistryRoot $env:REGISTRY_ROOT -KeepFiles",
+        { UNINSTALL: uninstallPath, REGISTRY_ROOT: registryRoot }
+      );
+      const existsAfterUninstall = runPowerShell(
+        "Test-Path (Join-Path $env:REGISTRY_ROOT $env:REGISTRY_SUFFIX)",
+        { REGISTRY_ROOT: registryRoot, REGISTRY_SUFFIX: registrySuffix }
+      ).trim();
+
+      expect(existsAfterUninstall).toBe("False");
+    } finally {
+      runPowerShell("Remove-Item -Path $env:REGISTRY_ROOT -Recurse -Force -ErrorAction SilentlyContinue", {
+        REGISTRY_ROOT: registryRoot
+      });
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
 });

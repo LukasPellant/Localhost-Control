@@ -56,6 +56,11 @@ function Read-InstallArgs {
         $i++
         continue
       }
+      "^-{1,2}firefoxextensionid$" {
+        $script:FirefoxExtensionId = Read-OptionValue -Values $values -Index $i -Name $values[$i]
+        $i++
+        continue
+      }
       "^-{1,2}registry-root$" {
         $script:RegistryRoot = Read-OptionValue -Values $values -Index $i -Name $values[$i]
         $i++
