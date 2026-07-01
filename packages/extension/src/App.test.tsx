@@ -133,6 +133,70 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Dev apps" })).toHaveClass("active");
   });
 
+  it("keeps saved profiles in Favorites instead of pinning them in Dev apps", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "pnpm dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /show dev apps view/i }));
+    expect(screen.queryByLabelText("Project profiles")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /show favorites view/i }));
+    const profiles = await screen.findByLabelText("Project profiles");
+    expect(within(profiles).getByText("Example Shop")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Detected localhost ports")).not.toBeInTheDocument();
+  });
+
+  it("updates an existing saved profile with running process start metadata", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={client} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /show dev apps view/i }));
+    fireEvent.click(screen.getByRole("button", { name: /select port 5173/i }));
+    fireEvent.click(within(screen.getByLabelText("Port 5173 details")).getByRole("button", { name: /update profile/i }));
+
+    await waitFor(() => {
+      const saved = JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}");
+      expect(saved.projectProfiles[0]).toMatchObject({
+        id: "shop",
+        projectPath: "D:\\Projects\\ExampleShop",
+        startCommand: "node vite",
+        expectedPort: 5173,
+        mainUrl: "http://127.0.0.1:5173"
+      });
+      expect(saved.trustedProjectPaths).toContain("D:\\Projects\\ExampleShop");
+    });
+    expect(await screen.findByText("Updated profile Example Shop with start command")).toBeInTheDocument();
+  });
+
   it("copies the current visible scan context", async () => {
     const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
@@ -316,6 +380,7 @@ describe("App", () => {
     expect(within(profiles).getByText("Docs")).toBeInTheDocument();
     expect(within(profiles).getByText("stopped")).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: /show dev apps view/i }));
     expect(await screen.findByRole("button", { name: /select port 5173/i })).toHaveTextContent("Example Shop");
     expect(screen.getByLabelText("Port 5173 details")).toHaveTextContent("Storefront and checkout");
     expect(screen.getByLabelText("Port 5173 details")).toHaveTextContent("vite ready in 420ms");

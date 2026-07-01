@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, SlidersHorizontal, Square, Terminal, Upload } from "lucide-react";
+import { Copy, Download, FolderPlus, RefreshCw, Search, Settings2, ShieldAlert, SlidersHorizontal, Square, Star, Terminal, Upload } from "lucide-react";
 import { withAppScope, type KillParams, type KillResult, type PortEntry, type ScanResult, type StopMode } from "@localhost-control/shared";
 import { DetailPanel } from "./components/DetailPanel";
 import { IconButton } from "./components/IconButton";
@@ -61,6 +61,7 @@ type RestartableProfileEntry = {
 };
 
 type WorkspaceRestartMode = "all" | "failed";
+type ActiveView = "dev" | "favorites";
 
 type PendingWorkspaceRestart = {
   state: WorkspaceState;
@@ -165,7 +166,9 @@ export const App = ({ client }: AppProps) => {
   const [profileHealthResults, setProfileHealthResults] = useState<Record<string, ProfileHealthResult>>({});
   const [settingsManagerOpen, setSettingsManagerOpen] = useState(false);
   const [settingsActionSaving, setSettingsActionSaving] = useState(false);
+  const [activeView, setActiveView] = useState<ActiveView>("dev");
   const settingsActionSavingRef = useRef(false);
+  const viewSelectedRef = useRef(false);
   const settingsRef = useRef(settings);
   const auditSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const profileHealthRequestSeqRef = useRef<Record<string, number>>({});
@@ -205,6 +208,13 @@ export const App = ({ client }: AppProps) => {
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
+
+  useEffect(() => {
+    if (viewSelectedRef.current) return;
+    if (settings.projectProfiles.length || settings.projectWorkspaces.length) {
+      setActiveView("favorites");
+    }
+  }, [settings.projectProfiles.length, settings.projectWorkspaces.length]);
 
   useEffect(() => {
     const applyTheme = () => {
@@ -331,6 +341,12 @@ export const App = ({ client }: AppProps) => {
   const selectedStaleSignal = selectedEntry ? staleSignalForEntry(selectedEntry) : undefined;
   const killableCount = entries.filter((entry) => entry.killable).length;
   const protectedCount = entries.length - killableCount;
+  const savedItemCount = settings.projectProfiles.length + settings.projectWorkspaces.length;
+
+  const showView = (view: ActiveView) => {
+    viewSelectedRef.current = true;
+    setActiveView(view);
+  };
 
   const patchSettings = async (patch: Partial<Settings>): Promise<boolean> => {
     const previous = settings;
@@ -983,7 +999,47 @@ export const App = ({ client }: AppProps) => {
   };
 
   const saveProfileForEntry = async (entry: PortEntry) => {
-    if (profileForEntry(entry)) return;
+    const existingProfile = profileForEntry(entry);
+    const nextTrustedPaths =
+      entry.projectHint && !isTrustedProjectPath(settings, entry.projectHint)
+        ? [...settings.trustedProjectPaths, entry.projectHint]
+        : settings.trustedProjectPaths;
+
+    if (existingProfile) {
+      const nextProfile: ProjectProfile = {
+        ...existingProfile,
+        expectedPort: existingProfile.expectedPort ?? entry.port,
+        mainUrl: existingProfile.mainUrl ?? entry.url ?? `http://127.0.0.1:${entry.port}`
+      };
+      if (entry.projectHint && !nextProfile.projectPath) nextProfile.projectPath = entry.projectHint;
+      if (entry.commandLine && !nextProfile.startCommand) nextProfile.startCommand = entry.commandLine;
+
+      const changed =
+        nextProfile.projectPath !== existingProfile.projectPath ||
+        nextProfile.startCommand !== existingProfile.startCommand ||
+        nextProfile.expectedPort !== existingProfile.expectedPort ||
+        nextProfile.mainUrl !== existingProfile.mainUrl ||
+        nextTrustedPaths !== settings.trustedProjectPaths;
+      if (!changed) {
+        setMessage(`Profile ${existingProfile.name} is already saved`);
+        return;
+      }
+      if (
+        !(await patchSettings({
+          projectProfiles: settings.projectProfiles.map((profile) => (profile.id === existingProfile.id ? nextProfile : profile)),
+          trustedProjectPaths: nextTrustedPaths
+        }))
+      ) {
+        return;
+      }
+      setMessage(
+        nextProfile.startCommand && !existingProfile.startCommand
+          ? `Updated profile ${existingProfile.name} with start command`
+          : `Updated profile ${existingProfile.name}`
+      );
+      return;
+    }
+
     const name = entry.title ?? entry.projectHint?.split(/[\\/]/).pop() ?? `${entry.processName} ${entry.port}`;
     const baseId = slugifyLocalId(name);
     const existingIds = new Set(settings.projectProfiles.map((profile) => profile.id));
@@ -1002,7 +1058,7 @@ export const App = ({ client }: AppProps) => {
     if (entry.projectHint) profile.projectPath = entry.projectHint;
     if (entry.commandLine) profile.startCommand = entry.commandLine;
 
-    if (!(await patchSettings({ projectProfiles: [...settings.projectProfiles, profile] }))) return;
+    if (!(await patchSettings({ projectProfiles: [...settings.projectProfiles, profile], trustedProjectPaths: nextTrustedPaths }))) return;
     setMessage(`Saved profile ${name}`);
   };
 
@@ -1132,156 +1188,195 @@ export const App = ({ client }: AppProps) => {
         </button>
       </section>
 
-      <div className="search-row">
-        <Search size={16} />
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search port, process, path" aria-label="Search ports" />
-      </div>
-
-      <nav className="filters" aria-label="Port filters">
-        {filters.map((item) => (
-          <button className={filter === item ? "active" : ""} key={item} type="button" onClick={() => setFilter(item)}>
-            {filterLabel(item)}
-          </button>
-        ))}
+      <nav className="app-tabs" aria-label="App sections">
+        <button
+          className={activeView === "dev" ? "active" : ""}
+          type="button"
+          aria-label="Show Dev apps view"
+          onClick={() => showView("dev")}
+        >
+          <Terminal size={14} />
+          Dev apps
+          <span>{visibleEntries.length}</span>
+        </button>
+        <button
+          className={activeView === "favorites" ? "active" : ""}
+          type="button"
+          aria-label="Show Favorites view"
+          onClick={() => showView("favorites")}
+        >
+          <Star size={14} />
+          Favorites
+          <span>{savedItemCount}</span>
+        </button>
       </nav>
-      {filter === "custom" ? (
-        <label className="custom-range">
-          <span>Range</span>
-          <input
-            aria-label="Custom port range"
-            value={settings.customPortRange}
-            onChange={(event) => void patchSettings({ customPortRange: event.target.value })}
-            placeholder="3000-9999, 17321"
-          />
-        </label>
-      ) : null}
 
-      {workspaceStates.length ? (
-        <section className="workspace-strip" aria-label="Project workspaces">
-          {workspaceStates.map((state) => {
-            const stoppableEntries = stopWorkspaceEntries(state);
-            const restartableEntries = restartWorkspaceEntries(state);
-            const failedRestartableEntries = restartWorkspaceEntries(state, "failed");
-            return (
-              <article className={`workspace-chip ${state.status}`} key={state.workspace.id}>
-                <button className="workspace-summary" type="button" onClick={() => state.openUrls.forEach((url) => openExternalUrl(url))} aria-label={`Open workspace ${state.workspace.name}`}>
-                  <span className="workspace-name">{state.workspace.name}</span>
-                  <span className="workspace-health">{state.healthLabel}</span>
-                  {state.workspace.notes ? <span className="workspace-notes">{state.workspace.notes}</span> : null}
-                </button>
-                <div className="workspace-actions">
-                  <button type="button" onClick={() => void copyWorkspaceContext(state)} aria-label={`Copy workspace context ${state.workspace.name}`}>
-                    <Copy size={13} />
-                    Context
-                  </button>
-                  <button type="button" onClick={() => void startWorkspace(state)} aria-label={`Start workspace ${state.workspace.name}`}>
-                    <Terminal size={13} />
-                    Start
-                  </button>
-                  {restartableEntries.length ? (
-                    <button type="button" onClick={() => requestRestartWorkspace(state)} aria-label={`Restart workspace ${state.workspace.name}`}>
-                      <RefreshCw size={12} />
-                      Restart
-                    </button>
-                  ) : null}
-                  {failedRestartableEntries.length ? (
-                    <button type="button" onClick={() => requestRestartWorkspace(state, "failed")} aria-label={`Restart failed workspace ${state.workspace.name}`}>
-                      <RefreshCw size={12} />
-                      Failed
-                    </button>
-                  ) : null}
-                  {stoppableEntries.length ? (
-                    <button type="button" onClick={() => requestStopWorkspace(state)} aria-label={`Stop workspace ${state.workspace.name}`}>
-                      <Square size={12} />
-                      Stop
-                    </button>
-                  ) : null}
-                </div>
-              </article>
-            );
-          })}
-        </section>
-      ) : null}
+      {activeView === "dev" ? (
+        <>
+          <div className="search-row">
+            <Search size={16} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search port, process, path" aria-label="Search ports" />
+          </div>
 
-      {profileStates.length ? (
-        <section className="profile-strip" aria-label="Project profiles">
-          {profileStates.map((state) => (
-            <article
-              className={`profile-chip ${state.status}`}
-              key={state.profile.id}
-            >
-              <button
-                className="profile-summary"
-                type="button"
-                aria-label={`Open profile ${state.profile.name}`}
-                onClick={() => {
-                  if (state.entry) setSelectedKey(`${state.entry.pid}:${state.entry.port}`);
-                  else if (state.profile.mainUrl) openExternalUrl(state.profile.mainUrl, state.profile.preferredOpenMode);
-                }}
-              >
-                <span className="profile-name">{state.profile.name}</span>
-                <span className="profile-status">{state.status}</span>
-                <span className="profile-health">{state.healthLabel}</span>
+          <nav className="filters" aria-label="Port filters">
+            {filters.map((item) => (
+              <button className={filter === item ? "active" : ""} key={item} type="button" onClick={() => setFilter(item)}>
+                {filterLabel(item)}
               </button>
-              <div className="profile-actions">
-                <button type="button" onClick={() => void copyProfileContext(state)} aria-label={`Copy profile context ${state.profile.name}`}>
-                  <Copy size={13} />
-                  Context
+            ))}
+          </nav>
+          {filter === "custom" ? (
+            <label className="custom-range">
+              <span>Range</span>
+              <input
+                aria-label="Custom port range"
+                value={settings.customPortRange}
+                onChange={(event) => void patchSettings({ customPortRange: event.target.value })}
+                placeholder="3000-9999, 17321"
+              />
+            </label>
+          ) : null}
+        </>
+      ) : null}
+
+      {activeView === "favorites" ? (
+        <section className="favorites-view" aria-label="Favorites">
+          {workspaceStates.length ? (
+            <section className="workspace-strip" aria-label="Project workspaces">
+              {workspaceStates.map((state) => {
+                const stoppableEntries = stopWorkspaceEntries(state);
+                const restartableEntries = restartWorkspaceEntries(state);
+                const failedRestartableEntries = restartWorkspaceEntries(state, "failed");
+                return (
+                  <article className={`workspace-chip ${state.status}`} key={state.workspace.id}>
+                    <button className="workspace-summary" type="button" onClick={() => state.openUrls.forEach((url) => openExternalUrl(url))} aria-label={`Open workspace ${state.workspace.name}`}>
+                      <span className="workspace-name">{state.workspace.name}</span>
+                      <span className="workspace-health">{state.healthLabel}</span>
+                      {state.workspace.notes ? <span className="workspace-notes">{state.workspace.notes}</span> : null}
+                    </button>
+                    <div className="workspace-actions">
+                      <button type="button" onClick={() => void copyWorkspaceContext(state)} aria-label={`Copy workspace context ${state.workspace.name}`}>
+                        <Copy size={13} />
+                        Context
+                      </button>
+                      <button type="button" onClick={() => void startWorkspace(state)} aria-label={`Start workspace ${state.workspace.name}`}>
+                        <Terminal size={13} />
+                        Start
+                      </button>
+                      {restartableEntries.length ? (
+                        <button type="button" onClick={() => requestRestartWorkspace(state)} aria-label={`Restart workspace ${state.workspace.name}`}>
+                          <RefreshCw size={12} />
+                          Restart
+                        </button>
+                      ) : null}
+                      {failedRestartableEntries.length ? (
+                        <button type="button" onClick={() => requestRestartWorkspace(state, "failed")} aria-label={`Restart failed workspace ${state.workspace.name}`}>
+                          <RefreshCw size={12} />
+                          Failed
+                        </button>
+                      ) : null}
+                      {stoppableEntries.length ? (
+                        <button type="button" onClick={() => requestStopWorkspace(state)} aria-label={`Stop workspace ${state.workspace.name}`}>
+                          <Square size={12} />
+                          Stop
+                        </button>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
+          ) : null}
+
+          {profileStates.length ? (
+            <section className="profile-strip" aria-label="Project profiles">
+              {profileStates.map((state) => (
+                <article
+                  className={`profile-chip ${state.status}`}
+                  key={state.profile.id}
+                >
+                  <button
+                    className="profile-summary"
+                    type="button"
+                    aria-label={`Open profile ${state.profile.name}`}
+                    onClick={() => {
+                      if (state.entry) setSelectedKey(`${state.entry.pid}:${state.entry.port}`);
+                      else if (state.profile.mainUrl) openExternalUrl(state.profile.mainUrl, state.profile.preferredOpenMode);
+                    }}
+                  >
+                    <span className="profile-name">{state.profile.name}</span>
+                    <span className="profile-status">{state.status}</span>
+                    <span className="profile-health">{state.healthLabel}</span>
+                  </button>
+                  <div className="profile-actions">
+                    <button type="button" onClick={() => void copyProfileContext(state)} aria-label={`Copy profile context ${state.profile.name}`}>
+                      <Copy size={13} />
+                      Context
+                    </button>
+                    {state.status === "stopped" && isTrustedStartableProjectProfile(settings, state.profile) ? (
+                      <button type="button" onClick={() => void startProfile(state.profile)} aria-label={`Start profile ${state.profile.name}`}>
+                        <Terminal size={13} />
+                        Start
+                      </button>
+                    ) : null}
+                    {state.entry?.killable ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (state.entry?.killable) requestKillEntry(state.entry);
+                        }}
+                        aria-label={`Stop profile ${state.profile.name}`}
+                      >
+                        <Square size={12} />
+                        Stop
+                      </button>
+                    ) : null}
+                    {state.entry?.killable && isTrustedStartableProjectProfile(settings, state.profile) ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (state.entry?.killable) requestRestartProfile(state.profile, state.entry);
+                        }}
+                        aria-label={`Restart profile ${state.profile.name}`}
+                      >
+                        <RefreshCw size={12} />
+                        Restart
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+              {settings.projectProfiles.length >= 2 && !hasWorkspaceForCurrentProfiles ? (
+                <button className="profile-chip action" type="button" onClick={() => void saveWorkspaceFromProfiles()}>
+                  <span className="profile-name">
+                    <FolderPlus size={14} />
+                    Save workspace
+                  </span>
+                  <span className="profile-health">{settings.projectProfiles.length} profiles</span>
                 </button>
-                {state.status === "stopped" && isTrustedStartableProjectProfile(settings, state.profile) ? (
-                  <button type="button" onClick={() => void startProfile(state.profile)} aria-label={`Start profile ${state.profile.name}`}>
-                    <Terminal size={13} />
-                    Start
-                  </button>
-                ) : null}
-                {state.entry?.killable ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (state.entry?.killable) requestKillEntry(state.entry);
-                    }}
-                    aria-label={`Stop profile ${state.profile.name}`}
-                  >
-                    <Square size={12} />
-                    Stop
-                  </button>
-                ) : null}
-                {state.entry?.killable && isTrustedStartableProjectProfile(settings, state.profile) ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (state.entry?.killable) requestRestartProfile(state.profile, state.entry);
-                    }}
-                    aria-label={`Restart profile ${state.profile.name}`}
-                  >
-                    <RefreshCw size={12} />
-                    Restart
-                  </button>
-                ) : null}
-              </div>
-            </article>
-          ))}
-          {settings.projectProfiles.length >= 2 && !hasWorkspaceForCurrentProfiles ? (
-            <button className="profile-chip action" type="button" onClick={() => void saveWorkspaceFromProfiles()}>
-              <span className="profile-name">
-                <FolderPlus size={14} />
-                Save workspace
-              </span>
-              <span className="profile-health">{settings.projectProfiles.length} profiles</span>
-            </button>
+              ) : null}
+            </section>
+          ) : null}
+          {!profileStates.length && !workspaceStates.length ? (
+            <section className="favorites-empty" aria-label="No favorites">
+              <strong>No favorites saved</strong>
+              <span>Save a running dev app to start it again later.</span>
+            </section>
           ) : null}
         </section>
       ) : null}
 
-      <PortList
-        entries={visibleEntries}
-        selectedKey={selectedEntry ? `${selectedEntry.pid}:${selectedEntry.port}` : null}
-        profileNameForEntry={(entry) => profileForEntry(entry)?.name}
-        staleSignalForEntry={staleSignalForEntry}
-        onSelect={(entry) => setSelectedKey(`${entry.pid}:${entry.port}`)}
-        onOpen={openEntry}
-        onKill={requestKillEntry}
-      />
+      {activeView === "dev" ? (
+        <PortList
+          entries={visibleEntries}
+          selectedKey={selectedEntry ? `${selectedEntry.pid}:${selectedEntry.port}` : null}
+          profileNameForEntry={(entry) => profileForEntry(entry)?.name}
+          staleSignalForEntry={staleSignalForEntry}
+          onSelect={(entry) => setSelectedKey(`${entry.pid}:${entry.port}`)}
+          onOpen={openEntry}
+          onKill={requestKillEntry}
+        />
+      ) : null}
 
       <DetailPanel
         entry={selectedEntry}

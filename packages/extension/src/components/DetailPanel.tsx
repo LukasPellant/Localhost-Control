@@ -93,6 +93,8 @@ export const DetailPanel = ({
     Boolean(projectFolderPath);
   const recentLogs = recentProfileLogLines(profile);
   const projectFolderLabel = profile ? `Open project folder for ${profile.name}` : `Open project folder for port ${entry.port}`;
+  const canUpdateProfile = Boolean(profile && (entry.projectHint || entry.commandLine) && (!profile.projectPath || !profile.startCommand));
+  const saveProfileLabel = profile ? "Update profile" : "Save profile";
 
   return (
     <section className="detail-panel" aria-label={`Port ${entry.port} details`}>
@@ -364,9 +366,9 @@ export const DetailPanel = ({
         </div>
       ) : null}
       <div className="detail-rule-actions">
-        <button type="button" onClick={() => onSaveProfile(entry)} disabled={Boolean(profile)}>
+        <button type="button" onClick={() => onSaveProfile(entry)} disabled={Boolean(profile) && !canUpdateProfile}>
           <FolderPlus size={14} />
-          Save profile
+          {saveProfileLabel}
         </button>
         <button type="button" onClick={() => onTrustProject(entry)} disabled={!entry.projectHint}>
           <FolderPlus size={14} />

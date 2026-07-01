@@ -188,6 +188,53 @@ button:disabled {
   background: var(--accent-soft);
 }
 
+.app-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.app-tabs button {
+  display: inline-flex;
+  min-width: 0;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.app-tabs button.active {
+  border-color: var(--accent-border);
+  background: var(--control);
+  color: var(--accent);
+}
+
+.app-tabs span {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-tabs button.active span {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .search-row {
   display: flex;
   align-items: center;
@@ -267,9 +314,25 @@ button:disabled {
 }
 
 .profile-strip,
-.workspace-strip {
+.workspace-strip,
+.favorites-view {
   display: grid;
   gap: 6px;
+}
+
+.favorites-empty {
+  display: grid;
+  gap: 3px;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  text-align: center;
+}
+
+.favorites-empty strong {
+  color: var(--text);
 }
 
 .profile-strip {
