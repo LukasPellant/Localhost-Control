@@ -126,6 +126,44 @@ describe("createNativeHostClient", () => {
     });
   });
 
+  it("sends start port resolution requests through native messaging", async () => {
+    let sentMessage: unknown;
+    (globalThis as { browser?: unknown }).browser = {
+      runtime: {
+        sendNativeMessage: async (_hostName: string, message: unknown) => {
+          sentMessage = message;
+          return { id: "port-1", result: { preferredPort: 5173, selectedPort: 5174, changed: true } };
+        }
+      }
+    };
+
+    await expect(createNativeHostClient().resolveStartPort({ preferredPort: 5173, avoidPorts: [5174], searchLimit: 20 })).resolves.toEqual({
+      preferredPort: 5173,
+      selectedPort: 5174,
+      changed: true
+    });
+
+    expect(sentMessage).toMatchObject({
+      method: "resolveStartPort",
+      params: { preferredPort: 5173, avoidPorts: [5174], searchLimit: 20 }
+    });
+  });
+
+  it("rejects malformed start port resolution responses before they reach the UI", async () => {
+    (globalThis as { browser?: unknown }).browser = {
+      runtime: {
+        sendNativeMessage: async (_hostName: string, message: { id: string; method: string }) => ({
+          id: message.id,
+          result: { preferredPort: 5173, selectedPort: 70000, changed: true }
+        })
+      }
+    };
+
+    await expect(createNativeHostClient().resolveStartPort({ preferredPort: 5173 })).rejects.toThrow(
+      "Native host returned an invalid resolveStartPort response."
+    );
+  });
+
   it("rejects malformed project folder responses before they reach the UI", async () => {
     (globalThis as { browser?: unknown }).browser = {
       runtime: {

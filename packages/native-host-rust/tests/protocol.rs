@@ -34,6 +34,25 @@ fn version_request_matches_extension_contract() {
 }
 
 #[test]
+fn resolve_start_port_request_matches_extension_contract() {
+    let response = handle_request(json!({
+        "id": "port-1",
+        "method": "resolveStartPort",
+        "params": {
+            "preferredPort": 5173,
+            "avoidPorts": [5174],
+            "searchLimit": 20
+        }
+    }))
+    .unwrap();
+
+    assert_eq!(response["id"], "port-1");
+    assert_eq!(response["result"]["preferredPort"], 5173);
+    assert!(response["result"]["selectedPort"].as_u64().unwrap() >= 5173);
+    assert!(response["result"]["changed"].is_boolean());
+}
+
+#[test]
 fn command_execution_requires_project_hint() {
     let response = handle_request(json!({
         "id": "terminal-1",

@@ -28,6 +28,12 @@ export type OpenProjectFolderParams = {
   projectPath: string;
 };
 
+export type ResolveStartPortParams = {
+  preferredPort: number;
+  avoidPorts?: number[];
+  searchLimit?: number;
+};
+
 export type ProcessResources = {
   cpuPercent?: number;
   memoryBytes?: number;
@@ -42,6 +48,7 @@ export type HostRequest =
   | { id: string; method: "kill"; params: KillParams }
   | { id: string; method: "openTerminal"; params: TerminalParams }
   | { id: string; method: "openProjectFolder"; params: OpenProjectFolderParams }
+  | { id: string; method: "resolveStartPort"; params: ResolveStartPortParams }
   | { id: string; method: "version" };
 
 export type PortEntry = {
@@ -86,6 +93,13 @@ export type TerminalResult = {
 export type OpenProjectFolderResult = {
   opened: boolean;
   message: string;
+};
+
+export type ResolveStartPortResult = {
+  preferredPort: number;
+  selectedPort: number;
+  changed: boolean;
+  occupiedBy?: PortEntry;
 };
 
 export type VersionResult = {

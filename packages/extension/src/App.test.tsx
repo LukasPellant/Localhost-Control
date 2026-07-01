@@ -104,6 +104,7 @@ const client: HostClient = {
   kill: vi.fn(async () => ({ killed: true, pid: 100, port: 5173, portClosed: true, message: "Killed 100" })),
   openTerminal: vi.fn(async () => ({ opened: true, message: "Opened" })),
   openProjectFolder: vi.fn(async () => ({ opened: true, message: "Opened project folder D:\\Projects\\ExampleShop" })),
+  resolveStartPort: vi.fn(async (params) => ({ preferredPort: params.preferredPort, selectedPort: params.preferredPort, changed: false })),
   version: vi.fn(async () => ({ version: "0.1.10", platform: "win32" }))
 };
 
@@ -503,6 +504,120 @@ describe("App", () => {
     expect(manager).toHaveTextContent("Started profile");
   });
 
+  it("starts a profile on a clean fallback port and saves the updated profile", async () => {
+    let finishHealthCheck: ((response: { ok: boolean; status: number; statusText: string }) => void) | undefined;
+    const fetchHealth = vi.fn(
+      () =>
+        new Promise<{ ok: boolean; status: number; statusText: string }>((resolve) => {
+          finishHealthCheck = resolve;
+        })
+    );
+    vi.stubGlobal("fetch", fetchHealth);
+    const fallbackClient: HostClient = {
+      ...client,
+      scan: vi.fn(async () => ({
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 22,
+        entries: entries.filter((entry) => entry.port !== 5173)
+      })),
+      resolveStartPort: vi.fn(async () => ({
+        preferredPort: 5173,
+        selectedPort: 5174,
+        changed: true,
+        occupiedBy: entries[0]!
+      }))
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "kerfcut",
+            name: "KerfCut",
+            projectPath: "D:\\Projects\\KerfCut",
+            startCommand: "vite --host 127.0.0.1 --port 5173",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173",
+            healthUrl: "http://127.0.0.1:5173/health"
+          }
+        ]
+      })
+    );
+
+    render(<App client={fallbackClient} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /^start profile kerfcut$/i }));
+
+    await waitFor(() =>
+      expect(fallbackClient.openTerminal).toHaveBeenCalledWith({
+        projectHint: "D:\\Projects\\KerfCut",
+        commandLine: "vite --host 127.0.0.1 --port 5174",
+        executeCommand: true
+      })
+    );
+    expect(await screen.findByText("Started KerfCut on clean port 5174; saved profile URLs updated.")).toBeInTheDocument();
+    await waitFor(() => {
+      const saved = JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}");
+      expect(saved.projectProfiles[0]).toMatchObject({
+        expectedPort: 5174,
+        mainUrl: "http://127.0.0.1:5174",
+        healthUrl: "http://127.0.0.1:5174/health",
+        startCommand: "vite --host 127.0.0.1 --port 5174"
+      });
+    });
+    await waitFor(() =>
+      expect(fetchHealth).toHaveBeenCalledWith(
+        "http://127.0.0.1:5174/health",
+        expect.objectContaining({ cache: "no-store", redirect: "manual" })
+      )
+    );
+    finishHealthCheck?.({ ok: true, status: 204, statusText: "No Content" });
+    expect(await screen.findByText("KerfCut is ready (204)")).toBeInTheDocument();
+  });
+
+  it("does not start when the busy port command cannot be safely retargeted", async () => {
+    const fallbackClient: HostClient = {
+      ...client,
+      scan: vi.fn(async () => ({
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 22,
+        entries: entries.filter((entry) => entry.port !== 5173)
+      })),
+      resolveStartPort: vi.fn(async () => ({
+        preferredPort: 5173,
+        selectedPort: 5174,
+        changed: true,
+        occupiedBy: entries[0]!
+      }))
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "api",
+            name: "API",
+            projectPath: "D:\\Projects\\Api",
+            startCommand: "node server.js",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={fallbackClient} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /^start profile api$/i }));
+
+    expect(await screen.findByText("Port 5173 is busy and this command cannot be safely retargeted.")).toBeInTheDocument();
+    expect(fallbackClient.openTerminal).not.toHaveBeenCalled();
+  });
+
   it("stops a running project profile from the profile strip after confirmation", async () => {
     window.localStorage.setItem(
       "localhost-control-settings",
@@ -568,6 +683,50 @@ describe("App", () => {
       })
     );
     expect(await screen.findByText("Restarted profile Example Shop")).toBeInTheDocument();
+  });
+
+  it("restarts a running project profile on a clean fallback port after stopping it", async () => {
+    const restartClient: HostClient = {
+      ...client,
+      resolveStartPort: vi.fn(async () => ({
+        preferredPort: 5173,
+        selectedPort: 5174,
+        changed: true,
+        occupiedBy: entries[0]!
+      }))
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "vite --host 127.0.0.1 --port 5173",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={restartClient} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /restart profile example shop/i }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: /restart example shop/i })).getByRole("button", { name: /^restart$/i }));
+
+    await waitFor(() => expect(restartClient.kill).toHaveBeenCalledWith({ pid: 100, port: 5173, mode: "terminate-tree" }));
+    await waitFor(() =>
+      expect(restartClient.openTerminal).toHaveBeenCalledWith({
+        projectHint: "D:\\Projects\\ExampleShop",
+        commandLine: "vite --host 127.0.0.1 --port 5174",
+        executeCommand: true
+      })
+    );
+    expect(await screen.findByText("Restarted profile Example Shop on clean port 5174; saved profile URLs updated.")).toBeInTheDocument();
   });
 
   it("does not stop a profile restart when health permission is denied", async () => {
@@ -855,7 +1014,7 @@ describe("App", () => {
     expect(within(profiles).getByRole("button", { name: /start profile docs/i })).toBeDisabled();
   });
 
-  it("keeps start visible for a running trusted saved profile", async () => {
+  it("keeps start visible for a running trusted saved profile without launching a duplicate", async () => {
     window.localStorage.setItem(
       "localhost-control-settings",
       JSON.stringify({
@@ -878,13 +1037,9 @@ describe("App", () => {
     const profiles = await screen.findByLabelText("Project profiles");
     fireEvent.click(within(profiles).getByRole("button", { name: /^start profile example shop$/i }));
 
-    await waitFor(() =>
-      expect(client.openTerminal).toHaveBeenCalledWith({
-        projectHint: "D:\\Projects\\ExampleShop",
-        commandLine: "pnpm dev",
-        executeCommand: true
-      })
-    );
+    expect(await screen.findByText("Example Shop is already running on port 5173.")).toBeInTheDocument();
+    expect(client.resolveStartPort).not.toHaveBeenCalled();
+    expect(client.openTerminal).not.toHaveBeenCalled();
   });
 
   it("groups saved profile health, origin cleanup, command, URLs, and recent logs in the detail card", async () => {
@@ -1453,6 +1608,67 @@ describe("App", () => {
       executeCommand: true
     });
     expect(await screen.findByText("Started workspace Daily stack: 1 command")).toBeInTheDocument();
+  });
+
+  it("starts stopped workspace profiles on independent clean fallback ports", async () => {
+    const workspaceClient: HostClient = {
+      ...client,
+      scan: vi.fn(async () => ({
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 22,
+        entries: []
+      })),
+      resolveStartPort: vi.fn(async (params) => ({
+        preferredPort: params.preferredPort,
+        selectedPort: params.preferredPort === 5173 ? 5174 : 5175,
+        changed: true
+      }))
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\Projects"],
+        projectProfiles: [
+          {
+            id: "shop",
+            name: "Example Shop",
+            projectPath: "D:\\Projects\\ExampleShop",
+            startCommand: "vite --host 127.0.0.1 --port 5173",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          },
+          {
+            id: "docs",
+            name: "Docs",
+            projectPath: "D:\\Projects\\Docs",
+            startCommand: "vite --host 127.0.0.1 --port 4321",
+            expectedPort: 4321,
+            mainUrl: "http://127.0.0.1:4321"
+          }
+        ],
+        projectWorkspaces: [{ id: "daily", name: "Daily stack", profileIds: ["shop", "docs"] }]
+      })
+    );
+
+    render(<App client={workspaceClient} />);
+
+    const workspaces = await screen.findByLabelText("Project workspaces");
+    fireEvent.click(within(workspaces).getByRole("button", { name: /^Start workspace Daily stack$/i }));
+
+    await waitFor(() => expect(workspaceClient.openTerminal).toHaveBeenCalledTimes(2));
+    expect(workspaceClient.resolveStartPort).toHaveBeenNthCalledWith(1, { preferredPort: 5173, searchLimit: 50 });
+    expect(workspaceClient.resolveStartPort).toHaveBeenNthCalledWith(2, { preferredPort: 4321, avoidPorts: [5174], searchLimit: 50 });
+    expect(workspaceClient.openTerminal).toHaveBeenCalledWith({
+      projectHint: "D:\\Projects\\ExampleShop",
+      commandLine: "vite --host 127.0.0.1 --port 5174",
+      executeCommand: true
+    });
+    expect(workspaceClient.openTerminal).toHaveBeenCalledWith({
+      projectHint: "D:\\Projects\\Docs",
+      commandLine: "vite --host 127.0.0.1 --port 5175",
+      executeCommand: true
+    });
+    expect(await screen.findByText("Started workspace Daily stack: 2 commands")).toBeInTheDocument();
   });
 
   it("stops all running workspace profiles after confirmation", async () => {

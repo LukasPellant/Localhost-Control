@@ -1,4 +1,4 @@
-import type { HostRequest, KillResult, PortEntry, ScanResult } from "./types.js";
+import type { HostRequest, KillResult, PortEntry, ResolveStartPortResult, ScanResult } from "./types.js";
 
 const detectedKinds = new Set(["vite", "next", "convex", "python", "node", "static", "unknown"]);
 const confidenceLevels = new Set(["high", "medium", "low"]);
@@ -42,6 +42,14 @@ const hasOpenProjectFolderParams = (value: unknown): boolean => {
   return isString(value.projectPath) && value.projectPath.trim().length > 0;
 };
 
+const hasResolveStartPortParams = (value: unknown): boolean => {
+  if (!isObject(value) || !isTcpPort(value.preferredPort)) return false;
+  return (
+    (value.avoidPorts === undefined || (Array.isArray(value.avoidPorts) && value.avoidPorts.every(isTcpPort))) &&
+    (value.searchLimit === undefined || (isPositiveInteger(value.searchLimit) && value.searchLimit <= 1000))
+  );
+};
+
 const isOptionalNumber = (value: unknown): boolean => value === undefined || isNumber(value);
 const isOptionalString = (value: unknown): boolean => value === undefined || isString(value);
 const isOptionalPositiveInteger = (value: unknown): boolean => value === undefined || isPositiveInteger(value);
@@ -74,6 +82,8 @@ export const isHostRequest = (value: unknown): value is HostRequest => {
       return hasTerminalParams(value.params);
     case "openProjectFolder":
       return hasOpenProjectFolderParams(value.params);
+    case "resolveStartPort":
+      return hasResolveStartPortParams(value.params);
     case "version":
       return value.params === undefined;
     default:
@@ -116,5 +126,15 @@ export const isKillResult = (value: unknown): value is KillResult => {
     isTcpPort(value.port) &&
     isBoolean(value.portClosed) &&
     isString(value.message)
+  );
+};
+
+export const isResolveStartPortResult = (value: unknown): value is ResolveStartPortResult => {
+  if (!isObject(value)) return false;
+  return (
+    isTcpPort(value.preferredPort) &&
+    isTcpPort(value.selectedPort) &&
+    isBoolean(value.changed) &&
+    (value.occupiedBy === undefined || isPortEntry(value.occupiedBy))
   );
 };

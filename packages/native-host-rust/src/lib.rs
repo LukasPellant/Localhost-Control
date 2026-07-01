@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
-use std::net::{TcpStream, ToSocketAddrs};
+use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -50,6 +50,14 @@ struct TerminalParams {
     project_hint: Option<String>,
     command_line: Option<String>,
     execute_command: Option<bool>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResolveStartPortParams {
+    preferred_port: u16,
+    avoid_ports: Option<Vec<u16>>,
+    search_limit: Option<u16>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -240,6 +248,15 @@ pub fn handle_request(request: Value) -> Result<Value, String> {
                             .to_string()
                     })?;
             open_project_folder(&params)
+        }
+        "resolveStartPort" => {
+            let params: ResolveStartPortParams =
+                serde_json::from_value(request.get("params").cloned().unwrap_or(Value::Null))
+                    .map_err(|_| {
+                        "Request does not match the Localhost Control native host protocol."
+                            .to_string()
+                    })?;
+            resolve_start_port(&params)?
         }
         _ => json!({
             "error": "invalid_request",
@@ -676,6 +693,88 @@ fn build_port_entry(
     }
     insert_optional_str(&mut entry, "protectionReason", protection_reason.as_deref());
     entry
+}
+
+fn resolve_start_port(params: &ResolveStartPortParams) -> Result<Value, String> {
+    let listeners = read_tcp_listeners()
+        .map(|items| {
+            dedupe_listeners(
+                items
+                    .into_iter()
+                    .filter(|listener| is_localish(&listener.address))
+                    .collect(),
+            )
+        })
+        .unwrap_or_default();
+    let avoid_ports = params.avoid_ports.as_deref().unwrap_or(&[]);
+    let search_limit = params.search_limit.unwrap_or(50);
+    let mut result = resolve_start_port_from_listeners(
+        params.preferred_port,
+        &listeners,
+        avoid_ports,
+        search_limit,
+        port_bind_available,
+    )?;
+
+    if let Some(occupied_listener) = listeners
+        .iter()
+        .find(|listener| listener.port == params.preferred_port)
+    {
+        let metadata = read_process_metadata(&[occupied_listener.pid]).unwrap_or_default();
+        result["occupiedBy"] = build_port_entry(
+            occupied_listener,
+            metadata.get(&occupied_listener.pid),
+            None,
+        );
+    }
+
+    Ok(result)
+}
+
+fn resolve_start_port_from_listeners<F>(
+    preferred_port: u16,
+    listeners: &[Listener],
+    avoid_ports: &[u16],
+    search_limit: u16,
+    is_bind_available: F,
+) -> Result<Value, String>
+where
+    F: Fn(u16) -> bool,
+{
+    let occupied_ports: HashSet<u16> = listeners.iter().map(|listener| listener.port).collect();
+    let avoid_ports: HashSet<u16> = avoid_ports.iter().copied().collect();
+    let limit = search_limit.max(1);
+    let occupied_by = listeners
+        .iter()
+        .find(|listener| listener.port == preferred_port)
+        .map(|listener| build_port_entry(listener, None, None));
+
+    for offset in 0..limit {
+        let Some(candidate) = preferred_port.checked_add(offset) else {
+            break;
+        };
+        if candidate == 0 || avoid_ports.contains(&candidate) {
+            continue;
+        }
+        if occupied_ports.contains(&candidate) || !is_bind_available(candidate) {
+            continue;
+        }
+        let mut result = json!({
+            "preferredPort": preferred_port,
+            "selectedPort": candidate,
+            "changed": candidate != preferred_port
+        });
+        if let Some(entry) = occupied_by {
+            result["occupiedBy"] = entry;
+        }
+        return Ok(result);
+    }
+
+    Err(format!("No clean localhost port found near {preferred_port}."))
+}
+
+fn port_bind_available(port: u16) -> bool {
+    TcpListener::bind(("127.0.0.1", port)).is_ok() && TcpListener::bind(("::1", port)).is_ok()
 }
 
 pub fn resolve_kill_target(
@@ -1705,7 +1804,8 @@ fn iso_now() -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        derive_project_hint, parse_darwin_ps_output, parse_lsof_listeners, parse_ss_listeners,
+        derive_project_hint, parse_darwin_ps_output, parse_lsof_listeners,
+        resolve_start_port_from_listeners, parse_ss_listeners, Listener,
     };
 
     #[test]
@@ -1806,6 +1906,50 @@ next    42126 pella   10u  IPv4 0x123456789abcdec      0t0  TCP localhost:3000 (
         assert!(!super::is_target_listener_active(&listeners, 102, 5173));
         assert_eq!(super::listener_probe_key(&listeners[0]), (100, 5173));
         assert_eq!(super::listener_probe_key(&listeners[1]), (101, 5173));
+    }
+
+    #[test]
+    fn resolve_start_port_keeps_free_preferred_port() {
+        let result = resolve_start_port_from_listeners(5173, &[], &[], 20, |_| true).unwrap();
+
+        assert_eq!(result["preferredPort"], 5173);
+        assert_eq!(result["selectedPort"], 5173);
+        assert_eq!(result["changed"], false);
+        assert!(result.get("occupiedBy").is_none());
+    }
+
+    #[test]
+    fn resolve_start_port_selects_next_clean_port_when_preferred_is_occupied() {
+        let listeners = vec![Listener {
+            address: "127.0.0.1".to_string(),
+            port: 5173,
+            pid: 1234,
+        }];
+
+        let result = resolve_start_port_from_listeners(5173, &listeners, &[], 20, |port| port != 5173).unwrap();
+
+        assert_eq!(result["preferredPort"], 5173);
+        assert_eq!(result["selectedPort"], 5174);
+        assert_eq!(result["changed"], true);
+        assert_eq!(result["occupiedBy"]["pid"], 1234);
+        assert_eq!(result["occupiedBy"]["port"], 5173);
+    }
+
+    #[test]
+    fn resolve_start_port_honors_avoid_ports_and_search_limit() {
+        let listeners = vec![Listener {
+            address: "127.0.0.1".to_string(),
+            port: 5173,
+            pid: 1234,
+        }];
+
+        let result = resolve_start_port_from_listeners(5173, &listeners, &[5174], 20, |port| port != 5173).unwrap();
+
+        assert_eq!(result["selectedPort"], 5175);
+        assert_eq!(
+            resolve_start_port_from_listeners(65535, &listeners, &[], 1, |_| false).unwrap_err(),
+            "No clean localhost port found near 65535."
+        );
     }
 
     #[test]

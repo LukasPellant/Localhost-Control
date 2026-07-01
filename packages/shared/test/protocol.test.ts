@@ -3,6 +3,7 @@ import {
   HOST_NAME,
   isHostRequest,
   isKillResult,
+  isResolveStartPortResult,
   isScanResult,
   type HostRequest
 } from "../src/index";
@@ -62,6 +63,38 @@ describe("native messaging protocol", () => {
         params: { projectPath: 123 }
       })
     ).toBe(false);
+  });
+
+  it("validates start port resolution requests and results", () => {
+    expect(
+      isHostRequest({
+        id: "port-1",
+        method: "resolveStartPort",
+        params: { preferredPort: 5173, avoidPorts: [5174], searchLimit: 20 }
+      })
+    ).toBe(true);
+    expect(isHostRequest({ id: "port-1", method: "resolveStartPort", params: { preferredPort: 70000 } })).toBe(false);
+    expect(isHostRequest({ id: "port-1", method: "resolveStartPort", params: { preferredPort: 5173, avoidPorts: "5174" } })).toBe(false);
+    expect(isHostRequest({ id: "port-1", method: "resolveStartPort", params: { preferredPort: 5173, searchLimit: 0 } })).toBe(false);
+
+    expect(isResolveStartPortResult({ preferredPort: 5173, selectedPort: 5173, changed: false })).toBe(true);
+    expect(
+      isResolveStartPortResult({
+        preferredPort: 5173,
+        selectedPort: 5174,
+        changed: true,
+        occupiedBy: {
+          port: 5173,
+          address: "127.0.0.1",
+          pid: 1234,
+          processName: "node.exe",
+          detectedKind: "vite",
+          confidence: "high",
+          killable: true
+        }
+      })
+    ).toBe(true);
+    expect(isResolveStartPortResult({ preferredPort: 5173, selectedPort: 70000, changed: true })).toBe(false);
   });
 
   it("validates kill results and scan results", () => {

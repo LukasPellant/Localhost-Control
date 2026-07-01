@@ -1,11 +1,14 @@
 import {
   HOST_NAME,
   isKillResult,
+  isResolveStartPortResult,
   isScanResult,
   type KillParams,
   type KillResult,
   type OpenProjectFolderParams,
   type OpenProjectFolderResult,
+  type ResolveStartPortParams,
+  type ResolveStartPortResult,
   type ScanParams,
   type ScanResult,
   type TerminalParams,
@@ -19,6 +22,7 @@ export type HostClient = {
   kill(params: KillParams): Promise<KillResult>;
   openTerminal(params: TerminalParams): Promise<TerminalResult>;
   openProjectFolder(params: OpenProjectFolderParams): Promise<OpenProjectFolderResult>;
+  resolveStartPort(params: ResolveStartPortParams): Promise<ResolveStartPortResult>;
   version(): Promise<VersionResult>;
 };
 
@@ -32,6 +36,7 @@ type NativeRequest =
   | { method: "kill"; params: KillParams }
   | { method: "openTerminal"; params: TerminalParams }
   | { method: "openProjectFolder"; params: OpenProjectFolderParams }
+  | { method: "resolveStartPort"; params: ResolveStartPortParams }
   | { method: "version" };
 
 const requestId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -105,6 +110,12 @@ export const createNativeHostClient = (): HostClient => ({
       await sendNative<OpenProjectFolderResult>({ method: "openProjectFolder", params }),
       isOpenProjectFolderResult,
       "openProjectFolder"
+    ),
+  resolveStartPort: async (params) =>
+    validateNativeResult(
+      await sendNative<ResolveStartPortResult>({ method: "resolveStartPort", params }),
+      isResolveStartPortResult,
+      "resolveStartPort"
     ),
   version: async () => validateNativeResult(await sendNative<VersionResult>({ method: "version" }), isVersionResult, "version")
 });

@@ -126,6 +126,20 @@ export const createMockHostClient = (): HostClient => {
     async openProjectFolder(params) {
       return { opened: true, message: `Opened project folder ${params.projectPath}` };
     },
+    async resolveStartPort(params) {
+      const avoidPorts = new Set(params.avoidPorts ?? []);
+      let selectedPort = params.preferredPort;
+      while (entries.some((entry) => entry.port === selectedPort) || avoidPorts.has(selectedPort)) {
+        selectedPort += 1;
+      }
+      const occupiedBy = entries.find((entry) => entry.port === params.preferredPort);
+      return {
+        preferredPort: params.preferredPort,
+        selectedPort,
+        changed: selectedPort !== params.preferredPort,
+        ...(occupiedBy ? { occupiedBy } : {})
+      };
+    },
     async version() {
       return { version: "0.1.10", platform: "win32" };
     }

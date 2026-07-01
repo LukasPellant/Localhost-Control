@@ -44,6 +44,7 @@ import { formatProfileLogs } from "./lib/profileLogs";
 import { deriveWorkspaceStates, type ProjectWorkspace, type WorkspaceState } from "./lib/projectWorkspaces";
 import { slugifyLocalId } from "./lib/localIds";
 import { defaultSettings, loadSettings, saveActionAudit, saveSettings, type Settings } from "./lib/settings";
+import { preferredProfilePort, retargetProfilePort } from "./lib/startPorts";
 import {
   removeProjectProfile,
   removeProjectWorkspace,
@@ -84,8 +85,20 @@ type PendingWorkspaceRestart = {
   mode: WorkspaceRestartMode;
 };
 
+type PreparedProfileStartResult =
+  | {
+      ok: true;
+      profile: StartableProjectProfile;
+      portChanged: boolean;
+      selectedPort?: number;
+    }
+  | { ok: false; message: string };
+
 const imageIconPattern = /^(https?:\/\/|data:image\/|\/)/i;
 const killClosedPort = (result: KillResult): boolean => result.killed && result.portClosed;
+const fallbackDetailForStart = (profile: ProjectProfile, result: { portChanged: boolean; selectedPort?: number }): string | undefined =>
+  result.portChanged && result.selectedPort ? `Preferred ${preferredProfilePort(profile)} busy; started on ${result.selectedPort}` : undefined;
+const appendFallbackDetails = (summary: string, details: string[]): string => (details.length ? `${summary}; ${details.join("; ")}` : summary);
 
 const nativeHostDownloadUrl = (): string => {
   const version = getExtensionApi()?.runtime?.getManifest?.().version;
@@ -615,21 +628,23 @@ export const App = ({ client }: AppProps) => {
         return;
       }
       await scan();
-      const result = await client.openTerminal({
-        projectHint: profile.projectPath,
-        commandLine: profile.startCommand,
-        executeCommand: true
-      });
-      if (!result.opened) {
-        setMessage(result.message);
+      const startResult = await startPreparedProfile(profile, { skipRunningGuard: true, skipHealthPreflight: true });
+      if (!startResult.ok) return;
+
+      const fallbackDetail = fallbackDetailForStart(profile, startResult);
+      await recordAction({ action: "start-profile", target: profile.name, detail: fallbackDetail ?? "Restarted after stop" });
+      if (startResult.profile.healthUrl) {
+        void waitForProfileReady(startResult.profile);
+        if (startResult.portChanged && startResult.selectedPort) {
+          setMessage(`Restarted profile ${profile.name} on clean port ${startResult.selectedPort}; saved profile URLs updated.`);
+        }
         return;
       }
-      await recordAction({ action: "start-profile", target: profile.name, detail: "Restarted after stop" });
-      if (profile.healthUrl) {
-        void waitForProfileReady(profile);
-        return;
-      }
-      setMessage(`Restarted profile ${profile.name}`);
+      setMessage(
+        startResult.portChanged && startResult.selectedPort
+          ? `Restarted profile ${profile.name} on clean port ${startResult.selectedPort}; saved profile URLs updated.`
+          : `Restarted profile ${profile.name}`
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -683,18 +698,23 @@ export const App = ({ client }: AppProps) => {
       }
       await scan();
       let startedCount = 0;
+      const avoidPorts: number[] = [];
+      const fallbackDetails: string[] = [];
       for (const profile of stoppedProfiles) {
         try {
-          const result = await client.openTerminal({
-            projectHint: profile.projectPath,
-            commandLine: profile.startCommand,
-            executeCommand: true
+          const startResult = await startPreparedProfile(profile, {
+            skipRunningGuard: true,
+            skipHealthPreflight: true,
+            avoidPorts
           });
-          if (result.opened) {
+          if (startResult.ok) {
             startedCount += 1;
-            startedProfiles.push(profile);
+            startedProfiles.push(startResult.profile);
+            const fallbackDetail = fallbackDetailForStart(profile, startResult);
+            if (fallbackDetail) fallbackDetails.push(fallbackDetail);
+            if (startResult.selectedPort) avoidPorts.push(startResult.selectedPort);
           } else {
-            failures.push(`${profile.name}: ${result.message}`);
+            failures.push(`${profile.name}: ${startResult.message}`);
           }
         } catch (error) {
           failures.push(`${profile.name}: ${error instanceof Error ? error.message : String(error)}`);
@@ -703,9 +723,12 @@ export const App = ({ client }: AppProps) => {
       await recordAction({
         action: "start-workspace",
         target: state.workspace.name,
-        detail: failures.length
-          ? `${restartPastTense} ${startedCount} of ${restartableEntries.length} ${restartableEntries.length === 1 ? "profile" : "profiles"}; ${failures.length} failed`
-          : `${restartPastTense} ${startedCount} ${startedCount === 1 ? "profile" : "profiles"}`
+        detail: appendFallbackDetails(
+          failures.length
+            ? `${restartPastTense} ${startedCount} of ${restartableEntries.length} ${restartableEntries.length === 1 ? "profile" : "profiles"}; ${failures.length} failed`
+            : `${restartPastTense} ${startedCount} ${startedCount === 1 ? "profile" : "profiles"}`,
+          fallbackDetails
+        )
       });
       const healthProfiles = startedProfiles.filter((profile) => profile.healthUrl);
       healthProfiles.forEach((profile) => void waitForProfileReady(profile));
@@ -919,24 +942,32 @@ export const App = ({ client }: AppProps) => {
     }
 
     try {
-      if (profile.healthUrl && !(await preflightHealthForProfileStart(profile))) return;
+      const startResult = await startPreparedProfile(profile);
+      if (!startResult.ok) return;
 
-      const result = await client.openTerminal({
-        projectHint: profile.projectPath,
-        commandLine: profile.startCommand,
-        executeCommand: true
+      const fallbackDetail = fallbackDetailForStart(profile, startResult);
+      if (startResult.profile.healthUrl) {
+        void recordAction({
+          action: "start-profile",
+          target: profile.name,
+          detail: fallbackDetail ?? "Waiting for health check"
+        });
+        void waitForProfileReady(startResult.profile);
+        if (startResult.portChanged && startResult.selectedPort) {
+          setMessage(`Started ${profile.name} on clean port ${startResult.selectedPort}; saved profile URLs updated.`);
+        }
+        return;
+      }
+      void recordAction({
+        action: "start-profile",
+        target: profile.name,
+        ...(fallbackDetail ? { detail: fallbackDetail } : {})
       });
-      if (!result.opened) {
-        setMessage(result.message);
-        return;
-      }
-      if (profile.healthUrl) {
-        void recordAction({ action: "start-profile", target: profile.name, detail: "Waiting for health check" });
-        void waitForProfileReady(profile);
-        return;
-      }
-      void recordAction({ action: "start-profile", target: profile.name });
-      setMessage(`Started profile ${profile.name}`);
+      setMessage(
+        startResult.portChanged && startResult.selectedPort
+          ? `Started ${profile.name} on clean port ${startResult.selectedPort}; saved profile URLs updated.`
+          : `Started profile ${profile.name}`
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     }
@@ -1067,6 +1098,83 @@ export const App = ({ client }: AppProps) => {
     setProfileHealthResults((current) => ({ ...current, [profile.id]: result }));
     setMessage(result.message);
     return false;
+  };
+
+  const persistPreparedProfile = async (profile: ProjectProfile): Promise<boolean> => {
+    const previous = settingsRef.current;
+    const next = upsertProjectProfile(previous, profile);
+    settingsRef.current = next;
+    setSettings(next);
+    try {
+      await saveSettings(next);
+      return true;
+    } catch (error) {
+      settingsRef.current = previous;
+      setSettings(previous);
+      setMessage(error instanceof Error ? error.message : String(error));
+      return false;
+    }
+  };
+
+  const startPreparedProfile = async (
+    profile: StartableProjectProfile,
+    options: { skipRunningGuard?: boolean; skipHealthPreflight?: boolean; avoidPorts?: number[] } = {}
+  ): Promise<PreparedProfileStartResult> => {
+    const runningEntry = profileStateForProfile(profile).entry;
+    if (!options.skipRunningGuard && runningEntry) {
+      const message = `${profile.name} is already running on port ${runningEntry.port}.`;
+      setMessage(message);
+      return { ok: false, message };
+    }
+
+    let preparedProfile: StartableProjectProfile = profile;
+    const preferredPort = preferredProfilePort(profile);
+    let portChanged = false;
+    let selectedPort: number | undefined;
+    let shouldPersistPreparedProfile = false;
+
+    if (preferredPort) {
+      const portResult = await client.resolveStartPort({
+        preferredPort,
+        ...(options.avoidPorts?.length ? { avoidPorts: [...options.avoidPorts] } : {}),
+        searchLimit: 50
+      });
+      selectedPort = portResult.selectedPort;
+      if (portResult.changed) {
+        const retargeted = retargetProfilePort(profile, preferredPort, portResult.selectedPort);
+        if (!retargeted.ok) {
+          setMessage(retargeted.message);
+          return { ok: false, message: retargeted.message };
+        }
+        preparedProfile = retargeted.profile as StartableProjectProfile;
+        portChanged = true;
+        shouldPersistPreparedProfile = true;
+      }
+    }
+
+    if (!options.skipHealthPreflight && preparedProfile.healthUrl && !(await preflightHealthForProfileStart(preparedProfile))) {
+      return { ok: false, message: `Health preflight failed for ${preparedProfile.name}` };
+    }
+
+    const result = await client.openTerminal({
+      projectHint: preparedProfile.projectPath,
+      commandLine: preparedProfile.startCommand,
+      executeCommand: true
+    });
+    if (!result.opened) {
+      setMessage(result.message);
+      return { ok: false, message: result.message };
+    }
+    if (shouldPersistPreparedProfile && !(await persistPreparedProfile(preparedProfile))) {
+      return { ok: false, message: `Could not save updated profile ${profile.name}` };
+    }
+
+    return {
+      ok: true,
+      profile: preparedProfile,
+      portChanged,
+      ...(selectedPort ? { selectedPort } : {})
+    };
   };
 
   const waitForProfileReady = async (profile: ProjectProfile) => {
@@ -1204,27 +1312,30 @@ export const App = ({ client }: AppProps) => {
         if (profile.healthUrl && !(await preflightHealthForProfileStart(profile))) return;
       }
 
+      const startedProfiles: StartableProjectProfile[] = [];
+      const avoidPorts: number[] = [];
+      const fallbackDetails: string[] = [];
       for (const profile of startableProfiles) {
-        const result = await client.openTerminal({
-          projectHint: profile.projectPath,
-          commandLine: profile.startCommand,
-          executeCommand: true
-        });
-        if (!result.opened) {
-          setMessage(result.message);
+        const startResult = await startPreparedProfile(profile, { skipRunningGuard: true, skipHealthPreflight: true, avoidPorts });
+        if (!startResult.ok) {
+          setMessage(startResult.message);
           return;
         }
+        startedProfiles.push(startResult.profile);
+        const fallbackDetail = fallbackDetailForStart(profile, startResult);
+        if (fallbackDetail) fallbackDetails.push(fallbackDetail);
+        if (startResult.selectedPort) avoidPorts.push(startResult.selectedPort);
       }
       void recordAction({
         action: "start-workspace",
         target: state.workspace.name,
-        detail: `${startableProfiles.length} ${startableProfiles.length === 1 ? "profile" : "profiles"}`
+        detail: appendFallbackDetails(`${startedProfiles.length} ${startedProfiles.length === 1 ? "profile" : "profiles"}`, fallbackDetails)
       });
-      const healthProfiles = startableProfiles.filter((profile) => profile.healthUrl);
+      const healthProfiles = startedProfiles.filter((profile) => profile.healthUrl);
       healthProfiles.forEach((profile) => void waitForProfileReady(profile));
       setMessage(
-        `Started workspace ${state.workspace.name}: ${startableProfiles.length} ${
-          startableProfiles.length === 1 ? "command" : "commands"
+        `Started workspace ${state.workspace.name}: ${startedProfiles.length} ${
+          startedProfiles.length === 1 ? "command" : "commands"
         }${healthProfiles.length ? `; waiting on ${healthProfiles.length} health ${healthProfiles.length === 1 ? "check" : "checks"}` : ""}`
       );
     } catch (error) {
