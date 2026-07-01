@@ -57,6 +57,8 @@ const normalizePath = (value: string): string =>
 const normalizeUrl = (value: string): string => {
   try {
     const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    if (localhostNames.has(hostname)) url.hostname = "127.0.0.1";
     url.hash = "";
     return url.toString().replace(/\/$/, "");
   } catch {

@@ -92,4 +92,17 @@ describe("start port preparation", () => {
     expect(preferredProfilePort({ id: "b", name: "B", mainUrl: "http://127.0.0.1:5173" })).toBe(5173);
     expect(preferredProfilePort({ id: "c", name: "C", healthUrl: "http://127.0.0.1:8788/health" })).toBe(8788);
   });
+
+  it("prefers the explicit command port over stale saved metadata", () => {
+    expect(
+      preferredProfilePort({
+        id: "kerfcut",
+        name: "KerfCut",
+        startCommand: '"node" "D:\\DevelopmentD\\DarkBurn\\node_modules\\.bin\\..\\vite\\bin\\vite.js" --host 127.0.0.1 --port 5173',
+        expectedPort: 5174,
+        mainUrl: "http://127.0.0.1:5174"
+      })
+    ).toBe(5173);
+    expect(preferredProfilePort({ id: "next", name: "Next", startCommand: "next dev -p=3000", expectedPort: 3001 })).toBe(3000);
+  });
 });

@@ -25,8 +25,17 @@ const localUrlPort = (value: string | undefined): number | undefined => {
   }
 };
 
+const commandLinePort = (commandLine: string | undefined): number | undefined => {
+  if (!commandLine) return undefined;
+  const match = commandLine.match(/(?:^|\s)(?:--port|-p)(?:=|\s+)(\d{1,5})(?=\s|$)/);
+  if (!match) return undefined;
+  const port = Number(match[1]);
+  return tcpPort(port) ? port : undefined;
+};
+
 export const preferredProfilePort = (profile: ProjectProfile): number | undefined =>
-  tcpPort(profile.expectedPort ?? 0) ? profile.expectedPort : localUrlPort(profile.mainUrl) ?? localUrlPort(profile.healthUrl);
+  commandLinePort(profile.startCommand) ??
+  (tcpPort(profile.expectedPort ?? 0) ? profile.expectedPort : localUrlPort(profile.mainUrl) ?? localUrlPort(profile.healthUrl));
 
 const retargetLocalUrl = (value: string | undefined, fromPort: number, toPort: number): string | undefined => {
   if (!value) return undefined;

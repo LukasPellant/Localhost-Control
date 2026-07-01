@@ -39,7 +39,7 @@ import { analyzePortDoctor, formatPortDoctorAdvice, type PortDoctorReport } from
 import { filterEntries, filterLabel, type FilterId } from "./lib/portFilters";
 import { checkProfileHealth, preflightProfileHealthCheck, type ProfileHealthResult } from "./lib/profileHealth";
 import { notifyProfileHealth } from "./lib/profileNotifications";
-import { deriveProfileStates, matchProfileForEntry, type ProfileState, type ProjectProfile } from "./lib/projectProfiles";
+import { deriveProfileStates, matchProfileForEntry, scoreProfileForEntry, type ProfileState, type ProjectProfile } from "./lib/projectProfiles";
 import { formatProfileLogs } from "./lib/profileLogs";
 import { deriveWorkspaceStates, type ProjectWorkspace, type WorkspaceState } from "./lib/projectWorkspaces";
 import { slugifyLocalId } from "./lib/localIds";
@@ -149,6 +149,8 @@ const settingsExportSummary = (settings: Settings): string =>
   } ${settings.projectWorkspaces.length === 1 ? "workspace" : "workspaces"}`;
 const profileReadyPollAttempts = 6;
 const profileReadyPollDelayMs = 500;
+const profileObservePollAttempts = 6;
+const profileObservePollDelayMs = 500;
 const isStartableProjectProfile = (profile: ProjectProfile): profile is StartableProjectProfile =>
   Boolean(profile.projectPath && profile.startCommand);
 const normalizeProjectPath = (value: string): string =>
@@ -317,6 +319,24 @@ export const App = ({ client }: AppProps) => {
       setBusy(false);
     }
   }, [client, settings.httpProbe, settings.includeSystemPorts]);
+
+  const scanForProfileObservation = async (): Promise<ScanResult> => {
+    const result = await client.scan({
+      includeSystemPorts: settingsRef.current.includeSystemPorts,
+      httpProbe: settingsRef.current.httpProbe,
+      maxProbeMs: 550
+    });
+    setScanResult(result);
+    setSelectedKey((current) => current ?? (result.entries[0] ? `${result.entries[0].pid}:${result.entries[0].port}` : null));
+    setHostError(null);
+    return result;
+  };
+
+  const scanResultProfileEntry = (profile: ProjectProfile, result: ScanResult): PortEntry | undefined =>
+    deriveProfileStates(
+      [profile],
+      result.entries.filter((entry) => !settingsRef.current.hiddenPorts.includes(entry.port)).map((entry) => withAppScope(entry, settingsRef.current))
+    )[0]?.entry;
 
   useEffect(() => {
     void scan();
@@ -645,6 +665,7 @@ export const App = ({ client }: AppProps) => {
           ? `Restarted profile ${profile.name} on clean port ${startResult.selectedPort}; saved profile URLs updated.`
           : `Restarted profile ${profile.name}`
       );
+      void waitForProfileObserved(startResult.profile);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -732,6 +753,7 @@ export const App = ({ client }: AppProps) => {
       });
       const healthProfiles = startedProfiles.filter((profile) => profile.healthUrl);
       healthProfiles.forEach((profile) => void waitForProfileReady(profile));
+      startedProfiles.filter((profile) => !profile.healthUrl).forEach((profile) => void waitForProfileObserved(profile));
       if (failures.length) {
         setMessage(
           `Restarted ${restartTarget} ${mode === "failed" ? `in ${state.workspace.name}` : state.workspace.name}: ${startedCount} of ${restartableEntries.length} profiles; ${failures.length} failed`
@@ -963,6 +985,7 @@ export const App = ({ client }: AppProps) => {
         target: profile.name,
         ...(fallbackDetail ? { detail: fallbackDetail } : {})
       });
+      void waitForProfileObserved(startResult.profile);
       setMessage(
         startResult.portChanged && startResult.selectedPort
           ? `Started ${profile.name} on clean port ${startResult.selectedPort}; saved profile URLs updated.`
@@ -1139,6 +1162,12 @@ export const App = ({ client }: AppProps) => {
         ...(options.avoidPorts?.length ? { avoidPorts: [...options.avoidPorts] } : {}),
         searchLimit: 50
       });
+      if (!options.skipRunningGuard && portResult.changed && portResult.occupiedBy && scoreProfileForEntry(portResult.occupiedBy, profile) >= 100) {
+        const message = `${profile.name} is already running on port ${portResult.occupiedBy.port}.`;
+        setMessage(message);
+        void waitForProfileObserved(profile);
+        return { ok: false, message };
+      }
       selectedPort = portResult.selectedPort;
       if (portResult.changed) {
         const retargeted = retargetProfilePort(profile, preferredPort, portResult.selectedPort);
@@ -1194,6 +1223,7 @@ export const App = ({ client }: AppProps) => {
       if (result.state === "healthy") {
         const readyMessage = `${profile.name} is ready (${result.statusCode ?? "ok"})`;
         setMessage(readyMessage);
+        void scanForProfileObservation();
         void notifyProfileHealth("ready", profile, readyMessage);
         return;
       }
@@ -1206,6 +1236,19 @@ export const App = ({ client }: AppProps) => {
     const failedMessage = lastResult ? `${profile.name} did not become healthy: ${lastResult.message}` : `${profile.name} did not become healthy.`;
     setMessage(failedMessage);
     void notifyProfileHealth("failed", profile, failedMessage);
+  };
+
+  const waitForProfileObserved = async (profile: ProjectProfile): Promise<boolean> => {
+    for (let attempt = 0; attempt < profileObservePollAttempts; attempt += 1) {
+      if (attempt > 0) await delay(profileObservePollDelayMs);
+      try {
+        const result = await scanForProfileObservation();
+        if (scanResultProfileEntry(profile, result)) return true;
+      } catch (error) {
+        setHostError(error instanceof Error ? error.message : String(error));
+      }
+    }
+    return false;
   };
 
   const saveProfileForEntry = async (entry: PortEntry) => {
@@ -1333,6 +1376,7 @@ export const App = ({ client }: AppProps) => {
       });
       const healthProfiles = startedProfiles.filter((profile) => profile.healthUrl);
       healthProfiles.forEach((profile) => void waitForProfileReady(profile));
+      startedProfiles.filter((profile) => !profile.healthUrl).forEach((profile) => void waitForProfileObserved(profile));
       setMessage(
         `Started workspace ${state.workspace.name}: ${startedProfiles.length} ${
           startedProfiles.length === 1 ? "command" : "commands"

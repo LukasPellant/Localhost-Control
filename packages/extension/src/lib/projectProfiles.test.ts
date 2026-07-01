@@ -37,6 +37,12 @@ describe("project profile matching", () => {
     expect(matchProfileForEntry(viteEntryWithoutPath, profiles)?.profile.name).toBe("Example Shop");
   });
 
+  it("matches loopback URL aliases for saved profile URLs", () => {
+    const profiles: ProjectProfile[] = [{ id: "shop", name: "Example Shop", mainUrl: "http://127.0.0.1:5173" }];
+
+    expect(matchProfileForEntry({ ...viteEntryWithoutPath, title: "Vite", url: "http://localhost:5173" }, profiles)?.profile.id).toBe("shop");
+  });
+
   it("marks saved profiles as running, starting, unhealthy, or stopped from current scan results", () => {
     const profiles: ProjectProfile[] = [
       { id: "shop", name: "Example Shop", projectPath: "D:\\Projects\\ExampleShop", healthUrl: "http://127.0.0.1:5173/health" },

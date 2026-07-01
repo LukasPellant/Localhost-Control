@@ -504,6 +504,123 @@ describe("App", () => {
     expect(manager).toHaveTextContent("Started profile");
   });
 
+  it("refreshes profile state after starting a favorite without a health URL", async () => {
+    const kerfcutEntry: PortEntry = {
+      ...entries[0]!,
+      pid: 5336,
+      port: 5173,
+      processName: "node.exe",
+      commandLine: '"node" "D:\\DevelopmentD\\DarkBurn\\node_modules\\.bin\\\\..\\vite\\bin\\vite.js" --host 127.0.0.1 --port 5173',
+      projectHint: "D:\\DevelopmentD\\DarkBurn",
+      url: "http://127.0.0.1:5173",
+      statusCode: 200,
+      title: "KerfCut"
+    };
+    const startClient: HostClient = {
+      ...client,
+      scan: vi
+        .fn()
+        .mockResolvedValueOnce({
+          scannedAt: "2026-06-27T10:00:00.000Z",
+          durationMs: 12,
+          entries: []
+        })
+        .mockResolvedValue({
+          scannedAt: "2026-06-27T10:00:01.000Z",
+          durationMs: 12,
+          entries: [kerfcutEntry]
+        })
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\DevelopmentD"],
+        projectProfiles: [
+          {
+            id: "kerfcut",
+            name: "KerfCut",
+            projectPath: "D:\\DevelopmentD\\DarkBurn",
+            startCommand: '"node" "D:\\DevelopmentD\\DarkBurn\\node_modules\\.bin\\\\..\\vite\\bin\\vite.js" --host 127.0.0.1 --port 5173',
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={startClient} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    expect(profiles).toHaveTextContent("stopped");
+    fireEvent.click(within(profiles).getByRole("button", { name: /^start profile kerfcut$/i }));
+
+    await waitFor(() => expect(startClient.openTerminal).toHaveBeenCalled());
+    await waitFor(() => expect(startClient.scan).toHaveBeenCalledTimes(2));
+    expect(await within(profiles).findByText("running")).toBeInTheDocument();
+    expect(within(profiles).getByRole("button", { name: /stop profile kerfcut/i })).toBeInTheDocument();
+  });
+
+  it("does not launch a duplicate when the preferred port is already the same favorite", async () => {
+    const kerfcutEntry: PortEntry = {
+      ...entries[0]!,
+      pid: 5336,
+      port: 5173,
+      processName: "node.exe",
+      commandLine: '"node" "D:\\DevelopmentD\\DarkBurn\\node_modules\\.bin\\\\..\\vite\\bin\\vite.js" --host 127.0.0.1 --port 5173',
+      projectHint: "D:\\DevelopmentD\\DarkBurn",
+      url: "http://127.0.0.1:5173",
+      statusCode: 200,
+      title: "KerfCut"
+    };
+    const staleClient: HostClient = {
+      ...client,
+      scan: vi
+        .fn()
+        .mockResolvedValueOnce({
+          scannedAt: "2026-06-27T10:00:00.000Z",
+          durationMs: 12,
+          entries: []
+        })
+        .mockResolvedValue({
+          scannedAt: "2026-06-27T10:00:01.000Z",
+          durationMs: 12,
+          entries: [kerfcutEntry]
+        }),
+      resolveStartPort: vi.fn(async () => ({
+        preferredPort: 5173,
+        selectedPort: 5174,
+        changed: true,
+        occupiedBy: kerfcutEntry
+      }))
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\DevelopmentD"],
+        projectProfiles: [
+          {
+            id: "kerfcut",
+            name: "KerfCut",
+            projectPath: "D:\\DevelopmentD\\DarkBurn",
+            startCommand: '"node" "D:\\DevelopmentD\\DarkBurn\\node_modules\\.bin\\\\..\\vite\\bin\\vite.js" --host 127.0.0.1 --port 5173',
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={staleClient} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /^start profile kerfcut$/i }));
+
+    expect(await screen.findByText("KerfCut is already running on port 5173.")).toBeInTheDocument();
+    expect(staleClient.openTerminal).not.toHaveBeenCalled();
+    await waitFor(() => expect(staleClient.scan).toHaveBeenCalledTimes(2));
+    expect(await within(profiles).findByText("running")).toBeInTheDocument();
+  });
+
   it("starts a profile on a clean fallback port and saves the updated profile", async () => {
     let finishHealthCheck: ((response: { ok: boolean; status: number; statusText: string }) => void) | undefined;
     const fetchHealth = vi.fn(
