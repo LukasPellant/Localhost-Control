@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 const repoRoot = resolve(__dirname, "..");
 const script = readFileSync(resolve(repoRoot, "scripts/package-extension.mjs"), "utf8");
+const powershellScript = readFileSync(resolve(repoRoot, "scripts/package-extension.ps1"), "utf8");
 const packageJson = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")) as {
   version: string;
   scripts: Record<string, string>;
@@ -31,6 +32,12 @@ describe("package-extension.mjs", () => {
     expect(script).toContain("0x04034b50");
     expect(script).toContain("0x02014b50");
     expect(script).toContain("0x06054b50");
+  });
+
+  it("keeps the PowerShell package helper as a thin wrapper around the Node packager", () => {
+    expect(powershellScript).toContain("scripts/package-extension.mjs");
+    expect(powershellScript).not.toContain("Compress-Archive");
+    expect(powershellScript).not.toContain("Copy-Item");
   });
 
   it("serializes package builds because Vite writes to a shared dist directory", () => {
