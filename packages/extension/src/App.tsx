@@ -1264,19 +1264,22 @@ export const App = ({ client }: AppProps) => {
 
   const saveProfileForEntry = async (entry: PortEntry) => {
     const existingProfile = profileForEntry(entry);
-    const nextTrustedPaths =
-      entry.projectHint && !isTrustedProjectPath(settings, entry.projectHint)
-        ? [...settings.trustedProjectPaths, entry.projectHint]
+    const trustedPathsForProfile = (profile: ProjectProfile): string[] =>
+      profile.projectPath && !isTrustedProjectPath(settings, profile.projectPath)
+        ? [...settings.trustedProjectPaths, profile.projectPath]
         : settings.trustedProjectPaths;
 
     if (existingProfile) {
-      const nextProfile: ProjectProfile = {
+      let nextProfile: ProjectProfile = {
         ...existingProfile,
         expectedPort: existingProfile.expectedPort ?? entry.port,
         mainUrl: existingProfile.mainUrl ?? entry.url ?? `http://127.0.0.1:${entry.port}`
       };
       if (entry.projectHint && !nextProfile.projectPath) nextProfile.projectPath = entry.projectHint;
       if (entry.commandLine && !nextProfile.startCommand) nextProfile.startCommand = entry.commandLine;
+      const canonicalized = canonicalizeProfileStartCommand(nextProfile);
+      if (canonicalized.ok && canonicalized.changed) nextProfile = canonicalized.profile;
+      const nextTrustedPaths = trustedPathsForProfile(nextProfile);
 
       const changed =
         nextProfile.projectPath !== existingProfile.projectPath ||
@@ -1321,8 +1324,11 @@ export const App = ({ client }: AppProps) => {
     };
     if (entry.projectHint) profile.projectPath = entry.projectHint;
     if (entry.commandLine) profile.startCommand = entry.commandLine;
+    const canonicalized = canonicalizeProfileStartCommand(profile);
+    const preparedProfile = canonicalized.ok && canonicalized.changed ? canonicalized.profile : profile;
+    const nextTrustedPaths = trustedPathsForProfile(preparedProfile);
 
-    if (!(await patchSettings({ projectProfiles: [...settings.projectProfiles, profile], trustedProjectPaths: nextTrustedPaths }))) return;
+    if (!(await patchSettings({ projectProfiles: [...settings.projectProfiles, preparedProfile], trustedProjectPaths: nextTrustedPaths }))) return;
     setMessage(`Saved profile ${name}`);
   };
 

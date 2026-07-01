@@ -655,7 +655,7 @@ describe("App", () => {
 
     await waitFor(() =>
       expect(startClient.openTerminal).toHaveBeenCalledWith({
-        projectHint: "D:\\DevelopmentD\\DarkBurn",
+        projectHint: "D:\\DevelopmentD\\DarkBurn\\apps\\web",
         commandLine: "npm run dev",
         executeCommand: true
       })
@@ -663,6 +663,7 @@ describe("App", () => {
     await waitFor(() => {
       const saved = JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}");
       expect(saved.projectProfiles[0].startCommand).toBe("npm run dev");
+      expect(saved.projectProfiles[0].projectPath).toBe("D:\\DevelopmentD\\DarkBurn\\apps\\web");
     });
   });
 
@@ -2450,6 +2451,42 @@ describe("App", () => {
         {
           name: "Example Shop",
           projectPath: "D:\\Projects\\ExampleShop",
+          expectedPort: 5173,
+          mainUrl: "http://127.0.0.1:5173"
+        }
+      ]
+    });
+  });
+
+  it("saves a manually started KerfCut Vite process with the real web app path", async () => {
+    const kerfcutClient: HostClient = {
+      ...client,
+      scan: vi.fn(async () => ({
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 12,
+        entries: [
+          {
+            ...entries[0]!,
+            processName: "node.exe",
+            commandLine: '"node" "D:\\DevelopmentD\\DarkBurn\\node_modules\\.bin\\\\..\\vite\\bin\\vite.js" --host 127.0.0.1 --port 5173',
+            projectHint: "D:\\DevelopmentD\\DarkBurn",
+            title: "KerfCut"
+          }
+        ]
+      }))
+    };
+
+    render(<App client={kerfcutClient} />);
+
+    expect(await screen.findByRole("button", { name: /select port 5173/i })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByLabelText("Port 5173 details")).getByRole("button", { name: /save profile/i }));
+
+    expect(JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}")).toMatchObject({
+      projectProfiles: [
+        {
+          name: "KerfCut",
+          projectPath: "D:\\DevelopmentD\\DarkBurn\\apps\\web",
+          startCommand: "npm run dev",
           expectedPort: 5173,
           mainUrl: "http://127.0.0.1:5173"
         }

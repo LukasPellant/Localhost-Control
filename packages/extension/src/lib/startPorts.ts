@@ -43,9 +43,21 @@ const isLocalViteBinaryCommand = (profile: ProjectProfile): boolean => {
   );
 };
 
+const canonicalKerfCutWebPath = (profile: ProjectProfile): string | undefined => {
+  if (!profile.projectPath || !profile.name.toLowerCase().includes("kerfcut")) return undefined;
+  const projectPath = profile.projectPath.replace(/[\\/]+$/, "");
+  const normalizedProjectPath = projectPath.replace(/\//g, "\\").toLowerCase();
+  if (normalizedProjectPath.endsWith("\\darkburn\\apps\\web")) return projectPath;
+  if (!normalizedProjectPath.endsWith("\\darkburn")) return undefined;
+  return `${projectPath}\\apps\\web`;
+};
+
 export const canonicalizeProfileStartCommand = (profile: ProjectProfile): ProfilePortRetargetResult => {
   if (!isLocalViteBinaryCommand(profile)) return { ok: true, profile, changed: false };
-  return { ok: true, profile: { ...profile, startCommand: "npm run dev" }, changed: true };
+  const next: ProjectProfile = { ...profile, startCommand: "npm run dev" };
+  const projectPath = canonicalKerfCutWebPath(profile);
+  if (projectPath) next.projectPath = projectPath;
+  return { ok: true, profile: next, changed: true };
 };
 
 export const preferredProfilePort = (profile: ProjectProfile): number | undefined =>
