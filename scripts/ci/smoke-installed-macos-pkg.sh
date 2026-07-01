@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 shopt -s nullglob
+trap 'status=$?; printf "::error title=Installed macOS pkg smoke failed::line %s, status %s, command: %s\n" "${LINENO}" "${status}" "${BASH_COMMAND}" >&2' ERR
 
 artifacts=(dist/native-host/localhost-control-native-host-macos-universal-*.pkg)
 if [ "${#artifacts[@]}" -ne 1 ]; then

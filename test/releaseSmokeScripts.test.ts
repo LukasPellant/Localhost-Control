@@ -23,6 +23,7 @@ describe("release install smoke scripts", () => {
 
     const linux = readFileSync(linuxScript, "utf8");
     expect(linux).toContain("shopt -s nullglob");
+    expect(linux).toContain("Installed Linux deb smoke failed");
     expect(linux).toContain("sudo dpkg -i");
     expect(linux).toContain("sudo dpkg -r localhost-control-native-host");
     expect(linux).toContain("/usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json");
@@ -38,6 +39,7 @@ describe("release install smoke scripts", () => {
 
     const macos = readFileSync(macosScript, "utf8");
     expect(macos).toContain("shopt -s nullglob");
+    expect(macos).toContain("Installed macOS pkg smoke failed");
     expect(macos).toContain("sudo installer -pkg");
     expect(macos).toContain('sudo "/Library/Application Support/Localhost Control/uninstall.sh"');
     expect(macos).toContain("/Library/Application Support/Mozilla/NativeMessagingHosts/com.localhost_control.host.json");

@@ -757,7 +757,11 @@ export const main = async (argv = process.argv.slice(2)) => {
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
-    console.error(error instanceof Error ? error.message : String(error));
+    const message = error instanceof Error ? error.message : String(error);
+    if (process.env.GITHUB_ACTIONS === "true") {
+      console.error(`::error title=Browser native smoke failed::${message.replace(/\r?\n/g, "%0A")}`);
+    }
+    console.error(message);
     process.exit(1);
   });
 }

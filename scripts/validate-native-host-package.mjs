@@ -586,10 +586,21 @@ const validateWindowsZip = async () => {
   }
 };
 
-if ((platform === "linux" || platform === "darwin") && format === "tarball") await validateTarball();
-else if (platform === "linux" && format === "deb") await validateDeb();
-else if (platform === "darwin" && format === "pkg") await validatePkg();
-else if (platform === "win32" && format === "zip") await validateWindowsZip();
-else throw new Error(`Unsupported package target: ${platform}/${format}`);
+const validate = async () => {
+  if ((platform === "linux" || platform === "darwin") && format === "tarball") await validateTarball();
+  else if (platform === "linux" && format === "deb") await validateDeb();
+  else if (platform === "darwin" && format === "pkg") await validatePkg();
+  else if (platform === "win32" && format === "zip") await validateWindowsZip();
+  else throw new Error(`Unsupported package target: ${platform}/${format}`);
 
-console.log(`Validated ${artifact}`);
+  console.log(`Validated ${artifact}`);
+};
+
+validate().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  if (process.env.GITHUB_ACTIONS === "true") {
+    console.error(`::error title=Native host package validation failed::${message.replace(/\r?\n/g, "%0A")}`);
+  }
+  console.error(message);
+  process.exit(1);
+});

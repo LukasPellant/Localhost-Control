@@ -390,6 +390,7 @@ describe("validate-native-host-package", () => {
     expect(validatePkg?.[0]).toContain("verifyMacUniversalHost");
     expect(validatorScript).toContain('run("lipo", [hostPath, "-verify_arch", "arm64", "x86_64"])');
     expect(validatorScript).toContain("verifyLinuxElfHost");
+    expect(validatorScript).toContain("Native host package validation failed");
     expect(validatorScript).toContain("Tarball uninstaller did not remove");
     expect(validatorScript).toContain("Debian package metadata must declare Architecture");
     expect(validatorScript).toContain('const macosHostPath = "/Library/Application Support/Localhost Control/localhost-control-host"');

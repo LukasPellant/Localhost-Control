@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 shopt -s nullglob
+trap 'status=$?; printf "::error title=Installed Linux deb smoke failed::line %s, status %s, command: %s\n" "${LINENO}" "${status}" "${BASH_COMMAND}" >&2' ERR
 
 arch="${1:?Usage: smoke-installed-linux-deb.sh <amd64|arm64>}"
 artifacts=(dist/native-host/localhost-control-native-host_*_"${arch}".deb)
