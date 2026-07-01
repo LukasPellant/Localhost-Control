@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { patchStartCommandPort, retargetProfilePort, preferredProfilePort, type ProjectProfile } from "./startPorts";
+import { canonicalizeProfileStartCommand, patchStartCommandPort, retargetProfilePort, preferredProfilePort, type ProjectProfile } from "./startPorts";
 
 describe("start port preparation", () => {
   it("replaces explicit long-form port flags in saved commands", () => {
@@ -104,5 +104,22 @@ describe("start port preparation", () => {
       })
     ).toBe(5173);
     expect(preferredProfilePort({ id: "next", name: "Next", startCommand: "next dev -p=3000", expectedPort: 3001 })).toBe(3000);
+  });
+
+  it("canonicalizes saved local Vite binary commands to the project dev script", () => {
+    const profile: ProjectProfile = {
+      id: "kerfcut",
+      name: "KerfCut",
+      projectPath: "D:\\DevelopmentD\\DarkBurn",
+      startCommand: '"node" "D:\\DevelopmentD\\DarkBurn\\node_modules\\.bin\\\\..\\vite\\bin\\vite.js" --host 127.0.0.1 --port 5173',
+      expectedPort: 5173,
+      mainUrl: "http://127.0.0.1:5173"
+    };
+
+    expect(canonicalizeProfileStartCommand(profile)).toEqual({
+      ok: true,
+      profile: { ...profile, startCommand: "npm run dev" },
+      changed: true
+    });
   });
 });

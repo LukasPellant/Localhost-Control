@@ -44,7 +44,7 @@ import { formatProfileLogs } from "./lib/profileLogs";
 import { deriveWorkspaceStates, type ProjectWorkspace, type WorkspaceState } from "./lib/projectWorkspaces";
 import { slugifyLocalId } from "./lib/localIds";
 import { defaultSettings, loadSettings, saveActionAudit, saveSettings, type Settings } from "./lib/settings";
-import { preferredProfilePort, retargetProfilePort } from "./lib/startPorts";
+import { canonicalizeProfileStartCommand, preferredProfilePort, retargetProfilePort } from "./lib/startPorts";
 import {
   removeProjectProfile,
   removeProjectWorkspace,
@@ -1151,10 +1151,21 @@ export const App = ({ client }: AppProps) => {
     }
 
     let preparedProfile: StartableProjectProfile = profile;
-    const preferredPort = preferredProfilePort(profile);
     let portChanged = false;
     let selectedPort: number | undefined;
     let shouldPersistPreparedProfile = false;
+
+    const canonicalized = canonicalizeProfileStartCommand(preparedProfile);
+    if (!canonicalized.ok) {
+      setMessage(canonicalized.message);
+      return { ok: false, message: canonicalized.message };
+    }
+    if (canonicalized.changed) {
+      preparedProfile = canonicalized.profile as StartableProjectProfile;
+      shouldPersistPreparedProfile = true;
+    }
+
+    const preferredPort = preferredProfilePort(preparedProfile);
 
     if (preferredPort) {
       const portResult = await client.resolveStartPort({
@@ -1170,7 +1181,7 @@ export const App = ({ client }: AppProps) => {
       }
       selectedPort = portResult.selectedPort;
       if (portResult.changed) {
-        const retargeted = retargetProfilePort(profile, preferredPort, portResult.selectedPort);
+        const retargeted = retargetProfilePort(preparedProfile, preferredPort, portResult.selectedPort);
         if (!retargeted.ok) {
           setMessage(retargeted.message);
           return { ok: false, message: retargeted.message };
@@ -1592,16 +1603,18 @@ export const App = ({ client }: AppProps) => {
                         <Copy size={13} />
                         Context
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => void startProfile(state.profile)}
-                        aria-label={`Start profile ${state.profile.name}`}
-                        disabled={!trustedStartable}
-                        title={startTitle}
-                      >
-                        <Terminal size={13} />
-                        Start
-                      </button>
+                      {!state.entry ? (
+                        <button
+                          type="button"
+                          onClick={() => void startProfile(state.profile)}
+                          aria-label={`Start profile ${state.profile.name}`}
+                          disabled={!trustedStartable}
+                          title={startTitle}
+                        >
+                          <Terminal size={13} />
+                          Start
+                        </button>
+                      ) : null}
                       {state.entry?.killable ? (
                         <button
                           type="button"

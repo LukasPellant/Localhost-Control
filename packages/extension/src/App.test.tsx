@@ -621,6 +621,93 @@ describe("App", () => {
     expect(await within(profiles).findByText("running")).toBeInTheDocument();
   });
 
+  it("repairs a saved local Vite binary command before starting a favorite", async () => {
+    const legacyCommand = '"node" "D:\\DevelopmentD\\DarkBurn\\node_modules\\.bin\\\\..\\vite\\bin\\vite.js" --host 127.0.0.1 --port 5173';
+    const startClient: HostClient = {
+      ...client,
+      scan: vi.fn(async () => ({
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 12,
+        entries: []
+      }))
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\DevelopmentD"],
+        projectProfiles: [
+          {
+            id: "kerfcut",
+            name: "KerfCut",
+            projectPath: "D:\\DevelopmentD\\DarkBurn",
+            startCommand: legacyCommand,
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={startClient} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    fireEvent.click(within(profiles).getByRole("button", { name: /^start profile kerfcut$/i }));
+
+    await waitFor(() =>
+      expect(startClient.openTerminal).toHaveBeenCalledWith({
+        projectHint: "D:\\DevelopmentD\\DarkBurn",
+        commandLine: "npm run dev",
+        executeCommand: true
+      })
+    );
+    await waitFor(() => {
+      const saved = JSON.parse(window.localStorage.getItem("localhost-control-settings") ?? "{}");
+      expect(saved.projectProfiles[0].startCommand).toBe("npm run dev");
+    });
+  });
+
+  it("does not offer Start for an unhealthy profile that already has a running process", async () => {
+    const unhealthyClient: HostClient = {
+      ...client,
+      scan: vi.fn(async () => ({
+        scannedAt: "2026-06-27T10:00:00.000Z",
+        durationMs: 12,
+        entries: [
+          {
+            ...entries[0]!,
+            projectHint: "D:\\DevelopmentD\\DarkBurn",
+            title: "KerfCut",
+            statusCode: 404
+          }
+        ]
+      }))
+    };
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        trustedProjectRoots: ["D:\\DevelopmentD"],
+        projectProfiles: [
+          {
+            id: "kerfcut",
+            name: "KerfCut",
+            projectPath: "D:\\DevelopmentD\\DarkBurn",
+            startCommand: "npm run dev",
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    render(<App client={unhealthyClient} />);
+
+    const profiles = await screen.findByLabelText("Project profiles");
+    expect(await within(profiles).findByText("unhealthy")).toBeInTheDocument();
+    expect(within(profiles).queryByRole("button", { name: /^start profile kerfcut$/i })).not.toBeInTheDocument();
+    expect(within(profiles).getByRole("button", { name: /^restart profile kerfcut$/i })).toBeInTheDocument();
+    expect(within(profiles).getByRole("button", { name: /^stop profile kerfcut$/i })).toBeInTheDocument();
+  });
+
   it("starts a profile on a clean fallback port and saves the updated profile", async () => {
     let finishHealthCheck: ((response: { ok: boolean; status: number; statusText: string }) => void) | undefined;
     const fetchHealth = vi.fn(
@@ -1131,7 +1218,7 @@ describe("App", () => {
     expect(within(profiles).getByRole("button", { name: /start profile docs/i })).toBeDisabled();
   });
 
-  it("keeps start visible for a running trusted saved profile without launching a duplicate", async () => {
+  it("hides Start for a running trusted saved profile and keeps restart controls available", async () => {
     window.localStorage.setItem(
       "localhost-control-settings",
       JSON.stringify({
@@ -1152,9 +1239,10 @@ describe("App", () => {
     render(<App client={client} />);
 
     const profiles = await screen.findByLabelText("Project profiles");
-    fireEvent.click(within(profiles).getByRole("button", { name: /^start profile example shop$/i }));
+    expect(within(profiles).queryByRole("button", { name: /^start profile example shop$/i })).not.toBeInTheDocument();
+    expect(within(profiles).getByRole("button", { name: /^stop profile example shop$/i })).toBeInTheDocument();
+    expect(within(profiles).getByRole("button", { name: /^restart profile example shop$/i })).toBeInTheDocument();
 
-    expect(await screen.findByText("Example Shop is already running on port 5173.")).toBeInTheDocument();
     expect(client.resolveStartPort).not.toHaveBeenCalled();
     expect(client.openTerminal).not.toHaveBeenCalled();
   });

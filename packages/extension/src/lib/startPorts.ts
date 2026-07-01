@@ -33,6 +33,21 @@ const commandLinePort = (commandLine: string | undefined): number | undefined =>
   return tcpPort(port) ? port : undefined;
 };
 
+const isLocalViteBinaryCommand = (profile: ProjectProfile): boolean => {
+  if (!profile.startCommand || !profile.projectPath) return false;
+  const normalizedCommand = profile.startCommand.replace(/\//g, "\\").toLowerCase();
+  const normalizedProjectPath = profile.projectPath.replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
+  return (
+    normalizedCommand.includes(`${normalizedProjectPath}\\node_modules\\`) &&
+    normalizedCommand.includes("\\vite\\bin\\vite.js")
+  );
+};
+
+export const canonicalizeProfileStartCommand = (profile: ProjectProfile): ProfilePortRetargetResult => {
+  if (!isLocalViteBinaryCommand(profile)) return { ok: true, profile, changed: false };
+  return { ok: true, profile: { ...profile, startCommand: "npm run dev" }, changed: true };
+};
+
 export const preferredProfilePort = (profile: ProjectProfile): number | undefined =>
   commandLinePort(profile.startCommand) ??
   (tcpPort(profile.expectedPort ?? 0) ? profile.expectedPort : localUrlPort(profile.mainUrl) ?? localUrlPort(profile.healthUrl));
