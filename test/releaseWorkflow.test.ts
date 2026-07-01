@@ -30,8 +30,7 @@ describe("release-native-host workflow", () => {
     expect(workflow).toContain("runner: ubuntu-24.04");
     expect(workflow).toContain("runner: ubuntu-24.04-arm");
     expect(workflow).toContain("node scripts/package-native-host.mjs --platform=linux --format=tarball --arch=${{ matrix.arch }}");
-    expect(workflow).toContain("sudo dpkg -i dist/native-host/localhost-control-native-host_*_${{ matrix.arch }}.deb");
-    expect(workflow).toContain("sudo dpkg -r localhost-control-native-host");
+    expect(workflow).toContain("bash scripts/ci/smoke-installed-linux-deb.sh ${{ matrix.arch }}");
     expect(workflow).toContain("dist/native-host/localhost-control-native-host-linux-${{ matrix.arch }}-*.tar.gz");
     expect(workflow).toContain("dist/native-host/localhost-control-native-host_*_${{ matrix.arch }}.deb");
   });
@@ -39,8 +38,7 @@ describe("release-native-host workflow", () => {
   it("builds universal macOS release assets with correct names", () => {
     expect(workflow).toContain("rustup target add aarch64-apple-darwin x86_64-apple-darwin");
     expect(workflow).toContain("pnpm host:package:mac");
-    expect(workflow).toContain("sudo installer -pkg dist/native-host/localhost-control-native-host-macos-universal-*.pkg -target /");
-    expect(workflow).toContain('sudo "/Library/Application Support/Localhost Control/uninstall.sh"');
+    expect(workflow).toContain("bash scripts/ci/smoke-installed-macos-pkg.sh");
     expect(workflow).toContain("dist/native-host/localhost-control-native-host-macos-universal-*.tar.gz");
     expect(workflow).toContain("dist/native-host/localhost-control-native-host-macos-universal-*.pkg");
   });
@@ -95,9 +93,9 @@ describe("release-native-host workflow", () => {
     expect(artifactWorkflow).toContain("name: Linux native host (${{ matrix.arch }})");
     expect(artifactWorkflow).toContain("runner: ubuntu-24.04");
     expect(artifactWorkflow).toContain("runner: ubuntu-24.04-arm");
-    expect(artifactWorkflow).toContain("sudo dpkg -i dist/native-host/localhost-control-native-host_*_${{ matrix.arch }}.deb");
+    expect(artifactWorkflow).toContain("bash scripts/ci/smoke-installed-linux-deb.sh ${{ matrix.arch }}");
     expect(artifactWorkflow).toContain("rustup target add aarch64-apple-darwin x86_64-apple-darwin");
-    expect(artifactWorkflow).toContain("sudo installer -pkg dist/native-host/localhost-control-native-host-macos-universal-*.pkg -target /");
+    expect(artifactWorkflow).toContain("bash scripts/ci/smoke-installed-macos-pkg.sh");
     expect(artifactWorkflow).toContain("runs-on: macos-15-intel");
     expect(artifactWorkflow).toContain("pnpm host:verify:mac:tarball");
   });
