@@ -35,11 +35,9 @@ describe("release-native-host workflow", () => {
     expect(workflow).toContain("runner: ubuntu-24.04-arm");
     expect(workflow).toContain("node scripts/package-native-host.mjs --platform=linux --format=tarball --arch=${{ matrix.arch }}");
     expect(workflow).toContain("bash scripts/ci/smoke-installed-linux-deb.sh ${{ matrix.arch }}");
-    expect(workflow).toMatch(/Set up Chrome\r?\n\s+if: matrix\.arch == 'amd64'\r?\n\s+id: setup-chrome\r?\n\s+uses: browser-actions\/setup-chrome@v2/);
     expect(workflow).toMatch(/Set up Firefox\r?\n\s+id: setup-firefox\r?\n\s+uses: browser-actions\/setup-firefox@v1/);
-    expect(workflow).toContain("BROWSER_NATIVE_SMOKE_BROWSERS: ${{ matrix.arch == 'amd64' && 'chrome firefox' || 'firefox' }}");
+    expect(workflow).toContain("BROWSER_NATIVE_SMOKE_BROWSERS: firefox");
     expect(workflow).toContain('BROWSER_NATIVE_SMOKE_REQUIRED: "true"');
-    expect(workflow).toContain("CHROME_BROWSER_EXE: ${{ steps.setup-chrome.outputs.chrome-path }}");
     expect(workflow).toContain("FIREFOX_BROWSER_EXE: ${{ steps.setup-firefox.outputs.firefox-path }}");
     expect(workflow).toContain("dist/native-host/localhost-control-native-host-linux-${{ matrix.arch }}-*.tar.gz");
     expect(workflow).toContain("dist/native-host/localhost-control-native-host_*_${{ matrix.arch }}.deb");
@@ -64,7 +62,7 @@ describe("release-native-host workflow", () => {
     expect(workflow).toContain("Validate downloaded macOS pkg on Intel");
     expect(workflow).toContain("Smoke downloaded macOS pkg on Intel");
     expect(workflow).toMatch(/macos-intel:[\s\S]*Enable pnpm[\s\S]*corepack enable[\s\S]*Install dependencies[\s\S]*pnpm install --frozen-lockfile[\s\S]*Smoke downloaded macOS pkg on Intel/);
-    expect(workflow).toMatch(/Smoke downloaded macOS pkg on Intel\r?\n\s+env:\r?\n\s+BROWSER_NATIVE_SMOKE_REQUIRED: "true"\r?\n\s+CHROME_BROWSER_EXE: \$\{\{ steps\.setup-chrome\.outputs\.chrome-path \}\}\r?\n\s+FIREFOX_BROWSER_EXE: \$\{\{ steps\.setup-firefox\.outputs\.firefox-path \}\}\r?\n\s+run: bash scripts\/ci\/smoke-installed-macos-pkg\.sh/);
+    expect(workflow).toMatch(/Smoke downloaded macOS pkg on Intel\r?\n\s+env:\r?\n\s+BROWSER_NATIVE_SMOKE_BROWSERS: firefox\r?\n\s+BROWSER_NATIVE_SMOKE_REQUIRED: "true"\r?\n\s+FIREFOX_BROWSER_EXE: \$\{\{ steps\.setup-firefox\.outputs\.firefox-path \}\}\r?\n\s+run: bash scripts\/ci\/smoke-installed-macos-pkg\.sh/);
     expect(workflow).not.toContain("Package macOS pkg on Intel");
   });
 
@@ -117,9 +115,8 @@ describe("release-native-host workflow", () => {
     expect(artifactWorkflow).toContain("runner: ubuntu-24.04");
     expect(artifactWorkflow).toContain("runner: ubuntu-24.04-arm");
     expect(artifactWorkflow).toContain("bash scripts/ci/smoke-installed-linux-deb.sh ${{ matrix.arch }}");
-    expect(artifactWorkflow).toMatch(/Set up Chrome\r?\n\s+if: matrix\.arch == 'amd64'\r?\n\s+id: setup-chrome\r?\n\s+uses: browser-actions\/setup-chrome@v2/);
     expect(artifactWorkflow).toMatch(/Set up Firefox\r?\n\s+id: setup-firefox\r?\n\s+uses: browser-actions\/setup-firefox@v1/);
-    expect(artifactWorkflow).toContain("BROWSER_NATIVE_SMOKE_BROWSERS: ${{ matrix.arch == 'amd64' && 'chrome firefox' || 'firefox' }}");
+    expect(artifactWorkflow).toContain("BROWSER_NATIVE_SMOKE_BROWSERS: firefox");
     expect(artifactWorkflow).toContain("rustup target add aarch64-apple-darwin x86_64-apple-darwin");
     expect(artifactWorkflow).toContain("bash scripts/ci/smoke-installed-macos-pkg.sh");
     expect(artifactWorkflow).toContain("runs-on: macos-15-intel");
@@ -129,7 +126,7 @@ describe("release-native-host workflow", () => {
     expect(artifactWorkflow).toContain("Validate downloaded macOS pkg on Intel");
     expect(artifactWorkflow).toContain("Smoke downloaded macOS pkg on Intel");
     expect(artifactWorkflow).toMatch(/macos-intel:[\s\S]*Enable pnpm[\s\S]*corepack enable[\s\S]*Install dependencies[\s\S]*pnpm install --frozen-lockfile[\s\S]*Smoke downloaded macOS pkg on Intel/);
-    expect(artifactWorkflow).toMatch(/Smoke downloaded macOS pkg on Intel\r?\n\s+env:\r?\n\s+BROWSER_NATIVE_SMOKE_REQUIRED: "true"\r?\n\s+CHROME_BROWSER_EXE: \$\{\{ steps\.setup-chrome\.outputs\.chrome-path \}\}\r?\n\s+FIREFOX_BROWSER_EXE: \$\{\{ steps\.setup-firefox\.outputs\.firefox-path \}\}\r?\n\s+run: bash scripts\/ci\/smoke-installed-macos-pkg\.sh/);
+    expect(artifactWorkflow).toMatch(/Smoke downloaded macOS pkg on Intel\r?\n\s+env:\r?\n\s+BROWSER_NATIVE_SMOKE_BROWSERS: firefox\r?\n\s+BROWSER_NATIVE_SMOKE_REQUIRED: "true"\r?\n\s+FIREFOX_BROWSER_EXE: \$\{\{ steps\.setup-firefox\.outputs\.firefox-path \}\}\r?\n\s+run: bash scripts\/ci\/smoke-installed-macos-pkg\.sh/);
     expect(artifactWorkflow).not.toContain("Package macOS pkg on Intel");
   });
 });

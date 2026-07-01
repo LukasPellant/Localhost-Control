@@ -1,45 +1,27 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
-
-let buildChromiumLaunchArgs: any;
-let buildChromiumNativeManifest: any;
-let buildFirefoxNativeManifest: any;
-let buildFirefoxSmokeManifest: any;
-let buildWindowsBrowserCleanupCommand: any;
-let browserCandidates: any;
-let browserExecutableCommandNames: any;
-let chromiumRegistrySuffixes: any;
-let computeChromiumExtensionId: any;
-let describeRuntimeEvaluationFailure: any;
-let firefoxUserManifestPaths: any;
-let main: any;
-let parseBrowserNativeSmokeArgs: any;
-let webExtCliPath: any;
+import { describe, expect, it } from "vitest";
+import {
+  buildChromiumLaunchArgs,
+  buildChromiumNativeManifest,
+  buildFirefoxNativeManifest,
+  buildFirefoxSmokeManifest,
+  buildWindowsBrowserCleanupCommand,
+  browserExecutableCommandNames,
+  chromiumRegistrySuffixes,
+  computeChromiumExtensionId,
+  describeRuntimeEvaluationFailure,
+  firefoxUserManifestPaths,
+  main,
+  parseBrowserNativeSmokeArgs,
+  webExtCliPath
+} from "../scripts/smoke-browser-native.mjs";
 
 const packageJson = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8")) as {
   scripts: Record<string, string>;
 };
 
 describe("smoke-browser-native.mjs", () => {
-  beforeAll(async () => {
-    const smoke = await import("../scripts/smoke-browser-native.mjs");
-    buildChromiumLaunchArgs = smoke.buildChromiumLaunchArgs;
-    buildChromiumNativeManifest = smoke.buildChromiumNativeManifest;
-    buildFirefoxNativeManifest = smoke.buildFirefoxNativeManifest;
-    buildFirefoxSmokeManifest = smoke.buildFirefoxSmokeManifest;
-    buildWindowsBrowserCleanupCommand = smoke.buildWindowsBrowserCleanupCommand;
-    browserCandidates = smoke.browserCandidates;
-    browserExecutableCommandNames = smoke.browserExecutableCommandNames;
-    chromiumRegistrySuffixes = smoke.chromiumRegistrySuffixes;
-    computeChromiumExtensionId = smoke.computeChromiumExtensionId;
-    describeRuntimeEvaluationFailure = smoke.describeRuntimeEvaluationFailure;
-    firefoxUserManifestPaths = smoke.firefoxUserManifestPaths;
-    main = smoke.main;
-    parseBrowserNativeSmokeArgs = smoke.parseBrowserNativeSmokeArgs;
-    webExtCliPath = smoke.webExtCliPath;
-  });
-
   it("is exposed as an opt-in release smoke script", () => {
     expect(packageJson.scripts["smoke:browser-native"]).toBe("node scripts/smoke-browser-native.mjs");
   });
