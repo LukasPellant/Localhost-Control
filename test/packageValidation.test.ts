@@ -387,6 +387,7 @@ describe("validate-native-host-package", () => {
     expect(validatePkg?.[0]).toContain("Library/Google/Chrome/NativeMessagingHosts");
     expect(validatePkg?.[0]).toContain("Library/Application Support/Localhost Control/uninstall.sh");
     expect(validatePkg?.[0]).toContain("macOS pkg uninstall helper does not remove");
+    expect(validatePkg?.[0]).toContain('replace(`${hostName}.json`, "${HOST_NAME}.json")');
     expect(validatePkg?.[0]).toContain("verifyMacUniversalHost");
     expect(validatorScript).toContain('run("lipo", [hostPath, "-verify_arch", "arm64", "x86_64"])');
     expect(validatorScript).toContain("verifyLinuxElfHost");

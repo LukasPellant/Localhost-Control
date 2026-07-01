@@ -51,7 +51,7 @@ export const buildChromiumLaunchArgs = ({ extensionDir, headless = false, initia
   `--user-data-dir=${userDataDir}`,
   `--disable-extensions-except=${extensionDir}`,
   `--load-extension=${extensionDir}`,
-  ...(headless ? ["--headless=new"] : []),
+  ...(headless ? ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"] : []),
   "--no-first-run",
   "--no-default-browser-check",
   "--disable-background-networking",
@@ -755,7 +755,7 @@ export const main = async (argv = process.argv.slice(2)) => {
   await runChromiumSmoke(options);
 };
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     if (process.env.GITHUB_ACTIONS === "true") {

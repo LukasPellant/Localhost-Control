@@ -71,15 +71,16 @@ describe("smoke-browser-native.mjs", () => {
     expect(args).toContain("--disable-extensions-except=D:/repo/packages/extension/dist");
     expect(args).toContain("--no-first-run");
     expect(args.at(-1)).toBe("about:blank");
-    expect(
-      buildChromiumLaunchArgs({
-        browser: "chrome",
-        extensionDir: "D:/repo/packages/extension/dist",
-        headless: true,
-        remoteDebuggingPort: 45678,
-        userDataDir: "D:/tmp/localhost-control-browser-smoke"
-      })
-    ).toContain("--headless=new");
+    const headlessArgs = buildChromiumLaunchArgs({
+      browser: "chrome",
+      extensionDir: "D:/repo/packages/extension/dist",
+      headless: true,
+      remoteDebuggingPort: 45678,
+      userDataDir: "D:/tmp/localhost-control-browser-smoke"
+    });
+    expect(headlessArgs).toContain("--headless=new");
+    expect(headlessArgs).toContain("--no-sandbox");
+    expect(headlessArgs).toContain("--disable-dev-shm-usage");
     expect(
       buildChromiumLaunchArgs({
         browser: "chrome",

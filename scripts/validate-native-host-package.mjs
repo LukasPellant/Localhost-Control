@@ -460,7 +460,8 @@ const validatePkg = async () => {
     if (!uninstallPath) throw new Error(`Missing package entry: ${uninstallEntry}`);
     const uninstallScript = await readFile(uninstallPath, "utf8");
     for (const systemPath of [chromeManifest, braveManifest, firefoxManifest, hostEntry]) {
-      if (!uninstallScript.includes(`/${systemPath}`)) {
+      const templatedSystemPath = `/${systemPath}`.replace(`${hostName}.json`, "${HOST_NAME}.json");
+      if (!uninstallScript.includes(`/${systemPath}`) && !uninstallScript.includes(templatedSystemPath)) {
         throw new Error(`macOS pkg uninstall helper does not remove /${systemPath}.`);
       }
     }
