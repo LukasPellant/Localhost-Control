@@ -47,6 +47,19 @@ const writeArArchive = (output: string, entries: { name: string; data: Buffer }[
   writeFileSync(output, Buffer.concat(chunks));
 };
 
+const linuxElf = (arch: "amd64" | "arm64" = "amd64") => {
+  const buffer = Buffer.alloc(64);
+  buffer[0] = 0x7f;
+  buffer[1] = 0x45;
+  buffer[2] = 0x4c;
+  buffer[3] = 0x46;
+  buffer[4] = 2;
+  buffer[5] = 1;
+  buffer.writeUInt16LE(2, 16);
+  buffer.writeUInt16LE(arch === "arm64" ? 0xb7 : 0x3e, 18);
+  return buffer;
+};
+
 describe("validate-native-host-package", () => {
   it.each([
     { platform: "linux", fileName: "host-linux.tar.gz" },
@@ -57,9 +70,9 @@ describe("validate-native-host-package", () => {
     const artifact = path.join(tempRoot, fileName);
 
     mkdirSync(stageDir, { recursive: true });
-    writeFileSync(path.join(stageDir, "localhost-control-host"), "#!/usr/bin/env sh\n");
+    writeFileSync(path.join(stageDir, "localhost-control-host"), platform === "linux" ? linuxElf() : "#!/usr/bin/env sh\n");
     writeFileSync(path.join(stageDir, "install.sh"), readFileSync(path.join(repoRoot, "installer", platform === "darwin" ? "macos" : "linux", "install.sh")));
-    writeFileSync(path.join(stageDir, "uninstall.sh"), "#!/usr/bin/env bash\n");
+    writeFileSync(path.join(stageDir, "uninstall.sh"), readFileSync(path.join(repoRoot, "installer", platform === "darwin" ? "macos" : "linux", "uninstall.sh")));
 
     execFileSync("tar", ["-czf", artifact, "-C", stageDir, "."], { stdio: "pipe" });
     const output = execFileSync(
@@ -191,7 +204,7 @@ describe("validate-native-host-package", () => {
 
     writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.10", "Architecture: amd64", ""].join("\n"));
     writeFileSync(path.join(controlDir, "postinst"), "#!/usr/bin/env sh\nchmod 755 /usr/lib/localhost-control/localhost-control-host\n");
-    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
+    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), linuxElf());
     writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("chrome"));
     writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("chrome"));
     writeFileSync(path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("firefox"));
@@ -217,6 +230,104 @@ describe("validate-native-host-package", () => {
     );
 
     expect(output).toContain("Validated");
+  });
+
+  it("rejects a Debian package with mismatched architecture metadata", () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-deb-"));
+    const controlDir = path.join(tempRoot, "control");
+    const dataDir = path.join(tempRoot, "data");
+    const controlTar = path.join(tempRoot, "control.tar.gz");
+    const dataTar = path.join(tempRoot, "data.tar.gz");
+    const artifact = path.join(tempRoot, "host.deb");
+
+    for (const directory of [
+      controlDir,
+      path.join(dataDir, "usr/lib/localhost-control"),
+      path.join(dataDir, "etc/opt/chrome/native-messaging-hosts"),
+      path.join(dataDir, "etc/brave/native-messaging-hosts"),
+      path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts")
+    ]) {
+      mkdirSync(directory, { recursive: true });
+    }
+
+    writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.10", "Architecture: arm64", ""].join("\n"));
+    writeFileSync(path.join(controlDir, "postinst"), "#!/usr/bin/env sh\nchmod 755 /usr/lib/localhost-control/localhost-control-host\n");
+    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), linuxElf());
+    writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("chrome"));
+    writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("chrome"));
+    writeFileSync(path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("firefox"));
+
+    execFileSync("tar", ["-czf", controlTar, "-C", controlDir, "."], { stdio: "pipe" });
+    execFileSync("tar", ["-czf", dataTar, "-C", dataDir, "."], { stdio: "pipe" });
+    writeArArchive(artifact, [
+      { name: "debian-binary", data: Buffer.from("2.0\n") },
+      { name: "control.tar.gz", data: readFileSync(controlTar) },
+      { name: "data.tar.gz", data: readFileSync(dataTar) }
+    ]);
+
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        [
+          path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
+          "--platform=linux",
+          "--format=deb",
+          "--arch=amd64",
+          "--protocol-smoke=never",
+          `--artifact=${artifact}`
+        ],
+        { encoding: "utf8", stdio: "pipe" }
+      )
+    ).toThrow(/Architecture: amd64/);
+  });
+
+  it("rejects a Linux package with a mismatched ELF architecture", () => {
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), "localhost-control-deb-"));
+    const controlDir = path.join(tempRoot, "control");
+    const dataDir = path.join(tempRoot, "data");
+    const controlTar = path.join(tempRoot, "control.tar.gz");
+    const dataTar = path.join(tempRoot, "data.tar.gz");
+    const artifact = path.join(tempRoot, "host.deb");
+
+    for (const directory of [
+      controlDir,
+      path.join(dataDir, "usr/lib/localhost-control"),
+      path.join(dataDir, "etc/opt/chrome/native-messaging-hosts"),
+      path.join(dataDir, "etc/brave/native-messaging-hosts"),
+      path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts")
+    ]) {
+      mkdirSync(directory, { recursive: true });
+    }
+
+    writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.10", "Architecture: arm64", ""].join("\n"));
+    writeFileSync(path.join(controlDir, "postinst"), "#!/usr/bin/env sh\nchmod 755 /usr/lib/localhost-control/localhost-control-host\n");
+    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), linuxElf("amd64"));
+    writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("chrome"));
+    writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("chrome"));
+    writeFileSync(path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("firefox"));
+
+    execFileSync("tar", ["-czf", controlTar, "-C", controlDir, "."], { stdio: "pipe" });
+    execFileSync("tar", ["-czf", dataTar, "-C", dataDir, "."], { stdio: "pipe" });
+    writeArArchive(artifact, [
+      { name: "debian-binary", data: Buffer.from("2.0\n") },
+      { name: "control.tar.gz", data: readFileSync(controlTar) },
+      { name: "data.tar.gz", data: readFileSync(dataTar) }
+    ]);
+
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        [
+          path.join(repoRoot, "scripts", "validate-native-host-package.mjs"),
+          "--platform=linux",
+          "--format=deb",
+          "--arch=arm64",
+          "--protocol-smoke=never",
+          `--artifact=${artifact}`
+        ],
+        { encoding: "utf8", stdio: "pipe" }
+      )
+    ).toThrow(/ELF architecture/);
   });
 
   it("accepts a Windows zip with installer scripts and the Rust host binary", () => {
@@ -267,7 +378,26 @@ describe("validate-native-host-package", () => {
     expect(validatePkg?.[0]).toContain("validateNativeManifestBySuffix");
     expect(validatePkg?.[0]).toContain("macosHostPath");
     expect(validatePkg?.[0]).toContain("Library/Google/Chrome/NativeMessagingHosts");
+    expect(validatePkg?.[0]).toContain("Library/Application Support/Localhost Control/uninstall.sh");
+    expect(validatePkg?.[0]).toContain("macOS pkg uninstall helper does not remove");
+    expect(validatePkg?.[0]).toContain("verifyMacUniversalHost");
+    expect(validatorScript).toContain('run("lipo", ["-verify_arch", "arm64", "x86_64", hostPath])');
+    expect(validatorScript).toContain("verifyLinuxElfHost");
+    expect(validatorScript).toContain("Tarball uninstaller did not remove");
+    expect(validatorScript).toContain("Debian package metadata must declare Architecture");
     expect(validatorScript).toContain('const macosHostPath = "/Library/Application Support/Localhost Control/localhost-control-host"');
+  });
+
+  it("packages a system-scope uninstall helper in macOS pkg builds", () => {
+    const packagerScript = readFileSync(path.join(repoRoot, "scripts", "package-native-host.mjs"), "utf8");
+    const macosUninstaller = readFileSync(path.join(repoRoot, "installer", "macos", "uninstall.sh"), "utf8");
+
+    expect(packagerScript).toContain('path.join(installRoot, "uninstall.sh")');
+    expect(packagerScript).toContain("verifyUniversalMacHost(hostBinary)");
+    expect(packagerScript).toContain("macOS universal native host packages must be created on macOS");
+    expect(macosUninstaller).toContain('SCOPE="system"');
+    expect(macosUninstaller).toContain('/Library/Google/Chrome/NativeMessagingHosts/${HOST_NAME}.json');
+    expect(macosUninstaller).toContain('/Library/Application Support/Localhost Control');
   });
 
   it("rejects a Debian package that cannot restore the host executable permission", () => {
@@ -289,7 +419,7 @@ describe("validate-native-host-package", () => {
     }
 
     writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.10", "Architecture: amd64", ""].join("\n"));
-    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
+    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), linuxElf());
     writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
     writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
     writeFileSync(path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
@@ -337,7 +467,7 @@ describe("validate-native-host-package", () => {
 
     writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.10", "Architecture: amd64", ""].join("\n"));
     writeFileSync(path.join(controlDir, "postinst"), "#!/usr/bin/env sh\nchmod 755 /usr/lib/localhost-control/localhost-control-host\n");
-    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
+    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), linuxElf());
     writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
     writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
     writeFileSync(path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json"), "{}\n");
@@ -389,7 +519,7 @@ describe("validate-native-host-package", () => {
 
     writeFileSync(path.join(controlDir, "control"), ["Package: localhost-control-native-host", "Version: 0.1.10", "Architecture: amd64", ""].join("\n"));
     writeFileSync(path.join(controlDir, "postinst"), "#!/usr/bin/env sh\nchmod 755 /usr/lib/localhost-control/localhost-control-host\n");
-    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), "#!/usr/bin/env sh\n");
+    writeFileSync(path.join(dataDir, "usr/lib/localhost-control/localhost-control-host"), linuxElf());
     writeFileSync(path.join(dataDir, "etc/opt/chrome/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("chrome", ids));
     writeFileSync(path.join(dataDir, "etc/brave/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("chrome", ids));
     writeFileSync(path.join(dataDir, "usr/lib/mozilla/native-messaging-hosts/com.localhost_control.host.json"), manifestJson("firefox", ids));

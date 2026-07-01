@@ -57,7 +57,11 @@ EXTENSION_ID=<extension-id> pnpm host:install:mac
 EXTENSION_ID=<extension-id> pnpm host:install:linux
 ```
 
-For Firefox review builds, package with `pnpm extension:package:firefox` and install the native host with `FIREFOX_EXTENSION_ID=localhost-control@lukaspellant.dev` if testing a signed build with that add-on ID.
+For Firefox review builds, package with `pnpm extension:package:firefox`, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select the packaged ZIP or its extracted `manifest.json`. Install the native host with `FIREFOX_EXTENSION_ID=localhost-control@lukaspellant.dev` on macOS/Linux, or on Windows use:
+
+```powershell
+pnpm host:install -- --browser firefox --firefox-extension-id localhost-control@lukaspellant.dev
+```
 
 4. Start a disposable local server:
 
@@ -93,5 +97,6 @@ pnpm host:uninstall -- --browser chrome
 - [ ] Run `pnpm extension:package:firefox`.
 - [ ] Run `pnpm extension:verify`.
 - [ ] Run `pnpm extension:lint:firefox` against the packaged Firefox ZIP.
+- [ ] Confirm any Firefox lint warnings are only the reviewed React runtime `UNSAFE_VAR_ASSIGNMENT` warnings in bundled `sidepanel.js`; app source must not use direct `innerHTML`.
 - [ ] Confirm the production bundle does not contain demo project names or paths.
 - [ ] Confirm the native host has been tested with the final extension ID.

@@ -70,6 +70,17 @@ Install the native host for Chrome and Brave on Linux:
 EXTENSION_ID=<extension-id> pnpm host:install:linux
 ```
 
+For Firefox local review, build the Firefox ZIP with `pnpm extension:package:firefox`, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select the packaged ZIP or its extracted `manifest.json`. Install the native host with the default Firefox add-on ID:
+
+```powershell
+pnpm host:install -- --browser firefox --firefox-extension-id localhost-control@lukaspellant.dev
+```
+
+```bash
+FIREFOX_EXTENSION_ID=localhost-control@lukaspellant.dev pnpm host:install:mac
+FIREFOX_EXTENSION_ID=localhost-control@lukaspellant.dev pnpm host:install:linux
+```
+
 Then click the Localhost Control toolbar icon. Chrome/Brave open the persistent side panel; Firefox opens the extension sidebar.
 
 ## Scripts
@@ -105,7 +116,7 @@ Use `--browser all` to register the native host for Brave, Chrome, Chromium, Edg
 
 The macOS and Linux installers register Chrome, Brave, and Firefox. The macOS and Linux packages install the Rust native host binary directly, so end users do not need Node.js. The default Chromium extension ID for packaged artifacts is the published Chrome Web Store ID `oamllgeaemchejbebgamdakjloahgjdc`; Firefox uses `localhost-control@lukaspellant.dev`. Use `EXTENSION_ID=<id>` and `FIREFOX_EXTENSION_ID=<id>` for unpacked local development.
 
-`pnpm host:package:mac:tarball` creates a self-contained universal macOS `.tar.gz` with the Rust macOS native host; run it on macOS with `aarch64-apple-darwin` and `x86_64-apple-darwin` Rust targets installed, or pass `--host-binary` to `scripts/package-native-host.mjs` with a macOS-built `localhost-control-host` binary. `pnpm host:package:mac` also creates a native universal `.pkg` and must run on macOS with `pkgbuild` and `lipo` available. `pnpm host:package:linux` builds the Rust Linux native host and creates a tarball plus `.deb` for the current architecture; run it on Linux or pass `--host-binary` with a Linux-built `localhost-control-host` binary and `--arch=amd64` or `--arch=arm64`.
+`pnpm host:package:mac:tarball` creates a self-contained universal macOS `.tar.gz` with the Rust macOS native host; run it on macOS with `aarch64-apple-darwin` and `x86_64-apple-darwin` Rust targets installed, or pass `--host-binary` to `scripts/package-native-host.mjs` with a macOS-built universal `localhost-control-host` binary that can be verified by `lipo`. `pnpm host:package:mac` also creates a native universal `.pkg`, includes `/Library/Application Support/Localhost Control/uninstall.sh` for system-scope removal, and must run on macOS with `pkgbuild` and `lipo` available. `pnpm host:package:linux` builds the Rust Linux native host and creates a tarball plus `.deb` for the current architecture; run it on Linux or pass `--host-binary` with a Linux-built `localhost-control-host` binary and `--arch=amd64` or `--arch=arm64`.
 
 For local native host artifacts, build on the target operating system or pass `--host-binary` to `scripts/package-native-host.mjs` with a binary built for that target. `pnpm host:package:release-local` packages and verifies the current operating system only, then writes current-version checksums. Use GitHub Actions to produce the full Windows, universal macOS, Linux `amd64`, and Linux `arm64` release set on native runners.
 
@@ -142,6 +153,8 @@ To run Mozilla Add-ons lint against the packaged Firefox ZIP, run:
 ```powershell
 pnpm extension:lint:firefox
 ```
+
+The current Firefox lint report is allowed to contain only the reviewed `UNSAFE_VAR_ASSIGNMENT` warnings emitted from bundled React runtime code in `sidepanel.js`; source files under `packages\extension\src` must not introduce direct `innerHTML` usage.
 
 Store listing notes, permission justifications, privacy answers, and reviewer instructions live in `docs\chrome-store-submission.md`.
 

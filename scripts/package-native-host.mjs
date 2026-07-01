@@ -41,6 +41,14 @@ const buildUniversalMacHost = () => {
   return output;
 };
 
+const verifyUniversalMacHost = (binaryPath) => {
+  if (process.platform !== "darwin") {
+    throw new Error("macOS universal native host packages must be created on macOS so lipo can verify arm64 and x86_64 slices.");
+  }
+  const result = spawnSync("lipo", ["-verify_arch", "arm64", "x86_64", binaryPath], { cwd: repoRoot, stdio: "inherit" });
+  if (result.status !== 0) throw new Error("macOS native host binary must contain arm64 and x86_64 slices.");
+};
+
 const buildRustHost = (platform) => {
   if (platform === "win32" && process.platform !== "win32") {
     throw new Error("Windows Rust native host packages must be built on Windows, or pass --host-binary=/path/to/windows/localhost-control-host.exe.");
@@ -258,10 +266,12 @@ const packagePkg = async ({ stageDir, outputDir, version, extensionId, firefoxEx
   const installRoot = path.join(pkgRoot, "Library", "Application Support", "Localhost Control");
   await mkdir(installRoot, { recursive: true });
   await cp(path.join(stageDir, "localhost-control-host"), path.join(installRoot, "localhost-control-host"));
+  await cp(path.join(repoRoot, "installer", "macos", "uninstall.sh"), path.join(installRoot, "uninstall.sh"));
   if (await pathExists(path.join(stageDir, "app"))) {
     await cp(path.join(stageDir, "app"), path.join(installRoot, "app"), { recursive: true });
   }
   await chmod(path.join(installRoot, "localhost-control-host"), 0o755);
+  await chmod(path.join(installRoot, "uninstall.sh"), 0o755);
   await writeManifestTargets({
     platform: "darwin",
     scope: "system",
@@ -294,6 +304,7 @@ const main = async () => {
 
   const hostName = platform === "win32" ? path.join("out", "localhost-control-host.exe") : "localhost-control-host";
   if (hostBinary) {
+    if (platform === "darwin") verifyUniversalMacHost(hostBinary);
     await copyHostBinary(hostBinary, path.join(stageDir, hostName));
   } else if (platform === "linux" || platform === "darwin") {
     await stageRustHostApp(stageDir, platform);

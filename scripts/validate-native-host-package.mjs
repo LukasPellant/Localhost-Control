@@ -148,6 +148,25 @@ const assertArrayEquals = (actual, expected, message) => {
 
 const shouldRunProtocolSmoke = () => protocolSmoke === "always" || (protocolSmoke === "auto" && platform === process.platform);
 
+const verifyMacUniversalHost = (hostPath) => {
+  if (platform !== "darwin" || process.platform !== "darwin") return;
+  run("lipo", ["-verify_arch", "arm64", "x86_64", hostPath]);
+};
+
+const verifyLinuxElfHost = async (hostPath) => {
+  if (platform !== "linux") return;
+  const header = await readFile(hostPath);
+  if (header.length < 20 || header[0] !== 0x7f || header[1] !== 0x45 || header[2] !== 0x4c || header[3] !== 0x46) {
+    throw new Error("Linux native host must be an ELF executable.");
+  }
+  if (header[5] !== 1) throw new Error("Linux native host must use little-endian ELF encoding.");
+  const machine = header.readUInt16LE(18);
+  const expectedMachine = arch === "arm64" ? 0xb7 : 0x3e;
+  if (machine !== expectedMachine) {
+    throw new Error(`Linux native host ELF architecture does not match ${arch}.`);
+  }
+};
+
 const readNativeMessage = (buffer) => {
   if (buffer.length < 4) throw new Error("Native host protocol smoke failed: missing response header.");
   const length = buffer.readUInt32LE(0);
@@ -181,6 +200,15 @@ const smokeNativeHostProtocol = async (hostPath) => {
   if (response.id !== "validate-version" || response.result?.version !== packageJson.version || typeof response.result?.platform !== "string") {
     throw new Error("Native host protocol smoke failed: invalid version response.");
   }
+};
+
+const assertMissing = async (filePath, message) => {
+  try {
+    await access(filePath);
+  } catch {
+    return;
+  }
+  throw new Error(message);
 };
 
 const findFileBySuffix = async (root, expectedSuffix, relative = "") => {
@@ -322,6 +350,25 @@ const validateTarballInstall = async (extractRoot, tempRoot) => {
     await validateNativeManifestFile(homeDir, manifest.relativePath, manifest.browser, expectedHostPath);
   }
   await smokeNativeHostProtocol(hostTarget);
+  verifyMacUniversalHost(hostTarget);
+  await verifyLinuxElfHost(hostTarget);
+
+  run(
+    "bash",
+    [
+      "-c",
+      [
+        `export HOME=${shellQuote(bashHome)}`,
+        "bash ./uninstall.sh"
+      ].join("; ")
+    ],
+    {},
+    packageRoot
+  );
+  await assertMissing(hostTarget, "Tarball uninstaller did not remove localhost-control-host.");
+  for (const manifest of manifests) {
+    await assertMissing(path.join(homeDir, ...manifest.relativePath.split("/")), `Tarball uninstaller did not remove ${manifest.relativePath}.`);
+  }
 };
 
 const validateTarball = async () => {
@@ -359,6 +406,7 @@ const validateDeb = async () => {
     const postinst = await readFile(path.join(controlRoot, "postinst"), "utf8").catch(() => "");
     if (!control.includes("localhost-control-native-host")) throw new Error("Debian package metadata is missing the package name.");
     if (!control.includes(packageJson.version)) throw new Error("Debian package metadata is missing the project version.");
+    if (!new RegExp(`^Architecture:\\s*${arch}$`, "m").test(control)) throw new Error(`Debian package metadata must declare Architecture: ${arch}.`);
     if (control.includes("nodejs")) throw new Error("Debian package metadata must not depend on nodejs.");
     if (!postinst.includes("chmod 755 /usr/lib/localhost-control/localhost-control-host")) {
       throw new Error("Debian package postinst must restore the native host executable permission.");
@@ -381,6 +429,7 @@ const validateDeb = async () => {
     await validateNativeManifestFile(dataRoot, braveManifest, "brave");
     await validateNativeManifestFile(dataRoot, firefoxManifest, "firefox");
     await smokeNativeHostProtocol(path.join(dataRoot, "usr/lib/localhost-control/localhost-control-host"));
+    await verifyLinuxElfHost(path.join(dataRoot, "usr/lib/localhost-control/localhost-control-host"));
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -389,10 +438,12 @@ const validateDeb = async () => {
 const validatePkg = async () => {
   const entries = run("pkgutil", ["--payload-files", artifact]).split(/\r?\n/).filter(Boolean);
   const hostEntry = "Library/Application Support/Localhost Control/localhost-control-host";
+  const uninstallEntry = "Library/Application Support/Localhost Control/uninstall.sh";
   const chromeManifest = `Library/Google/Chrome/NativeMessagingHosts/${hostName}.json`;
   const braveManifest = `Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts/${hostName}.json`;
   const firefoxManifest = `Library/Application Support/Mozilla/NativeMessagingHosts/${hostName}.json`;
   requireEntry(entries, hostEntry);
+  requireEntry(entries, uninstallEntry);
   if (entries.some((entry) => normalizeEntry(entry).includes("Library/Application Support/Localhost Control/app/native-host"))) {
     throw new Error("macOS pkg must package the Rust native host without the Node app payload.");
   }
@@ -409,7 +460,16 @@ const validatePkg = async () => {
     await validateNativeManifestBySuffix(expandedRoot, firefoxManifest, "firefox", macosHostPath);
     const hostPath = await findFileBySuffix(expandedRoot, hostEntry);
     if (!hostPath) throw new Error(`Missing package entry: ${hostEntry}`);
+    const uninstallPath = await findFileBySuffix(expandedRoot, uninstallEntry);
+    if (!uninstallPath) throw new Error(`Missing package entry: ${uninstallEntry}`);
+    const uninstallScript = await readFile(uninstallPath, "utf8");
+    for (const systemPath of [chromeManifest, braveManifest, firefoxManifest, hostEntry]) {
+      if (!uninstallScript.includes(`/${systemPath}`)) {
+        throw new Error(`macOS pkg uninstall helper does not remove /${systemPath}.`);
+      }
+    }
     await smokeNativeHostProtocol(hostPath);
+    verifyMacUniversalHost(hostPath);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
