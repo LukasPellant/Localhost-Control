@@ -5,6 +5,7 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { parseArgs } from "./lib/cli-args.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
@@ -13,15 +14,6 @@ const defaultExtensionId = "oamllgeaemchejbebgamdakjloahgjdc";
 const defaultFirefoxExtensionId = "localhost-control@lukaspellant.dev";
 const linuxHostPath = "/usr/lib/localhost-control/localhost-control-host";
 const macosHostPath = "/Library/Application Support/Localhost Control/localhost-control-host";
-
-const parseArgs = () => {
-  const args = new Map();
-  for (const arg of process.argv.slice(2)) {
-    const [key, value = "true"] = arg.replace(/^--/, "").split("=");
-    args.set(key, value);
-  }
-  return args;
-};
 
 const args = parseArgs();
 const platform = args.get("platform") ?? process.platform;

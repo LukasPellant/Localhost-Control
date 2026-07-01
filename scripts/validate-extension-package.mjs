@@ -3,21 +3,13 @@ import { inflateRawSync } from "node:zlib";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "./lib/cli-args.mjs";
 import { FIREFOX_EXTENSION_ID } from "./lib/extension-manifest.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const rootPackageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
 const extensionPackageJson = JSON.parse(await readFile(path.join(repoRoot, "packages", "extension", "package.json"), "utf8"));
 const sourceChromeManifest = JSON.parse(await readFile(path.join(repoRoot, "packages", "extension", "public", "manifest.json"), "utf8"));
-
-const parseArgs = () => {
-  const args = new Map();
-  for (const arg of process.argv.slice(2)) {
-    const [key, value = "true"] = arg.replace(/^--/, "").split("=");
-    args.set(key, value);
-  }
-  return args;
-};
 
 const args = parseArgs();
 const target = args.get("target") ?? "chrome";

@@ -3,18 +3,10 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "./lib/cli-args.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
-const parseArgs = () => {
-  const args = new Map();
-  for (const arg of process.argv.slice(2)) {
-    const [key, value = "true"] = arg.replace(/^--/, "").split("=");
-    args.set(key, value);
-  }
-  return args;
-};
-
 const args = parseArgs();
 const outputDir = path.resolve(args.get("out-dir") ?? path.join(repoRoot, "dist", "native-host"));
 const version = args.get("version") ?? packageJson.version;

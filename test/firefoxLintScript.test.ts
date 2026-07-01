@@ -113,10 +113,17 @@ const runFirefoxLint = (webExtOutput: string) => {
 
 describe("lint-firefox-extension.mjs", () => {
   it("accepts the reviewed React runtime unsafe assignment warnings", () => {
-    const result = runFirefoxLint("UNSAFE_VAR_ASSIGNMENT\nUNSAFE_VAR_ASSIGNMENT");
+    const result = runFirefoxLint("UNSAFE_VAR_ASSIGNMENT sidepanel.js\nUNSAFE_VAR_ASSIGNMENT sidepanel.js");
 
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
+  });
+
+  it("rejects unsafe assignment warnings outside the reviewed bundled sidepanel runtime", () => {
+    const result = runFirefoxLint("UNSAFE_VAR_ASSIGNMENT background.js");
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("Unexpected Firefox lint warning");
   });
 
   it("rejects unexpected Firefox lint warnings even when web-ext exits successfully", () => {

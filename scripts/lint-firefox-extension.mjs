@@ -1,22 +1,14 @@
 #!/usr/bin/env node
 import { inflateRawSync } from "node:zlib";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { parseArgs } from "./lib/cli-args.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
-
-const parseArgs = () => {
-  const args = new Map();
-  for (const arg of process.argv.slice(2)) {
-    const [key, value = "true"] = arg.replace(/^--/, "").split("=");
-    args.set(key, value);
-  }
-  return args;
-};
 
 const args = parseArgs();
 const artifact = path.resolve(
@@ -25,6 +17,7 @@ const artifact = path.resolve(
 );
 const allowedWarningCodes = new Set(["UNSAFE_VAR_ASSIGNMENT"]);
 const ignoredSummaryCodes = new Set(["ERRORS", "NOTICES", "WARNINGS"]);
+const sourceExtensions = new Set([".ts", ".tsx", ".js", ".jsx"]);
 
 const normalizeEntry = (value) => value.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
 
@@ -70,13 +63,44 @@ const extractZip = async (zipPath, outputDir) => {
   }
 };
 
-const unexpectedWarningCodes = (output) =>
-  [...new Set(output.match(/\b[A-Z][A-Z0-9_]{2,}\b/g) ?? [])].filter((code) => !allowedWarningCodes.has(code) && !ignoredSummaryCodes.has(code));
+const collectSourceInnerHtml = async (root, relative = "") => {
+  const matches = [];
+  const entries = await readdir(path.join(root, relative), { withFileTypes: true });
+  for (const entry of entries) {
+    const entryPath = path.join(relative, entry.name);
+    const fullPath = path.join(root, entryPath);
+    if (entry.isDirectory()) {
+      matches.push(...(await collectSourceInnerHtml(root, entryPath)));
+      continue;
+    }
+    if (!entry.isFile() || !sourceExtensions.has(path.extname(entry.name))) continue;
+    const source = await readFile(fullPath, "utf8");
+    if (source.includes("innerHTML")) matches.push(entryPath.replace(/\\/g, "/"));
+  }
+  return matches;
+};
+
+const unexpectedWarningDetails = (output) => {
+  const unexpectedCodes = [...new Set(output.match(/\b[A-Z][A-Z0-9_]{2,}\b/g) ?? [])].filter(
+    (code) => !allowedWarningCodes.has(code) && !ignoredSummaryCodes.has(code)
+  );
+  const unsafeAssignmentLines = output.split(/\r?\n/).filter((line) => line.includes("UNSAFE_VAR_ASSIGNMENT"));
+  const unsafeAssignmentProblems = unsafeAssignmentLines
+    .filter((line) => !line.toLowerCase().includes("sidepanel"))
+    .map((line) => line.trim() || "UNSAFE_VAR_ASSIGNMENT");
+
+  return [...unexpectedCodes, ...unsafeAssignmentProblems];
+};
 
 const main = async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "localhost-control-firefox-lint-"));
   try {
     await extractZip(artifact, tempRoot);
+    const sourceInnerHtml = await collectSourceInnerHtml(path.join(repoRoot, "packages", "extension", "src"));
+    if (sourceInnerHtml.length) {
+      throw new Error(`Firefox lint source guard found innerHTML usage: ${sourceInnerHtml.join(", ")}`);
+    }
+
     const npx = process.platform === "win32" ? "npx.cmd" : "npx";
     const result = spawnSync(npx, ["--yes", "web-ext@latest", "lint", "--source-dir", tempRoot], {
       cwd: repoRoot,
@@ -86,7 +110,7 @@ const main = async () => {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
     if (result.status !== 0) throw new Error("web-ext lint failed for the Firefox extension package");
-    const unexpectedWarnings = unexpectedWarningCodes(`${result.stdout ?? ""}\n${result.stderr ?? ""}`);
+    const unexpectedWarnings = unexpectedWarningDetails(`${result.stdout ?? ""}\n${result.stderr ?? ""}`);
     if (unexpectedWarnings.length) {
       throw new Error(`Unexpected Firefox lint warning: ${unexpectedWarnings.join(", ")}`);
     }

@@ -5,19 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
+import { parseArgs } from "./lib/cli-args.mjs";
 import { buildNativeHostManifest, DEFAULT_EXTENSION_ID, DEFAULT_FIREFOX_EXTENSION_ID, resolveNativeMessagingManifestTargets } from "./lib/native-host-manifest.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(await import("node:fs/promises").then((fs) => fs.readFile(path.join(repoRoot, "package.json"), "utf8")));
-
-const parseArgs = () => {
-  const args = new Map();
-  for (const arg of process.argv.slice(2)) {
-    const [key, value = "true"] = arg.replace(/^--/, "").split("=");
-    args.set(key, value);
-  }
-  return args;
-};
 
 const copyHostBinary = async (source, destination) => {
   await mkdir(path.dirname(destination), { recursive: true });

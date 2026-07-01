@@ -1,9 +1,13 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const script = readFileSync(resolve(__dirname, "../scripts/package-extension.mjs"), "utf8");
-const packageJson = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8")) as {
+const repoRoot = resolve(__dirname, "..");
+const script = readFileSync(resolve(repoRoot, "scripts/package-extension.mjs"), "utf8");
+const packageJson = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")) as {
+  version: string;
   scripts: Record<string, string>;
 };
 
@@ -34,5 +38,20 @@ describe("package-extension.mjs", () => {
     expect(script).toContain("acquirePackageLock");
     expect(script).toContain("Timed out waiting for the Localhost Control extension package lock.");
     expect(script).toContain("await releasePackageLock()");
+  });
+
+  it("accepts space-separated CLI values for manual release checks", () => {
+    const outputDir = join(tmpdir(), `localhost-control-extension-args-${process.pid}-${Date.now()}`);
+    try {
+      execFileSync("node", ["scripts/package-extension.mjs", "--target", "firefox", "--out-dir", outputDir], {
+        cwd: repoRoot,
+        stdio: "pipe"
+      });
+
+      expect(existsSync(join(outputDir, `localhost-control-${packageJson.version}-firefox.zip`))).toBe(true);
+      expect(existsSync(resolve(repoRoot, "true"))).toBe(false);
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true });
+    }
   });
 });
