@@ -620,7 +620,7 @@ const runChromiumSmoke = async (options) => {
       initialUrl: `chrome-extension://${keyedExtension.extensionId}/sidepanel.html`,
       remoteDebuggingPort,
       userDataDir: smokeUserDataDir,
-      env: browserEnv
+      env: { ...browserEnv, ...registration.env }
     });
     const smokeVersion = await fetchBrowserVersion(remoteDebuggingPort, options.timeoutMs);
     probe = await runNativeVersionInExtension({

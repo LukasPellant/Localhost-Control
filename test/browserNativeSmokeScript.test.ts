@@ -23,22 +23,21 @@ const packageJson = JSON.parse(readFileSync(resolve(__dirname, "../package.json"
 
 describe("smoke-browser-native.mjs", () => {
   beforeAll(async () => {
-    ({
-      buildChromiumLaunchArgs,
-      buildChromiumNativeManifest,
-      buildFirefoxNativeManifest,
-      buildFirefoxSmokeManifest,
-      buildWindowsBrowserCleanupCommand,
-      browserCandidates,
-      browserExecutableCommandNames,
-      chromiumRegistrySuffixes,
-      computeChromiumExtensionId,
-      describeRuntimeEvaluationFailure,
-      firefoxUserManifestPaths,
-      main,
-      parseBrowserNativeSmokeArgs,
-      webExtCliPath
-    } = await import("../scripts/smoke-browser-native.mjs"));
+    const smoke = await import("../scripts/smoke-browser-native.mjs");
+    buildChromiumLaunchArgs = smoke.buildChromiumLaunchArgs;
+    buildChromiumNativeManifest = smoke.buildChromiumNativeManifest;
+    buildFirefoxNativeManifest = smoke.buildFirefoxNativeManifest;
+    buildFirefoxSmokeManifest = smoke.buildFirefoxSmokeManifest;
+    buildWindowsBrowserCleanupCommand = smoke.buildWindowsBrowserCleanupCommand;
+    browserCandidates = smoke.browserCandidates;
+    browserExecutableCommandNames = smoke.browserExecutableCommandNames;
+    chromiumRegistrySuffixes = smoke.chromiumRegistrySuffixes;
+    computeChromiumExtensionId = smoke.computeChromiumExtensionId;
+    describeRuntimeEvaluationFailure = smoke.describeRuntimeEvaluationFailure;
+    firefoxUserManifestPaths = smoke.firefoxUserManifestPaths;
+    main = smoke.main;
+    parseBrowserNativeSmokeArgs = smoke.parseBrowserNativeSmokeArgs;
+    webExtCliPath = smoke.webExtCliPath;
   });
 
   it("is exposed as an opt-in release smoke script", () => {
