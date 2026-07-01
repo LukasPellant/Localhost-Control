@@ -92,6 +92,37 @@ describe("loadSettings", () => {
     });
   });
 
+  it("migrates legacy KerfCut raw Vite profile metadata on load", async () => {
+    window.localStorage.setItem(
+      "localhost-control-settings",
+      JSON.stringify({
+        projectProfiles: [
+          {
+            id: "kerfcut",
+            name: "KerfCut",
+            projectPath: "D:\\DevelopmentD\\DarkBurn",
+            startCommand: '"node"   "D:\\DevelopmentD\\DarkBurn\\node_modules\\.bin\\\\..\\vite\\bin\\vite.js" --host 127.0.0.1 --port 5173',
+            expectedPort: 5173,
+            mainUrl: "http://127.0.0.1:5173"
+          }
+        ]
+      })
+    );
+
+    await expect(loadSettings()).resolves.toMatchObject({
+      projectProfiles: [
+        {
+          id: "kerfcut",
+          name: "KerfCut",
+          projectPath: "D:\\DevelopmentD\\DarkBurn\\apps\\web",
+          startCommand: "npm run dev",
+          expectedPort: 5173,
+          mainUrl: "http://127.0.0.1:5173"
+        }
+      ]
+    });
+  });
+
   it("falls back to defaults when extension storage cannot be read", async () => {
     (globalThis as { browser?: unknown }).browser = {
       storage: {

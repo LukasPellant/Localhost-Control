@@ -2,6 +2,7 @@ import { getExtensionApi } from "./extensionApi";
 import { sanitizeActionAudit, type ActionAuditEntry } from "./actionAudit";
 import { sanitizeProjectProfiles, type ProjectProfile } from "./projectProfiles";
 import { sanitizeProjectWorkspaces, type ProjectWorkspace } from "./projectWorkspaces";
+import { canonicalizeProfileStartCommand } from "./startPorts";
 
 export type ThemeMode = "system" | "light" | "dark";
 
@@ -35,7 +36,10 @@ const isRefreshInterval = (value: unknown): value is number => [0, 10, 30, 60].i
 export const sanitizeSettings = (value: unknown): Settings => {
   if (!isSettingsPatch(value)) return defaultSettings;
 
-  const projectProfiles = sanitizeProjectProfiles(value.projectProfiles);
+  const projectProfiles = sanitizeProjectProfiles(value.projectProfiles).map((profile) => {
+    const canonicalized = canonicalizeProfileStartCommand(profile);
+    return canonicalized.ok && canonicalized.changed ? canonicalized.profile : profile;
+  });
 
   return {
     includeSystemPorts: typeof value.includeSystemPorts === "boolean" ? value.includeSystemPorts : defaultSettings.includeSystemPorts,
@@ -63,6 +67,13 @@ const parseStoredSettings = (raw: string | null): Settings => {
   } catch {
     return defaultSettings;
   }
+};
+
+const portableSettings = (settings: Settings): Settings => ({ ...sanitizeSettings(settings), actionAudit: [] });
+
+const settingsMigrationNeeded = (stored: unknown, safeSettings: Settings): boolean => {
+  if (!isSettingsPatch(stored)) return false;
+  return JSON.stringify(sanitizeProjectProfiles(stored.projectProfiles)) !== JSON.stringify(safeSettings.projectProfiles);
 };
 
 const parseStoredActionAudit = (raw: string | null): ActionAuditEntry[] => {
@@ -95,8 +106,16 @@ export const loadSettings = async (): Promise<Settings> => {
   if (storage) {
     try {
       const [settingsResult, actionAuditResult] = await Promise.all([storage.get(key), storage.get(actionAuditKey)]);
+      const safeSettings = sanitizeSettings(settingsResult[key]);
+      if (settingsMigrationNeeded(settingsResult[key], safeSettings)) {
+        try {
+          await storage.set({ [key]: portableSettings(safeSettings) });
+        } catch {
+          // Loading settings should still succeed if a best-effort migration write fails.
+        }
+      }
       return {
-        ...sanitizeSettings(settingsResult[key]),
+        ...safeSettings,
         actionAudit: sanitizeActionAudit(actionAuditResult[actionAuditKey])
       };
     } catch {
@@ -104,14 +123,25 @@ export const loadSettings = async (): Promise<Settings> => {
     }
   }
 
+  const rawSettings = window.localStorage.getItem(key);
+  const safeSettings = parseStoredSettings(rawSettings);
+  if (rawSettings) {
+    try {
+      if (settingsMigrationNeeded(JSON.parse(rawSettings) as unknown, safeSettings)) {
+        window.localStorage.setItem(key, JSON.stringify(portableSettings(safeSettings)));
+      }
+    } catch {
+      // Invalid JSON already falls back to defaults above.
+    }
+  }
   return {
-    ...parseStoredSettings(window.localStorage.getItem(key)),
+    ...safeSettings,
     actionAudit: parseStoredActionAudit(window.localStorage.getItem(actionAuditKey))
   };
 };
 
 export const saveSettings = async (settings: Settings): Promise<void> => {
-  const safeSettings = { ...sanitizeSettings(settings), actionAudit: [] };
+  const safeSettings = portableSettings(settings);
   const storage = getExtensionApi()?.storage?.local;
   if (storage) {
     await storage.set({ [key]: safeSettings });

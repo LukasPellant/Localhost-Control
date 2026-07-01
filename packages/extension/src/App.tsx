@@ -1173,7 +1173,7 @@ export const App = ({ client }: AppProps) => {
         ...(options.avoidPorts?.length ? { avoidPorts: [...options.avoidPorts] } : {}),
         searchLimit: 50
       });
-      if (!options.skipRunningGuard && portResult.changed && portResult.occupiedBy && scoreProfileForEntry(portResult.occupiedBy, profile) >= 100) {
+      if (!options.skipRunningGuard && portResult.changed && portResult.occupiedBy && scoreProfileForEntry(portResult.occupiedBy, profile) >= 50) {
         const message = `${profile.name} is already running on port ${portResult.occupiedBy.port}.`;
         setMessage(message);
         void waitForProfileObserved(profile);
