@@ -3,10 +3,17 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = resolve(__dirname, "..");
+const gitAttributes = readFileSync(resolve(repoRoot, ".gitattributes"), "utf8");
 const artifactWorkflow = readFileSync(resolve(repoRoot, ".github/workflows/native-host-artifacts.yml"), "utf8");
 const releaseWorkflow = readFileSync(resolve(repoRoot, ".github/workflows/release-native-host.yml"), "utf8");
 
 describe("release install smoke scripts", () => {
+  it("keeps release shell scripts and workflows on LF line endings", () => {
+    expect(gitAttributes).toContain("*.sh text eol=lf");
+    expect(gitAttributes).toContain("*.yml text eol=lf");
+    expect(gitAttributes).toContain("*.yaml text eol=lf");
+  });
+
   it("keeps platform install smoke logic in reusable scripts", () => {
     const linuxScript = resolve(repoRoot, "scripts/ci/smoke-installed-linux-deb.sh");
     const macosScript = resolve(repoRoot, "scripts/ci/smoke-installed-macos-pkg.sh");
